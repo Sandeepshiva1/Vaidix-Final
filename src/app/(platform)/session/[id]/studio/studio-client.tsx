@@ -131,8 +131,8 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
         | null
 
       if (res.ok && body?.data?.jobId) {
-        // Hand off to the REAL slide editor.
-        router.push(`/teacher/decks/${body.data.jobId}`)
+        // Hand off to the REAL slide editor — IN the session flow.
+        router.push(`/session/${session.id}/studio/${body.data.jobId}`)
         return
       }
 
@@ -334,7 +334,7 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                     <div className="flex shrink-0 items-center gap-2">
                       {ready ? (
                         <a
-                          href={`/teacher/decks/${ppt.jobId}`}
+                          href={`/session/${session.id}/studio/${ppt.jobId}`}
                           className="inline-flex h-8 items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/8 px-3.5 text-[12px] font-medium text-teal-700 transition-colors hover:bg-teal-500/15 dark:text-teal-300"
                         >
                           <Edit3 className="size-3.5" />
@@ -439,7 +439,7 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                         {String(d.kind)}{d.slideCount ? ` · ${d.slideCount} slides` : ''}
                       </div>
                       {d.jobId ? (
-                        <Link href={`/teacher/decks/${d.jobId}`} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-700 px-2 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-slate-600"><Edit3 className="size-3" /> Open editor</Link>
+                        <Link href={`/session/${session.id}/studio/${d.jobId}`} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-700 px-2 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-slate-600"><Edit3 className="size-3" /> Open editor</Link>
                       ) : (
                         <Link href={`/teacher/documents/${d.documentId}`} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/60 px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5"><FileText className="size-3" /> View document</Link>
                       )}

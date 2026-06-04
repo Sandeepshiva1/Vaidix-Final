@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
   Bold,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Download,
@@ -58,6 +59,13 @@ interface Props {
   initialSlides: SlideViewModel[];
   initialAnalysis: DeckAnalysisResult | null;
   initialTheme?: string | null;
+  /**
+   * When set, the editor is rendered inside the session pre-conference flow:
+   * the Back link returns to /session/[id]/pre and a primary "Finalize" button
+   * appears (locks the deck, then returns to the hub). Undefined = standalone
+   * /teacher/decks use, where behavior is unchanged.
+   */
+  backToSessionId?: string;
 }
 
 type RightTab = 'edit' | 'coach';
@@ -70,6 +78,7 @@ export function DeckEditorClient({
   initialSlides,
   initialAnalysis,
   initialTheme,
+  backToSessionId,
 }: Props) {
   const router = useRouter();
   const [slides, setSlides] = useState<SlideViewModel[]>(initialSlides);
@@ -77,6 +86,7 @@ export function DeckEditorClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   // Per-slide AI image state: which slide is generating, and which (if any)
   // hit the offline (503) path so the panel can show an inline note.
   const [imageBusyId, setImageBusyId] = useState<string | null>(null);
@@ -233,6 +243,29 @@ export function DeckEditorClient({
     }
   }
 
+  // Session-flow only: lock the deck (APPROVED) then return to the pre-conf hub.
+  // If finalize fails we still navigate back — the hub derives the step as done
+  // once a deck exists, so the faculty isn't trapped in the editor.
+  async function finalizeForSession() {
+    if (!backToSessionId) return;
+    setFinalizing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/decks/${jobId}/finalize`, {
+        method: 'POST',
+        headers: { ...csrfHeaders() },
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(j?.error?.message ?? `Finalize failed (${res.status})`);
+      }
+      router.push(`/session/${backToSessionId}/pre`);
+    } catch (err) {
+      setError((err as Error).message);
+      setFinalizing(false);
+    }
+  }
+
   const activeIndex = active ? slides.findIndex((s) => s.id === active.id) : -1;
 
   return (
@@ -241,11 +274,11 @@ export function DeckEditorClient({
       <header className="flex items-center justify-between border-b border-border/60 bg-background/50 px-6 py-3 backdrop-blur">
         <div className="min-w-0">
           <Link
-            href="/teacher/documents"
+            href={backToSessionId ? `/session/${backToSessionId}/pre` : '/teacher/documents'}
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="size-3" />
-            Back to documents
+            {backToSessionId ? 'Back to session' : 'Back to documents'}
           </Link>
           <h1 className="mt-1 truncate text-[19px] font-semibold tracking-tight">{deckTitle}</h1>
           <p className="text-[11.5px] text-muted-foreground">
@@ -282,6 +315,26 @@ export function DeckEditorClient({
             <Eye className="size-3.5" />
             Present
           </Link>
+          {backToSessionId && (
+            <button
+              type="button"
+              onClick={finalizeForSession}
+              disabled={finalizing}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-linear-to-r from-teal-600 to-emerald-600 px-5 text-[12.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] disabled:opacity-60"
+            >
+              {finalizing ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Finalizing…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-3.5" />
+                  Finalize
+                </>
+              )}
+            </button>
+          )}
         </div>
       </header>
 
