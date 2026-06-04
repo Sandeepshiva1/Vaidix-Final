@@ -1,0 +1,10 @@
+# Shell scripts MUST be LF — they run on the Linux deploy host. A CRLF commit
+# (easy to make from a Windows checkout with core.autocrlf=true) ships
+# `#!/usr/bin/env bash\r`, which the kernel rejects with "bad interpreter".
+*.sh text eol=lf
+
+# Other deploy-critical text that the Linux containers read as files.
+*.yaml text eol=lf
+*.yml text eol=lf
+*.tpl text eol=lf
+Dockerfile text eol=lf

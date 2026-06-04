@@ -110,6 +110,18 @@ render() {
     echo "[render-configs] template missing: $src" >&2
     exit 1
   fi
+  # Self-heal the "is a directory" footgun: if the stack was ever brought up
+  # with `docker compose up` BEFORE this script ran, Docker found the bind
+  # source ($out) missing and auto-created it as an empty DIRECTORY. Then
+  # `envsubst > "$out"` fails with "Is a directory" and the container that
+  # mounts it crash-loops on `read /etc/<cfg>: is a directory`. Remove the
+  # stray dir so we can write the real file. The dir is empty + the repo root
+  # is owned by the deploy user, so this rm needs no sudo even though Docker
+  # created the dir as root (removal depends on the parent dir's perms).
+  if [ -d "$out" ]; then
+    echo "[render-configs] $out is a stray directory (created by a pre-render 'compose up') — removing"
+    rm -rf "$out"
+  fi
   envsubst < "$src" > "$out"
   # mode 644 by default — bind-mounted into containers running as non-root
   # uids (egress runs as its own user; coturn/coturn:latest runs as the

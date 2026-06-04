@@ -159,7 +159,10 @@ if [ -n "$CHANGED_FILES" ]; then
     NEEDS_LIVEKIT=1
     NEEDS_COTURN=1
   fi
-  if echo "$CHANGED_FILES" | grep -qE 'egress\.yaml\.tpl'; then
+  # Recreate egress when its template OR the render script / compose changes —
+  # egress bind-mounts a freshly-rendered egress.yaml, so a render change must
+  # bounce it too (otherwise it keeps the old mount, incl. a stray directory).
+  if echo "$CHANGED_FILES" | grep -qE '(egress\.yaml\.tpl|scripts/render-configs\.sh|docker-compose\.prod\.yml)'; then
     NEEDS_EGRESS=1
   fi
 fi
