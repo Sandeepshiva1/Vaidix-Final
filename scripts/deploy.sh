@@ -80,7 +80,12 @@ fi
 
 BEFORE_SHA="$(git rev-parse HEAD)"
 git fetch origin
-git pull origin master
+# Pull the branch THIS checkout is on. The remote default is `main`; hardcoding
+# `master` (which no longer exists on origin) made `git pull` fail under
+# `set -euo pipefail` and aborted the whole deploy — pushing operators to run
+# `docker compose up` by hand, which is what created the stray config dirs.
+DEPLOY_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+git pull origin "$DEPLOY_BRANCH"
 AFTER_SHA="$(git rev-parse HEAD)"
 
 if [ "$NEEDS_STASH" -eq 1 ]; then
