@@ -3,16 +3,13 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import {
-  AlertCircle,
   ArrowLeft,
   BarChart3,
   Bell,
   BellOff,
-  BookOpen,
   Brain,
   Check,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   Clock3,
   Copy,
@@ -21,25 +18,17 @@ import {
   ExternalLink,
   Eye,
   FileText,
-  Flame,
-  Globe,
-  HelpCircle,
   Info,
-  Layers,
   Link2,
-  Medal,
   MessageCircle,
   Mic,
-  PenLine,
   Play,
   Plus,
-  Presentation,
   RefreshCw,
   Save,
   Send,
   Share2,
   Sparkles,
-  Star,
   ThumbsUp,
   Trophy,
   Users2,
@@ -48,7 +37,6 @@ import {
   Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { SessionHeader } from '@/components/medlearn/session-header'
 import type { SessionView } from '@/lib/medlearn/session-view'
 
 type PostTab =
@@ -129,21 +117,25 @@ interface StudentAnalytics {
   peerEngagement: number
 }
 
-// Materials shown on the Materials tab. SessionView does not carry the file
-// lists the demo body reads, so they live in local state seeded with the
-// demo default (the "Glaucoma Suspect" session).
-interface MaterialFile {
+// Demo-seeded session materials — not part of SessionView yet (real-data wiring
+// is a later phase), so these live as local state seeded with the demo default.
+interface SourceFile {
   name: string
   size: string
-  kind: string
+  kind: 'pdf' | 'pptx' | 'docx' | 'notes'
+}
+interface PrereadFile {
+  name: string
+  size: string
+  kind: 'pdf' | 'video' | 'docx' | 'notes'
 }
 
-const SOURCE_FILES_SEED: MaterialFile[] = [
-  { name: 'EGS Guidelines 2022 — Glaucoma Management.pdf', size: '4.2 MB', kind: 'pdf' },
-  { name: 'Glaucoma-suspect-cases.pptx', size: '9.3 MB', kind: 'pptx' },
+const SOURCE_FILES_SEED: SourceFile[] = [
+  { name: 'Glaucoma Suspect — Diagnosis & Management.pptx', size: '5.2 MB', kind: 'pptx' },
+  { name: 'OHTS Study Summary.pdf', size: '1.8 MB', kind: 'pdf' },
 ]
 
-const PREREAD_FILES_SEED: MaterialFile[] = [
+const PREREAD_FILES_SEED: PrereadFile[] = [
   { name: 'OCT-RNFL interpretation primer.pdf', size: '1.1 MB', kind: 'pdf' },
 ]
 
@@ -271,13 +263,14 @@ function downloadBlob(content: string, filename: string) {
 }
 
 export function PostClient({ session }: { session: SessionView }) {
+  // Demo-only session fields not present on SessionView (later phase wires real
+  // data) — seeded with the demo defaults, kept as local state.
+  const [sourceFiles] = useState<SourceFile[]>(SOURCE_FILES_SEED)
+  const [prereadFiles] = useState<PrereadFile[]>(PREREAD_FILES_SEED)
+
   const [activeTab, setActiveTab] = useState<PostTab>('overview')
   const [pearls, setPearls] = useState<Pearl[]>(PEARLS_SEED)
   const [doubts, setDoubts] = useState<Doubt[]>(DOUBTS_SEED)
-  // Demo session.sourceFiles / session.prereadFiles aren't on SessionView, so
-  // they're local state seeded with the demo default.
-  const [sourceFiles] = useState<MaterialFile[]>(SOURCE_FILES_SEED)
-  const [prereadFiles] = useState<MaterialFile[]>(PREREAD_FILES_SEED)
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [videoUrlDraft, setVideoUrlDraft] = useState<Record<string, string>>({})
   const [expandedDoubt, setExpandedDoubt] = useState<string | null>(null)
@@ -370,17 +363,19 @@ export function PostClient({ session }: { session: SessionView }) {
   return (
     <div className="mx-auto max-w-7xl">
       {/* Header */}
-      <SessionHeader
-        session={session}
-        backHref={`/session/${session.id}/prepare`}
-        eyebrow="Post-Conference"
-      />
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-muted-foreground">
+          <Link href={`/session/${session.id}/prepare`} className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-3.5" />
+            Back to session
+          </Link>
+          <h1 className="mt-1 text-[22px] font-bold tracking-tight">{session.title}</h1>
+          <div className="mt-1 flex items-center gap-3 text-[12.5px] text-muted-foreground">
             <span className="inline-flex items-center gap-1 rounded-full bg-teal-500/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-teal-700 ring-1 ring-inset ring-teal-500/20">
               <Check className="size-3" /> Post-Conference Active
             </span>
+            <span>{session.specialty} · {session.type}</span>
+            <span>{session.date}</span>
             {doubtsOpen && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20">
                 <Bell className="size-3" /> Doubts open · {daysLeft} days left

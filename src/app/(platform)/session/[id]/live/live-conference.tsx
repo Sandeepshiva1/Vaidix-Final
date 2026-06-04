@@ -40,8 +40,26 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  GridLayout,
+  FocusLayout,
+  FocusLayoutContainer,
+  CarouselLayout,
+  ParticipantTile,
+  useTracks,
+  useLocalParticipant,
+  useParticipants,
+} from '@livekit/components-react'
+import { Track } from 'livekit-client'
 import { cn } from '@/lib/utils'
 import type { SessionView } from '@/lib/medlearn/session-view'
+import {
+  useLiveToken, useEngagement, useLiveHooks, useLeaderboard, useBreakouts,
+  useCaptions, usePresenterAlerts, suggestHooks,
+  type TokenState, type ApiHookKind, type SuggestedPoll,
+} from './live-data'
 
 type ViewMode = 'gallery' | 'presentation'
 type RightTab = 'hooks' | 'transcript' | 'ai' | 'breakout'

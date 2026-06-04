@@ -76,10 +76,10 @@ async function loadBootstrap(sessionId: string, metadata: Prisma.JsonValue | nul
       const svgUrl = await presignDownload(d.s3Key, 60 * 30)
       assets.push({ template, documentId: d.id, title: d.title, svgUrl, createdAt: d.createdAt.toISOString() })
     }
-    return { meta, assets, storageOffline: false }
+    return { meta, assets, teaserVideo: null, storageOffline: false }
   } catch {
     // Object store unreachable → keep saved flags, drop the (unrenderable) assets.
-    return { meta, assets: [], storageOffline: true }
+    return { meta, assets: [], teaserVideo: null, storageOffline: true }
   }
 }
 
