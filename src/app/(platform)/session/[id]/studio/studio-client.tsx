@@ -77,7 +77,11 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
   const [prompt, setPrompt] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const hasDecks = decks.length > 0
+  // "My PPTs" = actual forged presentations (a deck/slides exist), NOT every
+  // linked document — otherwise prescriptions/source PDFs wrongly show as saved
+  // PPTs. Matches the demo (which only shows My PPTs once you've built a deck).
+  const realDecks = decks.filter((d) => d.jobId !== null)
+  const hasDecks = realDecks.length > 0
   const busy = flow.kind === 'uploading' || flow.kind === 'forging'
 
   // ── Real upload → tag → forge → real editor ────────────────────────────────
@@ -224,15 +228,15 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                     <FileType className="size-7" />
                   </div>
                   <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-300">
-                    {decks.length} saved
+                    {realDecks.length} saved
                   </span>
                 </div>
                 <h2 className="mt-4 text-[19px] font-semibold tracking-tight">My PPTs</h2>
                 <p className="mt-2 text-[13px] text-muted-foreground leading-relaxed">
-                  {decks.length} presentation{decks.length !== 1 ? 's' : ''} saved. Edit any version, apply new AI suggestions, or download the enhanced slides.
+                  {realDecks.length} presentation{realDecks.length !== 1 ? 's' : ''} saved. Edit any version, apply new AI suggestions, or download the enhanced slides.
                 </p>
                 <ul className="mt-4 space-y-1.5">
-                  {decks.slice(0, 3).map((p) => (
+                  {realDecks.slice(0, 3).map((p) => (
                     <li key={p.documentId} className="flex items-center gap-2 text-[12px] text-muted-foreground">
                       <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
                       <span className="truncate font-medium text-foreground/80">{p.name}</span>
@@ -271,7 +275,7 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
             <div>
               <h2 className="text-[20px] font-semibold tracking-tight">My PPTs</h2>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                {decks.length} saved presentation{decks.length !== 1 ? 's' : ''} for this session
+                {realDecks.length} saved presentation{realDecks.length !== 1 ? 's' : ''} for this session
               </p>
             </div>
             <button
@@ -284,7 +288,7 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
             </button>
           </div>
 
-          {decks.length === 0 ? (
+          {realDecks.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-8 text-center">
               <FileType className="mx-auto size-7 text-muted-foreground" />
               <h3 className="mt-3 text-[15px] font-semibold">No presentations yet</h3>
@@ -302,7 +306,7 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
             </div>
           ) : (
             <div className="space-y-3">
-              {decks.map((ppt) => {
+              {realDecks.map((ppt) => {
                 const ready = ppt.jobId != null
                 return (
                   <div
