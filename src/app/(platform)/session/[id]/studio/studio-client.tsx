@@ -563,10 +563,15 @@ async function uploadDocumentMultipart({
   form.append('description', description)
   form.append('file', file)
 
+  // /api/documents/upload enforces CSRF (double-submit). Bootstrap + attach the
+  // x-csrf-token header before sending, or the upload 403s.
+  const csrf = await ensureCsrfHeaders()
+
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', '/api/documents/upload', true)
     xhr.withCredentials = true
+    for (const [k, v] of Object.entries(csrf)) xhr.setRequestHeader(k, v)
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) onProgress((ev.loaded / ev.total) * 100)
     }
