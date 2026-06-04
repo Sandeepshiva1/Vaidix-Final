@@ -54,6 +54,10 @@ interface StudyPackResponse {
   readings: StudyPackItem[]
   videos: StudyPackItem[]
   preCases: PreCaseItem[]
+  /** AI-generated from the session transcript (SjtCase). Empty until recorded. */
+  quiz: QuizQuestion[]
+  /** AI-generated from the session transcript (PostSessionQa). */
+  flashcards: { front: string; back: string }[]
 }
 
 interface ApiOk<T> { ok: true; data: T }
@@ -165,37 +169,9 @@ const DIFFICULTY_CONFIG = {
   ADVANCED:     { label: 'Advanced',     cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
 }
 
-// ─── Demo content (placeholder until AI quiz generation is wired) ─────────────
+// ─── AI-generated quiz / flashcards (sourced from the session transcript) ─────
 
 interface QuizQuestion { q: string; options: string[]; correct: number; explanation: string }
-
-const DEMO_QUIZ: QuizQuestion[] = [
-  {
-    q: 'Which layer of the cornea is formed by Müller cell end-feet?',
-    options: ['Bowman\'s layer', 'Inner limiting membrane', 'Bruch\'s membrane', 'Descemet\'s membrane'],
-    correct: 1,
-    explanation: 'The inner limiting membrane (ILM) is formed by the end-feet of Müller cells spanning the full retinal thickness. It is the vitreoretinal interface and a surgical target in macular procedures.',
-  },
-  {
-    q: 'Sudden painless monocular visual loss with a cherry-red spot and pale retina is MOST consistent with:',
-    options: ['Branch retinal vein occlusion', 'Central retinal artery occlusion', 'Anterior ischaemic optic neuropathy', 'Vitreous haemorrhage'],
-    correct: 1,
-    explanation: 'CRAO presents with sudden painless loss, diffuse retinal pallor from ischaemia, and a cherry-red spot at the fovea where the choroidal supply is visible through the thin RPE.',
-  },
-  {
-    q: 'In POAG, the primary site of increased resistance to aqueous outflow is:',
-    options: ['Ciliary body epithelium', 'Juxtacanalicular trabecular meshwork', 'Episcleral veins', 'Iris stroma'],
-    correct: 1,
-    explanation: 'The juxtacanalicular (cribriform) region of the trabecular meshwork is the primary site of resistance in POAG — the target of selective laser trabeculoplasty.',
-  },
-]
-
-const DEMO_FLASHCARDS = [
-  { front: 'What cup-to-disc ratio threshold warrants glaucoma suspicion?', back: '≥ 0.6 CDR is suspicious; inter-eye asymmetry > 0.2 is significant regardless of absolute value.' },
-  { front: 'Name the corneal layers from anterior to posterior.', back: 'Epithelium → Bowman\'s layer → Stroma → Dua\'s layer → Descemet\'s membrane → Endothelium' },
-  { front: 'What Goldmann-Witmer coefficient value is diagnostic of intraocular viral infection?', back: 'GWC ≥ 3 is diagnostic; values 2–3 are suspicious. Measures intraocular antibody production relative to serum.' },
-  { front: 'Define relative afferent pupillary defect (RAPD).', back: 'Reduced direct light response vs consensual on swinging flashlight test — indicates asymmetric optic nerve or retinal disease.' },
-]
 
 // ─── Progress Ring ────────────────────────────────────────────────────────────
 
@@ -325,7 +301,7 @@ export function StudyPackList({ sessionId, sessionTitle, hostName, scheduledStar
   const pct = totals.total === 0 ? 0 : Math.round((totals.done / totals.total) * 100)
   const countdown = useMemo(() => formatCountdown(scheduledStart), [scheduledStart])
 
-  // ── Loading ──
+ // ── Loading ──
   if (loading && !data) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
@@ -335,7 +311,7 @@ export function StudyPackList({ sessionId, sessionTitle, hostName, scheduledStar
     )
   }
 
-  // ── Error ──
+ // ── Error ──
   if (error) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
@@ -396,76 +372,76 @@ interface DoubtPrompt {
 function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionId: string; sessionTitle: string; questionCount: number }) {
   const [activeTab, setActiveTab] = useState<PrepTab>('materials')
 
-  // ── Materials ──
+ // ── Materials ──
   const [candidates, setCandidates] = useState<StudyPackCandidate[]>([])
   const [loadingCandidates, setLoadingCandidates] = useState(true)
   const [docBusy, setDocBusy] = useState<string | null>(null)
 
-  // Inline upload
+ // Inline upload
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadTitle, setUploadTitle] = useState('')
   const [saveToLibrary, setSaveToLibrary] = useState(true)
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'linking' | 'done'>('idle')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // ── Objectives ──
+ // ── Objectives ──
   const [objectives, setObjectives] = useState<ObjectiveItem[]>([])
   const [objText, setObjText] = useState('')
   const [objBusy, setObjBusy] = useState(false)
-  // Inline-edit state for an existing objective. Only one row can be edited
-  // at a time; pressing Save commits to the same saveObjectives() path that
-  // Add / Remove use, so there's no parallel write path.
+ // Inline-edit state for an existing objective. Only one row can be edited
+ // at a time; pressing Save commits to the same saveObjectives path that
+ // Add / Remove use, so there's no parallel write path.
   const [editingObjId, setEditingObjId] = useState<string | null>(null)
   const [editingObjText, setEditingObjText] = useState('')
 
-  // ── Prerequisites ──
+ // ── Prerequisites ──
   const [prereqs, setPrereqs] = useState<PrereqItem[]>([])
   const [prereqText, setPrereqText] = useState('')
   const [prereqRequired, setPrereqRequired] = useState(true)
   const [prereqBusy, setPrereqBusy] = useState(false)
 
-  // ── Q&A tab — doubt prompts (presenter-published framing questions) ──
-  // Persisted via the existing PATCH /prep endpoint into session.metadata.
-  // Live question count is polled from GET /pre-questions so the tab badge
-  // (and the sidebar Prep Check card) reflect new submissions without a
-  // page reload.
+ // ── Q&A tab — doubt prompts (presenter-published framing questions) ──
+ // Persisted via the existing PATCH /prep endpoint into session.metadata.
+ // Live question count is polled from GET /pre-questions so the tab badge
+ // (and the sidebar Prep Check card) reflect new submissions without a
+ // page reload.
   const [doubtPrompts, setDoubtPrompts] = useState<DoubtPrompt[]>([])
   const [doubtPromptText, setDoubtPromptText] = useState('')
   const [doubtBusy, setDoubtBusy] = useState(false)
   const [doubtSuggestBusy, setDoubtSuggestBusy] = useState(false)
   const [liveQuestionCount, setLiveQuestionCount] = useState(questionCount)
 
-  // ── AI Objective Suggestions (W9) ──
-  // Surfaces above the objectives input as accept/dismiss chips. Auto-loads
-  // when study material is present AND objectives are still thin (< 3). The
-  // speaker stays in control: nothing is persisted until they tap a chip.
+ // ── AI Objective Suggestions ──
+ // Surfaces above the objectives input as accept/dismiss chips. Auto-loads
+ // when study material is present AND objectives are still thin (< 3). The
+ // speaker stays in control: nothing is persisted until they tap a chip.
   const [suggestions, setSuggestions] = useState<SuggestedObjective[]>([])
   const [suggestBusy, setSuggestBusy] = useState(false)
   const [suggestError, setSuggestError] = useState<string | null>(null)
   const [suggestTried, setSuggestTried] = useState(false)
-  // Countdown until Retry becomes enabled again. Driven by server-supplied
-  // retryAfterSeconds on AI_UNAVAILABLE errors so we don't bounce the user
-  // back into an immediate 503.
+ // Countdown until Retry becomes enabled again. Driven by server-supplied
+ // retryAfterSeconds on AI_UNAVAILABLE errors so we don't bounce the user
+ // back into an immediate 503.
   const [retryCountdown, setRetryCountdown] = useState(0)
 
-  // ── Promo & Share (W9) ──
-  // Banner appears when objectives ≥ 3. The speaker generates the three
-  // promo assets (Gemini-driven copy) and mints a public /p/[token] link in
-  // one click. State is local — page reload re-evaluates from the server.
+ // ── Promo & Share ──
+ // Banner appears when objectives ≥ 3. The speaker generates the three
+ // promo assets (Gemini-driven copy) and mints a public /p/[token] link in
+ // one click. State is local — page reload re-evaluates from the server.
   const [promoBusy, setPromoBusy] = useState<'idle' | 'generating' | 'sharing'>('idle')
   const [promoAssetCount, setPromoAssetCount] = useState(0)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
-  // Re-entry guard: useState's value is captured at click-time in the
-  // closure, so two rapid clicks both see `promoBusy === 'idle'` and slip
-  // past the state-based guard. Refs update synchronously, so the second
-  // closure sees the ref already-set and returns early.
+ // Re-entry guard: useState's value is captured at click-time in the
+ // closure, so two rapid clicks both see `promoBusy === 'idle'` and slip
+ // past the state-based guard. Refs update synchronously, so the second
+ // closure sees the ref already-set and returns early.
   const publishingRef = useRef(false)
   const shareUrlRef = useRef<string | null>(null)
   useEffect(() => { shareUrlRef.current = shareUrl }, [shareUrl])
 
-  // ── Load candidates ──
+ // ── Load candidates ──
   const loadCandidates = useCallback(async () => {
     setLoadingCandidates(true)
     try {
@@ -477,7 +453,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     finally { setLoadingCandidates(false) }
   }, [sessionId])
 
-  // ── Load session (objectives + prereqItems) ──
+ // ── Load session (objectives + prereqItems) ──
   useEffect(() => {
     void loadCandidates()
     async function loadSession() {
@@ -495,11 +471,11 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
       } catch { /* non-critical */ }
     }
     void loadSession()
-    // Surface any existing promo share so a reload doesn't appear to wipe
-    // the speaker's already-published link. Silent on failure — if there's
-    // no live share, the banner CTA is the right resting state. Setting the
-    // ref synchronously here closes the race where a user could click the
-    // banner CTA before this effect resolves and trigger a duplicate share.
+ // Surface any existing promo share so a reload doesn't appear to wipe
+ // the speaker's already-published link. Silent on failure — if there's
+ // no live share, the banner CTA is the right resting state. Setting the
+ // ref synchronously here closes the race where a user could click the
+ // banner CTA before this effect resolves and trigger a duplicate share.
     async function loadCurrentPromoShare() {
       try {
         const d = await jsonFetch<{ share: { url: string; expiresAt: string } | null }>(
@@ -518,7 +494,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
   const inPack = candidates.filter(c => c.isPreSession)
   const available = candidates.filter(c => !c.isPreSession)
 
-  // ── Document helpers ──
+ // ── Document helpers ──
   async function addDoc(documentId: string) {
     setDocBusy(documentId)
     setCandidates(prev => prev.map(c => c.documentId === documentId ? { ...c, isPreSession: true } : c))
@@ -543,7 +519,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     } finally { setDocBusy(null) }
   }
 
-  // ── Inline upload ──
+ // ── Inline upload ──
   async function handleUpload() {
     if (!uploadFile || !uploadTitle.trim() || uploadPhase !== 'idle') return
     setUploadPhase('uploading')
@@ -574,7 +550,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     }
   }
 
-  // ── Objectives helpers ──
+ // ── Objectives helpers ──
   async function saveObjectives(items: ObjectiveItem[]) {
     setObjBusy(true)
     try {
@@ -591,9 +567,9 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
 
   function addObjective() {
     if (!objText.trim() || objectives.length >= 10) return
-    // Manual objectives default to Bloom's level 2 (Understand). The field is
-    // retained in the data model because AI-suggested objectives still carry
-    // a meaningful level, and the Gemini promo prompt reads it as one signal.
+ // Manual objectives default to Bloom's level 2 (Understand). The field is
+ // retained in the data model because AI-suggested objectives still carry
+ // a meaningful level, and the Gemini promo prompt reads it as one signal.
     const item: ObjectiveItem = { id: crypto.randomUUID(), text: objText.trim(), blooms: 2 }
     setObjText('')
     void saveObjectives([...objectives, item])
@@ -632,7 +608,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     void saveObjectives(next)
   }
 
-  // ── Prereqs helpers ──
+ // ── Prereqs helpers ──
   async function savePrereqs(items: PrereqItem[]) {
     setPrereqBusy(true)
     try {
@@ -658,9 +634,9 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     void savePrereqs(prereqs.filter(p => p.id !== id))
   }
 
-  // ── Doubt-prompts helpers ──
-  // Persisted by extending the existing PATCH /prep endpoint — stored in
-  // session.metadata.doubtPrompts (same JSON column prereqItems live in).
+ // ── Doubt-prompts helpers ──
+ // Persisted by extending the existing PATCH /prep endpoint — stored in
+ // session.metadata.doubtPrompts (same JSON column prereqItems live in).
   async function saveDoubtPrompts(items: DoubtPrompt[]) {
     setDoubtBusy(true)
     try {
@@ -701,7 +677,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
         toast.error(!j.ok ? j.error.message : `HTTP ${res.status}`)
         return
       }
-      // Append the suggestions to whatever the speaker already has, capped at 3.
+ // Append the suggestions to whatever the speaker already has, capped at 3.
       const fresh = j.data.suggestions
         .map((text): DoubtPrompt => ({ id: crypto.randomUUID(), text: text.slice(0, 200) }))
         .filter(s => s.text.length >= 8)
@@ -724,7 +700,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     }
   }
 
-  // ── AI suggestion helpers (W9) ──
+ // ── AI suggestion helpers ──
   async function fetchSuggestions(opts?: { silent?: boolean }) {
     if (suggestBusy) return
     setSuggestBusy(true)
@@ -739,7 +715,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
       if (!res.ok || !j.ok) {
         const msg = !j.ok ? j.error.message : `HTTP ${res.status}`
         setSuggestError(msg)
-        // Server hints us when to allow Retry again (e.g. 30s on a 503).
+ // Server hints us when to allow Retry again (e.g. 30s on a 503).
         const retryAfter = (!j.ok && j.error.details?.retryAfterSeconds) || 0
         if (retryAfter > 0) setRetryCountdown(retryAfter)
         if (!opts?.silent) toast.error(msg)
@@ -771,28 +747,28 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     setSuggestions(prev => prev.filter((_, i) => i !== idx))
   }
 
-  // Auto-load suggestions once when material is available AND objectives are
-  // still thin. The speaker can refresh manually after that. Quiet failure —
-  // we don't want a toast spamming if Gemini is offline.
+ // Auto-load suggestions once when material is available AND objectives are
+ // still thin. The speaker can refresh manually after that. Quiet failure
+ // we don't want a toast spamming if Gemini is offline.
   useEffect(() => {
     if (activeTab !== 'objectives') return
     if (suggestTried || suggestBusy) return
     if (inPack.length === 0 || objectives.length >= 3) return
     void fetchSuggestions({ silent: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, inPack.length, objectives.length, suggestTried])
 
-  // Tick down the AI-retry timer once per second so the Retry button can
-  // re-enable on schedule. Pauses naturally at 0.
+ // Tick down the AI-retry timer once per second so the Retry button can
+ // re-enable on schedule. Pauses naturally at 0.
   useEffect(() => {
     if (retryCountdown <= 0) return
     const t = setTimeout(() => setRetryCountdown(s => Math.max(0, s - 1)), 1000)
     return () => clearTimeout(t)
   }, [retryCountdown])
 
-  // Poll the pre-question count so the Q&A tab badge + sidebar reflect new
-  // resident submissions without a manual reload. Fast (3s) on the Q&A tab
-  // since the speaker is actively monitoring, slow (30s) elsewhere.
+ // Poll the pre-question count so the Q&A tab badge + sidebar reflect new
+ // resident submissions without a manual reload. Fast (3s) on the Q&A tab
+ // since the speaker is actively monitoring, slow (30s) elsewhere.
   useEffect(() => {
     let cancelled = false
     async function poll() {
@@ -811,7 +787,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     return () => { cancelled = true; clearInterval(t) }
   }, [sessionId, activeTab])
 
-  // ── Promo helpers (W9) ──
+ // ── Promo helpers ──
   async function generatePromo() {
     if (promoBusy !== 'idle') return
     setPromoBusy('generating')
@@ -838,9 +814,9 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
   }
 
   async function publishShare() {
-    // Ref-based guard: ignores both rapid re-clicks AND clicks after a share
-    // has already been published this session. Both situations were creating
-    // duplicate PromoShare rows + duplicate Document rows under load.
+ // Ref-based guard: ignores both rapid re-clicks AND clicks after a share
+ // has already been published this session. Both situations were creating
+ // duplicate PromoShare rows + duplicate Document rows under load.
     if (publishingRef.current || shareUrlRef.current) return
     publishingRef.current = true
     setPromoBusy('sharing')
@@ -885,8 +861,8 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
       toast.error((e as Error).message)
     } finally {
       setPromoBusy('idle')
-      // Only release the ref-guard on FAILURE so the user can retry. On
-      // success the guard stays set; the success banner replaces the CTA.
+ // Only release the ref-guard on FAILURE so the user can retry. On
+ // success the guard stays set; the success banner replaces the CTA.
       if (!ok) publishingRef.current = false
     }
   }
@@ -902,8 +878,8 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
     )
   }
 
-  // Banner becomes visible the moment objectives reach 3 and no share has
-  // been published yet. Speaker can dismiss for the session.
+ // Banner becomes visible the moment objectives reach 3 and no share has
+ // been published yet. Speaker can dismiss for the session.
   const showPromoBanner = objectives.length >= 3 && !shareUrl && !bannerDismissed
 
   const tabCounts: Record<PrepTab, number> = {
@@ -1717,9 +1693,9 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
                 ? 'Ready to generate'
                 : 'Add 3+ objectives first'}
               done={!!shareUrl}
-              // Once a link is live, the sidebar opens the live preview in a
-              // new tab instead of running publishShare again (which would
-              // mint a duplicate row).
+ // Once a link is live, the sidebar opens the live preview in a
+ // new tab instead of running publishShare again (which would
+ // mint a duplicate row).
               link={shareUrl ?? undefined}
               onClick={shareUrl
                 ? undefined
@@ -1764,9 +1740,9 @@ function PrepCheckCard({ emoji, label, sublabel, done, onClick, link }: {
     </motion.div>
   )
   if (link) {
-    // Absolute URLs (e.g. the live promo share at /p/[token] presented as
-    // origin+path) open in a new tab so the speaker keeps their prep
-    // state. Relative routes stay SPA-navigated via next/link.
+ // Absolute URLs (e.g. the live promo share at /p/[token] presented as
+ // origin+path) open in a new tab so the speaker keeps their prep
+ // state. Relative routes stay SPA-navigated via next/link.
     const isAbsolute = /^https?:\/\//i.test(link)
     return isAbsolute
       ? <a href={link} target="_blank" rel="noopener noreferrer" className="block">{inner}</a>
@@ -1806,6 +1782,9 @@ function StudentStudyHub({
   objectives, prereqs, currentUserId, promoShareUrl,
 }: StudentHubProps) {
   const hasObjectives = objectives.length > 0 || prereqs.length > 0
+ // Real AI-generated content from the session transcript (empty until recorded).
+  const quiz = data.quiz
+  const flashcards = data.flashcards
   const [activeTab, setActiveTab] = useState<StudyTab>(hasObjectives ? 'objectives' : 'readings')
   const [quizIdx, setQuizIdx] = useState(0)
   const [quizSelected, setQuizSelected] = useState<Record<number, number>>({})
@@ -1818,20 +1797,20 @@ function StudentStudyHub({
   }
 
   function nextQuestion() {
-    if (quizIdx < DEMO_QUIZ.length - 1) setQuizIdx(i => i + 1)
+    if (quizIdx < quiz.length - 1) setQuizIdx(i => i + 1)
   }
 
-  // Readiness includes quiz — opening a file alone is not enough
+ // Readiness includes quiz — opening a file alone is not enough
   const quizAnswered = Object.keys(quizSelected).length
   const compDone = totals.done + quizAnswered
-  const compTotal = totals.total + DEMO_QUIZ.length
+  const compTotal = totals.total + quiz.length
   const compPct = compTotal === 0 ? 0 : Math.round((compDone / compTotal) * 100)
 
   const topicRows = [
     { label: 'Readings', val: totals.readings === 0 ? 100 : Math.round((data.readings.filter(r => r.viewedByMe).length / totals.readings) * 100), color: 'bg-blue-500' },
     ...(totals.videos > 0 ? [{ label: 'Videos', val: Math.round((data.videos.filter(v => v.viewedByMe).length / totals.videos) * 100), color: 'bg-rose-500' }] : []),
     ...(totals.preCases > 0 ? [{ label: 'Cases', val: Math.round((data.preCases.filter(c => c.myCaseStatus === 'COMPLETED').length / totals.preCases) * 100), color: 'bg-amber-500' }] : []),
-    { label: 'Pre-Quiz', val: DEMO_QUIZ.length === 0 ? 100 : Math.round((quizAnswered / DEMO_QUIZ.length) * 100), color: 'bg-violet-500' },
+    { label: 'Pre-Quiz', val: quiz.length === 0 ? 100 : Math.round((quizAnswered / quiz.length) * 100), color: 'bg-violet-500' },
   ]
 
   const aiTip = compPct === 0
@@ -1845,8 +1824,8 @@ function StudentStudyHub({
     { id: 'readings'   as const, label: 'Readings',   emoji: '📖', badge: data.readings.length, show: true },
     { id: 'videos'     as const, label: 'Videos',     emoji: '▶️', badge: data.videos.length, show: data.videos.length > 0 },
     { id: 'cases'      as const, label: 'Cases',      emoji: '🧠', badge: data.preCases.length, show: data.preCases.length > 0 },
-    { id: 'quiz'       as const, label: 'Quiz',       emoji: '❓', badge: DEMO_QUIZ.length, show: true },
-    { id: 'flashcards' as const, label: 'Flashcards', emoji: '🃏', badge: DEMO_FLASHCARDS.length, show: true },
+    { id: 'quiz'       as const, label: 'Quiz',       emoji: '❓', badge: quiz.length, show: true },
+    { id: 'flashcards' as const, label: 'Flashcards', emoji: '🃏', badge: flashcards.length, show: true },
     { id: 'polls'      as const, label: 'Poll',       emoji: '📊', show: true },
     { id: 'questions'  as const, label: 'Ask & Vote', emoji: '💬', badge: questionCount || undefined, show: true },
   ]
@@ -2024,11 +2003,15 @@ function StudentStudyHub({
                 )}
 
                 {activeTab === 'quiz' && (
-                  <QuizZone quiz={DEMO_QUIZ} quizIdx={quizIdx} selected={quizSelected} onSelect={handleQuizSelect} onNext={nextQuestion} />
+                  quiz.length === 0
+                    ? <StudyContentEmpty emoji="❓" title="No quiz yet" detail="Generated from the session recording." />
+                    : <QuizZone quiz={quiz} quizIdx={quizIdx} selected={quizSelected} onSelect={handleQuizSelect} onNext={nextQuestion} />
                 )}
 
                 {activeTab === 'flashcards' && (
-                  <FlashcardDrill cards={DEMO_FLASHCARDS} drillIdx={drillIdx} setDrillIdx={setDrillIdx} results={drillResults} setResults={setDrillResults} />
+                  flashcards.length === 0
+                    ? <StudyContentEmpty emoji="🃏" title="No flashcards yet" detail="Generated after the session." />
+                    : <FlashcardDrill cards={flashcards} drillIdx={drillIdx} setDrillIdx={setDrillIdx} results={drillResults} setResults={setDrillResults} />
                 )}
 
                 {/* W9.4 — pre-session structured polls (LiveHook kind=POLL,
@@ -2331,6 +2314,21 @@ function QuizZone({ quiz, quizIdx, selected, onSelect, onNext }: {
 
 function EmptyTab({ label }: { label: string }) {
   return <div className="py-8 text-center"><p className="text-sm text-muted-foreground">{label}</p></div>
+}
+
+// Honest empty state for the AI-generated Quiz / Flashcard tabs — keeps the
+// dark gradient card look of the populated zones, but states plainly that the
+// content has not been generated yet. No fabricated questions/cards.
+function StudyContentEmpty({ emoji, title, detail }: { emoji: string; title: string; detail: string }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center gap-2 overflow-hidden rounded-2xl px-6 py-12 text-center"
+      style={{ background: 'linear-gradient(135deg, #1B2B4B 0%, #0F2D3F 100%)' }}>
+      <span className="text-4xl opacity-80">{emoji}</span>
+      <p className="text-[14px] font-bold text-white">{title}</p>
+      <p className="max-w-xs text-[12px] leading-relaxed text-white/50">{detail}</p>
+    </motion.div>
+  )
 }
 
 // ─── Flashcard Drill ──────────────────────────────────────────────────────────

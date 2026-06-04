@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// GET /api/classroom/sessions/[id]/study-pack — W6.8
+// GET /api/classroom/sessions/[id]/study-pack
 // ════════════════════════════════════════════════════════════════════════════
 // Returns the resident-facing Study Pack: pre-readings + pre-watch videos +
 // pre-cases (with each item's `viewedByMe` flag). Anyone with visibility into
@@ -14,6 +14,7 @@ import {
 } from '@/server/services/api-helpers';
 import {
   listStudyPackDocuments,
+  listStudyPackAiContent,
   StudyPackAccessError,
 } from '@/server/services/study-pack/study-pack-service';
 import { listPreCasesForLearner } from '@/server/services/study-pack/pre-case-service';
@@ -28,15 +29,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id: sessionId } = await ctx.params;
   try {
     const actor = { userId: auth.user.id, role: auth.user.role };
-    const [docs, preCases] = await Promise.all([
+    const [docs, preCases, ai] = await Promise.all([
       listStudyPackDocuments(sessionId, actor),
       listPreCasesForLearner(sessionId, actor),
+      listStudyPackAiContent(sessionId, actor),
     ]);
     return jsonOk({
       sessionId,
       readings: docs.readings,
       videos: docs.videos,
       preCases,
+      quiz: ai.quiz,
+      flashcards: ai.flashcards,
     });
   } catch (err) {
     if (err instanceof StudyPackAccessError) {

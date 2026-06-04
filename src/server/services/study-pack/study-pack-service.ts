@@ -1,12 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Study Pack Service — W6.8 (Feeddback #3, Study Material Hub pre-session)
+// Study Pack Service
 // ════════════════════════════════════════════════════════════════════════════
 // A "Study Pack" is the curated set of pre-session materials a learner sees
 // for an upcoming TeachingSession:
-//   - Pre-readings  → DocumentSessionLink rows where isPreSession=true and
-//                     the linked Document has kind PDF / DOC / MARKDOWN
-//   - Pre-watch videos → same but kind=VIDEO
-//   - Pre-cases     → SessionPreCase rows (handled by pre-case-service)
+// - Pre-readings → DocumentSessionLink rows where isPreSession=true and
+// the linked Document has kind PDF / DOC / MARKDOWN
+// - Pre-watch videos → same but kind=VIDEO
+// - Pre-cases → SessionPreCase rows (handled by pre-case-service)
 //
 // Faculty marks an existing session-tagged document as pre-session via
 // `assignDocumentToStudyPack(...)`. The doc must already be linked to the
@@ -16,10 +16,10 @@
 // the ranked pre-session prep" — same lifecycle, two different concerns.
 //
 // Resident view & engagement:
-//   - listStudyPack returns each item with `viewedByMe` so the UI shows ✓ marks
-//   - recordStudyPackView writes a StudyPackView row + a matching
-//     EngagementSignal so the existing aggregate pipeline + the W6.8 readiness
-//     predictor both pick it up without a parallel codepath.
+// - listStudyPack returns each item with `viewedByMe` so the UI shows ✓ marks
+// - recordStudyPackView writes a StudyPackView row + a matching
+// EngagementSignal so the existing aggregate pipeline + thereadiness
+// predictor both pick it up without a parallel codepath.
 
 import { db } from '@/lib/db';
 import {
@@ -143,9 +143,9 @@ export interface StudyPackResponse {
   readings: StudyPackItemDocument[];
   videos: StudyPackItemDocument[];
   /** Pre-cases are populated by pre-case-service.listPreCasesForLearner; the
-   *  /study-pack route stitches both responses together so the resident page
-   *  has a single fetch. Returned here as the empty list for symmetry; the
-   *  route fills it in. */
+ * /study-pack route stitches both responses together so the resident page
+ * has a single fetch. Returned here as the empty list for symmetry; the
+ * route fills it in. */
   preCases: never[];
 }
 
@@ -191,8 +191,8 @@ export async function listStudyPackDocuments(
     },
   });
 
-  // Pre-load this user's view records in one query so the per-item
-  // viewedByMe lookup is O(1).
+ // Pre-load this user's view records in one query so the per-item
+ // viewedByMe lookup is O(1).
   const viewRows = await db.studyPackView.findMany({
     where: {
       sessionId,
@@ -253,8 +253,8 @@ export async function recordStudyPackView(input: RecordViewInput): Promise<{ vie
       'documentLinkId or preCaseId is required'
     );
   }
-  // Validate the FK target exists + belongs to the session — defends against
-  // a mismatched pair (link from session A submitted under session B).
+ // Validate the FK target exists + belongs to the session — defends against
+ // a mismatched pair (link from session A submitted under session B).
   let signalKind: EngagementSignalKind | null = null;
   if (input.documentLinkId) {
     const link = await db.documentSessionLink.findFirst({
@@ -310,7 +310,7 @@ export async function recordStudyPackView(input: RecordViewInput): Promise<{ vie
 }
 
 /** Curator-facing list — every Document tagged to this session (regardless of
- *  isPreSession), with the linkId + flag so the curator UI can toggle. */
+ * isPreSession), with the linkId + flag so the curator UI can toggle. */
 export interface StudyPackCandidate {
   linkId: string;
   documentId: string;
@@ -337,7 +337,7 @@ export async function listStudyPackCandidates(
   const links = await db.documentSessionLink.findMany({
     where: { sessionId, document: { deletedAt: null } },
     orderBy: [
-      // Pre-session items first (truest first), then by rank, then upload order.
+ // Pre-session items first (truest first), then by rank, then upload order.
       { isPreSession: 'desc' },
       { preSessionRank: 'asc' },
       { createdAt: 'asc' },
@@ -373,6 +373,77 @@ export async function listStudyPackCandidates(
   }));
 }
 
+// ─── AI-generated study content (quiz + flashcards from the transcript) ──────
+// The post-session AI pipeline writes SjtCase rows (situational-judgement MCQs)
+// and PostSessionQa rows (Q&A pairs) keyed by sessionTranscriptId. The learner
+// Study Hub surfaces these as a pre/post-session Quiz and Flashcard drill. Both
+// are mapped here to the client-facing shapes so the route stays a thin shim.
+
+/** Client quiz shape — mirrors the component's `QuizQuestion`. */
+export interface StudyPackQuizQuestion {
+  q: string;
+  options: string[];
+  correct: number;
+  explanation: string;
+}
+
+/** Client flashcard shape. */
+export interface StudyPackFlashcard {
+  front: string;
+  back: string;
+}
+
+/**
+ * Load the AI-generated Quiz (from SjtCase) + Flashcards (from PostSessionQa)
+ * for a session, by way of its transcripts. Returns empty arrays when the AI
+ * pipeline has not produced anything yet (e.g. before the session is recorded).
+ */
+export async function listStudyPackAiContent(
+  sessionId: string,
+  actor: StudyPackActor
+): Promise<{ quiz: StudyPackQuizQuestion[]; flashcards: StudyPackFlashcard[] }> {
+  if (!(await userCanSeeSession(actor, sessionId))) {
+    throw new StudyPackAccessError('FORBIDDEN', 'No visibility into this session');
+  }
+
+  const transcripts = await db.sessionTranscript.findMany({
+    where: { sessionId },
+    select: { id: true },
+  });
+  const transcriptIds = transcripts.map((t) => t.id);
+  if (transcriptIds.length === 0) {
+    return { quiz: [], flashcards: [] };
+  }
+
+  const [sjtCases, qaPairs] = await Promise.all([
+    db.sjtCase.findMany({
+      where: { sessionTranscriptId: { in: transcriptIds } },
+      orderBy: { createdAt: 'asc' },
+      select: { stem: true, options: true, correctIndex: true, rationale: true },
+    }),
+    db.postSessionQa.findMany({
+      where: { sessionTranscriptId: { in: transcriptIds } },
+      orderBy: { createdAt: 'asc' },
+      select: { question: true, answer: true },
+    }),
+  ]);
+
+  const quiz: StudyPackQuizQuestion[] = sjtCases.map((c) => ({
+    q: c.stem,
+ // `options` is stored as Json (string[]); normalise defensively.
+    options: Array.isArray(c.options) ? (c.options as unknown[]).map(String) : [],
+    correct: c.correctIndex ?? 0,
+    explanation: c.rationale,
+  }));
+
+  const flashcards: StudyPackFlashcard[] = qaPairs.map((q) => ({
+    front: q.question,
+    back: q.answer,
+  }));
+
+  return { quiz, flashcards };
+}
+
 /** Used by readiness-service to compute per-learner pre-* counts in one query. */
 export async function aggregateLearnerStudyPack(
   sessionId: string,
@@ -391,7 +462,7 @@ export async function aggregateLearnerStudyPack(
     links.filter((l) => !VIDEO_KINDS.has(l.document.kind)).map((l) => l.id)
   );
 
-  // Pull all the views for these learners in one query.
+ // Pull all the views for these learners in one query.
   const views = await db.studyPackView.findMany({
     where: {
       sessionId,
@@ -404,7 +475,7 @@ export async function aggregateLearnerStudyPack(
   for (const id of learnerIds) {
     out.set(id, { readings: 0, videos: 0, preCaseStarts: 0 });
   }
-  // De-dupe per (user, link) to avoid counting refreshes as multiple views.
+ // De-dupe per (user, link) to avoid counting refreshes as multiple views.
   const seen = new Set<string>();
   for (const v of views) {
     const key = `${v.userId}|${v.documentLinkId ?? ''}|${v.preCaseId ?? ''}`;
