@@ -1,20 +1,25 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowLeft,
+  BarChart3,
   CheckCircle2,
   Download,
   Edit3,
   FileText,
   FileType,
+  FolderOpen,
   Lightbulb,
   Loader2,
   Plus,
   Sparkles,
   Upload,
   Wand2,
+  Zap,
 } from 'lucide-react'
 import type { DocumentKind, DeckForgeStatus } from '@prisma/client'
 import { cn } from '@/lib/utils'
@@ -355,190 +360,236 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
     )
   }
 
-  // ── UPLOAD / CREATE — real forge handoff ─────────────────────────────────
+  // ── UPLOAD / CREATE — demo 3-column workbench + real forge handoff ────────
   const isUpload = studioMode === 'upload'
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="border-b border-border/60 bg-background/50 px-0 py-4 backdrop-blur">
-        <SessionHeader session={session} backHref={`/session/${session.id}/pre`} eyebrow="Step 1 · My Presentation" />
+    <div className="-mx-6 -my-8">
+      {/* Header bar */}
+      <div className="border-b border-border/60 bg-background/50 px-6 py-4 backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <SessionHeader
+            session={session}
+            backHref={`/session/${session.id}/pre`}
+            eyebrow={isUpload ? 'Step 1 · Upload presentation' : 'Step 1 · Create with AI'}
+          />
+          <button
+            type="button"
+            onClick={() => { if (!busy) { setStudioMode('choose'); setFlow({ kind: 'idle' }) } }}
+            disabled={busy}
+            className="ml-3 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-50"
+          >
+            <ArrowLeft className="size-3.5" /> Back to options
+          </button>
+        </div>
       </div>
 
-      <div className="mt-8">
-        <button
-          type="button"
-          onClick={() => { if (!busy) { setStudioMode('choose'); setFlow({ kind: 'idle' }) } }}
-          disabled={busy}
-          className="text-[12.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
-        >
-          ← Back to options
-        </button>
+      {/* Hidden real file input — shared by both modes. */}
+      <input
+        type="file"
+        accept={ACCEPT_ATTR}
+        ref={fileInputRef}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (!f) return
+          if (isUpload) onUploadModeFile(f)
+          else onCreateModeFile(f)
+        }}
+      />
 
-        <div className="mt-4 flex items-center gap-3">
-          <div className={cn(
-            'grid size-12 place-items-center rounded-2xl',
-            isUpload
-              ? 'bg-linear-to-br from-teal-500/15 to-emerald-500/10 text-teal-700 dark:text-teal-300'
-              : 'bg-linear-to-br from-indigo-500/15 to-violet-500/10 text-indigo-700 dark:text-indigo-300'
-          )}>
-            {isUpload ? <Upload className="size-6" /> : <Wand2 className="size-6" />}
+      <div className="grid h-[calc(100vh-200px)] min-h-[600px] grid-cols-[300px_1fr_360px] grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden">
+        {/* ── LEFT — Source material ─────────────────────────────────── */}
+        <aside className="flex h-full min-h-0 flex-col border-r border-border/60 bg-background/30">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+            <div className="text-[12.5px] font-semibold">{isUpload ? 'Source material' : 'Source document'}</div>
           </div>
-          <div>
-            <h2 className="text-[20px] font-semibold tracking-tight">
-              {isUpload ? 'Upload PPT / Keynote' : 'Create PPT with AI'}
-            </h2>
-            <p className="text-[13px] text-muted-foreground">
-              {isUpload
-                ? 'Upload your existing deck — Vaidix opens it in the slide editor.'
-                : 'Upload a source document — Vaidix builds an evidence-grounded deck you can edit.'}
-            </p>
-          </div>
-        </div>
-
-        {/* Hidden real file input — shared by both modes. */}
-        <input
-          type="file"
-          accept={ACCEPT_ATTR}
-          ref={fileInputRef}
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (!f) return
-            if (isUpload) onUploadModeFile(f)
-            else onCreateModeFile(f)
-          }}
-        />
-
-        {/* Create mode: optional prompt / title hint. */}
-        {!isUpload && (
-          <div className="mt-6">
-            <label className="text-[12px] font-medium text-muted-foreground">Presentation focus (optional)</label>
-            <div className="mt-1.5 flex items-center gap-2.5 rounded-2xl border border-border/60 bg-background p-1.5 pl-3.5 shadow-sm focus-within:border-indigo-500/50 focus-within:ring-3 focus-within:ring-indigo-500/15">
-              <Sparkles className="size-4 shrink-0 text-indigo-600 dark:text-indigo-300" />
-              <input
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                disabled={busy}
-                placeholder="e.g. Diabetic retinopathy — staging & management for PGY-1"
-                className="h-9 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70 disabled:opacity-60"
-              />
-            </div>
-            <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-amber-700 dark:text-amber-300">
-              <Lightbulb className="size-3.5" />
-              Vaidix only generates from your verified sources — clinical guidelines, journal articles, your notes.
-            </p>
-          </div>
-        )}
-
-        {/* Dropzone / picker — idle state. */}
-        {(flow.kind === 'idle' || flow.kind === 'error') && (
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="group flex w-full flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center transition-colors hover:border-teal-500/40 hover:bg-teal-500/5"
-            >
-              <Upload className="size-8 text-muted-foreground group-hover:text-teal-600 dark:group-hover:text-teal-300" />
-              <div className="mt-1 text-[14px] font-semibold">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {/* File-type picker */}
+            <div className="space-y-2 border-b border-border/60 p-4">
+              <div className="text-[11.5px] font-medium text-muted-foreground">
                 {isUpload ? 'Choose your presentation file' : 'Choose a source document'}
               </div>
-              <div className="text-[12px] text-muted-foreground">PDF · PowerPoint · Word · Notes · up to 50 MB</div>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-                {ACCEPTED_TYPES.map((t) => (
-                  <span
-                    key={t.kind}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/70 px-2.5 py-1 text-[11.5px] font-medium text-foreground/80"
-                  >
-                    {t.icon}
-                    {t.label}
-                  </span>
-                ))}
+              {ACCEPTED_TYPES.map((t) => (
+                <button
+                  key={t.kind}
+                  type="button"
+                  onClick={() => { if (!busy) fileInputRef.current?.click() }}
+                  disabled={busy}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-border/60 bg-background/70 px-3 py-2.5 text-[12.5px] font-medium text-foreground/80 transition-colors hover:border-teal-500/40 hover:bg-teal-500/5 disabled:opacity-60"
+                >
+                  <span className="text-muted-foreground">{t.icon}</span>
+                  {t.label} <span className="text-muted-foreground">({t.ext})</span>
+                  <Upload className="ml-auto size-3.5 opacity-50" />
+                </button>
+              ))}
+            </div>
+            {/* From My Documents */}
+            {decks.length > 0 && (
+              <div className="p-4">
+                <div className="mb-2 flex items-center gap-1.5 text-[11.5px] font-semibold">
+                  <FolderOpen className="size-3.5 text-indigo-600 dark:text-indigo-300" /> From My Documents
+                </div>
+                <ul className="space-y-1.5">
+                  {decks.map((d) => (
+                    <li key={d.documentId} className="rounded-xl border border-border/60 bg-background/60 p-2.5">
+                      <div className="truncate text-[11.5px] font-medium" title={d.name}>{d.name}</div>
+                      <div className="mt-0.5 text-[10px] uppercase text-muted-foreground">
+                        {String(d.kind)}{d.slideCount ? ` · ${d.slideCount} slides` : ''}
+                      </div>
+                      {d.jobId ? (
+                        <Link href={`/teacher/decks/${d.jobId}`} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-700 px-2 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-slate-600"><Edit3 className="size-3" /> Open editor</Link>
+                      ) : (
+                        <Link href={`/teacher/documents/${d.documentId}`} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/60 px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5"><FileText className="size-3" /> View document</Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </button>
-            {flow.kind === 'error' && (
-              <p role="alert" className="mt-3 flex items-center gap-1.5 text-[12.5px] text-rose-700 dark:text-rose-300">
-                <AlertTriangle className="size-3.5" />
-                {flow.message}
-              </p>
             )}
           </div>
-        )}
-
-        {/* Uploading / forging — the demo's "uploading/generating" state. */}
-        {(flow.kind === 'uploading' || flow.kind === 'forging') && (
-          <div className="mt-6 rounded-3xl border border-teal-500/30 bg-teal-500/5 p-6">
-            <div className="flex items-center gap-3">
-              <Loader2 className="size-5 shrink-0 animate-spin text-teal-600 dark:text-teal-300" />
-              <div className="min-w-0">
-                <div className="text-[14px] font-semibold">
-                  {flow.kind === 'uploading'
-                    ? `Uploading ${flow.fileName}…`
-                    : `Building your slides from ${flow.fileName}…`}
-                </div>
-                <div className="text-[12px] text-muted-foreground">
-                  {flow.kind === 'uploading'
-                    ? `${Math.round(flow.percent)}% uploaded`
-                    : 'Vaidix is analysing your source and preparing the slide editor.'}
-                </div>
-              </div>
+          {/* Slides placeholder */}
+          <div className="shrink-0 border-t border-border/60">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="text-[12.5px] font-semibold">Slides</div>
+              <span className="text-[11px] text-muted-foreground">0</span>
             </div>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/5">
-              <div
-                className="h-full rounded-full bg-linear-to-r from-teal-500 to-emerald-500 transition-[width]"
-                style={{
-                  width: flow.kind === 'uploading' ? `${Math.max(4, flow.percent)}%` : '100%',
-                }}
-              />
+            <div className="px-3 pb-3">
+              <div className="rounded-xl border border-dashed border-border/60 bg-foreground/[0.02] p-4 text-center">
+                <Wand2 className="mx-auto size-5 text-muted-foreground" />
+                <p className="mt-2 text-[11px] text-muted-foreground">Slides open in the editor once your deck is built.</p>
+              </div>
             </div>
           </div>
-        )}
+        </aside>
 
-        {/* AI builder offline — graceful, keep the upload. */}
-        {flow.kind === 'offline' && (
-          <div className="mt-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 p-6">
-            <div className="flex items-start gap-3">
-              <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
-                <AlertTriangle className="size-5" />
+        {/* ── CENTER — prompt / status + canvas ──────────────────────── */}
+        <section className="flex h-full min-h-0 min-w-0 flex-col bg-linear-to-br from-slate-50/60 via-background to-teal-50/30 dark:from-background dark:to-background">
+          <div className="border-b border-border/60 bg-background/60 px-6 py-4 backdrop-blur">
+            {isUpload ? (
+              <div className="flex items-center gap-2.5 rounded-2xl border border-border/60 bg-background px-3.5 py-2.5">
+                <Upload className="size-4 shrink-0 text-muted-foreground" />
+                <span className="text-[13px] text-muted-foreground">Pick a file or a document on the left — Vaidix imports it into the slide editor.</span>
               </div>
-              <div className="min-w-0">
-                <div className="text-[14px] font-semibold">AI slide builder is offline</div>
-                <p className="mt-1 text-[12.5px] text-muted-foreground leading-relaxed">
-                  We couldn&apos;t build the slides right now, but <span className="font-medium text-foreground/80">{flow.fileName}</span> was
-                  saved to My Documents and linked to this session. You can open it there, or try building again later.
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5 rounded-2xl border border-border/60 bg-background p-1.5 pl-3.5 shadow-sm focus-within:border-indigo-500/50 focus-within:ring-3 focus-within:ring-indigo-500/15">
+                  <Sparkles className="size-4 shrink-0 text-indigo-600 dark:text-indigo-300" />
+                  <input
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    disabled={busy}
+                    placeholder="Presentation focus (optional) — e.g. Diabetic retinopathy staging for PGY-1"
+                    className="h-9 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70 disabled:opacity-60"
+                  />
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-amber-700 dark:text-amber-300">
+                  <Lightbulb className="size-3.5" /> Vaidix only generates from your verified sources — pick a source document on the left.
                 </p>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <a
-                    href={`/teacher/documents/${flow.documentId}`}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-700 px-4 text-[12.5px] font-medium text-white hover:bg-slate-600"
-                  >
-                    <FileText className="size-3.5" />
-                    Open in My Documents
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setStudioMode('myppts')}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[12.5px] font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                  >
-                    View My PPTs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFlow({ kind: 'idle' })}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[12.5px] font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                  >
-                    <Plus className="size-3.5" />
-                    Upload another
-                  </button>
+              </>
+            )}
+          </div>
+
+          {/* Canvas — flow-aware */}
+          <div className="min-h-0 flex-1 overflow-auto p-8">
+            <div className="grid h-full place-items-center">
+              {(flow.kind === 'idle' || flow.kind === 'error') && (
+                <div className="max-w-md text-center">
+                  <div className={cn('mx-auto grid size-14 place-items-center rounded-3xl', isUpload ? 'bg-linear-to-br from-teal-500/15 to-emerald-500/10 text-teal-700 dark:text-teal-300' : 'bg-linear-to-br from-indigo-500/15 to-violet-500/10 text-indigo-700 dark:text-indigo-300')}>
+                    {isUpload ? <Upload className="size-7" /> : <Wand2 className="size-7" />}
+                  </div>
+                  <h3 className="mt-4 text-[18px] font-semibold tracking-tight">
+                    {isUpload ? 'Upload a presentation to begin' : 'Choose a source to begin'}
+                  </h3>
+                  <p className="mt-1.5 text-[13px] text-muted-foreground">
+                    {isUpload
+                      ? 'Choose a file or an existing document on the left. Vaidix imports it into the slide editor so you can enhance and present it.'
+                      : 'Pick a source document on the left and Vaidix builds an evidence-grounded deck — then opens it in the editor to refine.'}
+                  </p>
+                  {flow.kind === 'error' && (
+                    <p role="alert" className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] text-rose-700 dark:text-rose-300">
+                      <AlertTriangle className="size-3.5" /> {flow.message}
+                    </p>
+                  )}
                 </div>
-                <div className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="size-3.5" />
-                  Your file is saved — nothing was lost.
+              )}
+
+              {(flow.kind === 'uploading' || flow.kind === 'forging') && (
+                <div className="w-full max-w-md rounded-3xl border border-teal-500/30 bg-teal-500/5 p-6">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="size-5 shrink-0 animate-spin text-teal-600 dark:text-teal-300" />
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-semibold">
+                        {flow.kind === 'uploading' ? `Uploading ${flow.fileName}…` : `Building your slides from ${flow.fileName}…`}
+                      </div>
+                      <div className="text-[12px] text-muted-foreground">
+                        {flow.kind === 'uploading' ? `${Math.round(flow.percent)}% uploaded` : 'Vaidix is analysing your source and preparing the slide editor.'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/5">
+                    <div className="h-full rounded-full bg-linear-to-r from-teal-500 to-emerald-500 transition-[width]" style={{ width: flow.kind === 'uploading' ? `${Math.max(4, flow.percent)}%` : '100%' }} />
+                  </div>
                 </div>
+              )}
+
+              {flow.kind === 'offline' && (
+                <div className="w-full max-w-md rounded-3xl border border-amber-500/30 bg-amber-500/5 p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="size-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-semibold">AI slide builder is offline</div>
+                      <p className="mt-1 text-[12.5px] text-muted-foreground leading-relaxed">
+                        We couldn&apos;t build the slides right now, but <span className="font-medium text-foreground/80">{flow.fileName}</span> was
+                        saved to My Documents and linked to this session. You can open it there, or try building again later.
+                      </p>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <Link href={`/teacher/documents/${flow.documentId}`} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-700 px-4 text-[12.5px] font-medium text-white hover:bg-slate-600"><FileText className="size-3.5" /> Open in My Documents</Link>
+                        <button type="button" onClick={() => setStudioMode('myppts')} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[12.5px] font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground">View My PPTs</button>
+                        <button type="button" onClick={() => setFlow({ kind: 'idle' })} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[12.5px] font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground"><Plus className="size-3.5" /> Upload another</button>
+                      </div>
+                      <div className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 className="size-3.5" /> Your file is saved — nothing was lost.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action bar (preview chrome to match the demo) */}
+          <div className="border-t border-border/60 bg-background/80 px-6 py-3 backdrop-blur">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[12px] text-muted-foreground"><FileType className="size-3.5" /> Faculty preview mode</div>
+              <div className="flex items-center gap-2 opacity-60">
+                <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3.5 text-[12.5px] font-medium text-muted-foreground"><Download className="size-3.5" /> Export</span>
               </div>
             </div>
           </div>
-        )}
+        </section>
+
+        {/* ── RIGHT — AI panel placeholder ───────────────────────────── */}
+        <aside className="flex h-full min-h-0 flex-col border-l border-border/60 bg-background/30">
+          <div className="flex items-center gap-3 border-b border-border/60 px-4 py-3">
+            {['Analysis', 'Fixes', 'AI Slides', 'Hooks'].map((t, i) => (
+              <span key={t} className={cn('flex items-center gap-1 text-[12px] font-medium', i === 0 ? 'text-foreground' : 'text-muted-foreground/60')}>
+                {t === 'Hooks' && <Zap className="size-3 text-amber-500/60" />}
+                {t === 'AI Slides' && <Sparkles className="size-3 text-indigo-500/60" />}
+                {t}
+              </span>
+            ))}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-5 text-center">
+              <BarChart3 className="mx-auto size-5 text-muted-foreground" />
+              <p className="mt-2 text-[12px] text-muted-foreground">Once Vaidix builds your deck, AI analysis — readability, density, visual balance and interaction prompts — appears here.</p>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   )
