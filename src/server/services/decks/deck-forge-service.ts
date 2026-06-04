@@ -29,6 +29,8 @@ import {
 } from '@/server/services/ai/gemini';
 import { env } from '@/lib/env';
 import { persistDeckAsDocument } from './deck-pptx-renderer';
+import { extractOfficeText, isExtractableOffice } from './document-text-extract';
+import { convertOfficeToPdf, isConvertibleToPdf } from './office-to-pdf';
 
 const SYSTEM_PROMPT = `You are an ophthalmology medical educator + instructional designer at LV Prasad Eye Institute.
 You convert source teaching material into a clean, lecture-ready slide outline for a 60-minute live session.
@@ -524,12 +526,43 @@ export async function forgeDeck(input: ForgeInput): Promise<ForgeOutcome> {
       });
       userParts.push({ inlineData: { mimeType, data } });
     } else if (documentSource) {
-      // PPT/DOC binaries are not natively read by Gemini inline — fall back to
-      // metadata-only so we still produce a usable outline. Phase B: extract
-      // text from PPT via python-pptx or unoconv worker.
-      userParts.push({
-        text: `[Note: source binary type ${documentSource.mimeType} cannot be inlined; outlining from title and description only.]`,
+      // PPTX/DOCX/PPT/DOC/Keynote aren't natively read by Gemini inline. Two
+      // ways to get their content to the model, best-fidelity first:
+      //   (B) Convert to PDF via LibreOffice → inline the PDF (full layout +
+      //       images; the only path that handles Keynote).
+      //   (A) Otherwise extract plain text locally (pptx/docx) and send that.
+      //   Fallback: metadata-only note so we still produce a usable outline.
+      await db.deckForgeJob.update({
+        where: { id: job.id },
+        data: { status: DeckForgeStatus.EXTRACTING },
       });
+      const { data } = await fetchDocumentBytes({
+        s3Key: documentSource.s3Key,
+        documentId: documentSource.documentId,
+        mimeType: documentSource.mimeType,
+      });
+      const srcBuf = Buffer.from(data, 'base64');
+
+      let handled = false;
+      if (isConvertibleToPdf(documentSource.mimeType)) {
+        const pdf = await convertOfficeToPdf(srcBuf, documentSource.mimeType);
+        if (pdf && pdf.byteLength > 0) {
+          userParts.push({ inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } });
+          handled = true;
+        }
+      }
+      if (!handled && isExtractableOffice(documentSource.mimeType)) {
+        const text = await extractOfficeText(srcBuf, documentSource.mimeType);
+        if (text.trim()) {
+          userParts.push({ text: `--- DOCUMENT CONTENT (extracted) ---\n${text}\n--- END DOCUMENT ---` });
+          handled = true;
+        }
+      }
+      if (!handled) {
+        userParts.push({
+          text: `[Note: source binary type ${documentSource.mimeType} could not be extracted; outlining from title and description only.]`,
+        });
+      }
     }
 
     if (transcriptSource) {
