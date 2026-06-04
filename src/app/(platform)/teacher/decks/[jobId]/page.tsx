@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { Role } from '@prisma/client';
 import { DeckEditorClient } from './deck-editor-client';
 import { isRouterV2 } from '@/server/services/decks/deck-analyze-service';
+import { presignDownload } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,15 +53,19 @@ export default async function FacultyDeckEditorPage({
             ? `Transcript · ${job.recording.session.title}`
             : 'No source'
       }
-      initialSlides={job.slides.map((s) => ({
-        id: s.id,
-        order: s.order,
-        layout: s.layout,
-        title: s.title,
-        bullets: s.bullets,
-        speakerNotes: s.speakerNotes,
-        accentHex: s.accentHex,
-      }))}
+      initialSlides={await Promise.all(
+        job.slides.map(async (s) => ({
+          id: s.id,
+          order: s.order,
+          layout: s.layout,
+          title: s.title,
+          bullets: s.bullets,
+          speakerNotes: s.speakerNotes,
+          accentHex: s.accentHex,
+          imageS3Key: s.imageS3Key,
+          imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
+        })),
+      )}
       initialAnalysis={isRouterV2(job.analysisResult) ? job.analysisResult : null}
       initialTheme={job.template}
     />

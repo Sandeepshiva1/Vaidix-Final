@@ -7,6 +7,7 @@ import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { Role } from '@prisma/client';
 import { DeckPresenterClient } from './deck-presenter-client';
+import { presignDownload } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,15 +47,19 @@ export default async function PresentPage({
       jobId={job.id}
       deckTitle={job.inputTitle ?? 'Untitled Deck'}
       themeId={job.template ?? undefined}
-      slides={job.slides.map((s) => ({
-        id: s.id,
-        order: s.order,
-        layout: s.layout,
-        title: s.title,
-        bullets: s.bullets,
-        speakerNotes: s.speakerNotes,
-        accentHex: s.accentHex,
-      }))}
+      slides={await Promise.all(
+        job.slides.map(async (s) => ({
+          id: s.id,
+          order: s.order,
+          layout: s.layout,
+          title: s.title,
+          bullets: s.bullets,
+          speakerNotes: s.speakerNotes,
+          accentHex: s.accentHex,
+          imageS3Key: s.imageS3Key,
+          imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
+        })),
+      )}
     />
   );
 }

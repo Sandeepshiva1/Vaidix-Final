@@ -19,6 +19,8 @@ export interface SlideViewModel {
   bullets: string[];
   speakerNotes: string | null;
   accentHex: string | null;
+  imageS3Key: string | null;
+  imageUrl: string | null;
 }
 
 interface SlideCanvasProps {
@@ -320,17 +322,34 @@ function SlideBody({
           >
             {slide.title}
           </motion.h2>
-          <div
-            className="flex flex-1 items-center justify-center rounded-lg"
-            style={{
-              border: `1px dashed ${accentColor}`,
-              color: theme.faint,
-              fontSize: 'clamp(9px, 1.1cqw, 14px)',
-              minHeight: '40%',
-            }}
-          >
-            Image / OCT / fundus photo placeholder
-          </div>
+          {slide.imageUrl ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4 }}
+              className="flex-1 overflow-hidden rounded-lg"
+              style={{ border: `1px solid ${theme.border}`, minHeight: '40%' }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={slide.imageUrl}
+                alt={slide.title}
+                className="h-full w-full object-cover"
+              />
+            </motion.div>
+          ) : (
+            <div
+              className="flex flex-1 items-center justify-center rounded-lg"
+              style={{
+                border: `1px dashed ${accentColor}`,
+                color: theme.faint,
+                fontSize: 'clamp(9px, 1.1cqw, 14px)',
+                minHeight: '40%',
+              }}
+            >
+              Image / OCT / fundus photo placeholder
+            </div>
+          )}
           {slide.bullets[0] && (
             <p style={{ color: theme.subtle, fontSize: bodySize }}>{slide.bullets[0]}</p>
           )}
@@ -353,20 +372,40 @@ function SlideBody({
             {slide.title}
           </motion.h2>
           <div style={{ width: '8%', height: '0.4%', background: accentColor }} />
-          <ul className="grid gap-3" style={{ color: theme.subtle, fontSize: bodySize }}>
-            {slide.bullets.map((b, i) => (
-              <motion.li
-                key={i}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.12 + i * 0.05 }}
-                className="flex gap-3"
+          {/* When an AI image is present, give bullets the left half and the
+              image the right half; otherwise bullets span full width. */}
+          <div className={slide.imageUrl ? 'grid min-h-0 flex-1 grid-cols-2 gap-6' : ''}>
+            <ul className="grid gap-3 self-start" style={{ color: theme.subtle, fontSize: bodySize }}>
+              {slide.bullets.map((b, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12 + i * 0.05 }}
+                  className="flex gap-3"
+                >
+                  <span style={{ color: accentColor }}>▸</span>
+                  <span>{b}</span>
+                </motion.li>
+              ))}
+            </ul>
+            {slide.imageUrl && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4 }}
+                className="overflow-hidden rounded-lg"
+                style={{ border: `1px solid ${theme.border}` }}
               >
-                <span style={{ color: accentColor }}>▸</span>
-                <span>{b}</span>
-              </motion.li>
-            ))}
-          </ul>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={slide.imageUrl}
+                  alt={slide.title}
+                  className="h-full w-full object-cover"
+                />
+              </motion.div>
+            )}
+          </div>
         </div>
       );
   }

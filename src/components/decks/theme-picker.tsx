@@ -25,6 +25,8 @@ const PREVIEW_SLIDE: SlideViewModel = {
   ],
   speakerNotes: null,
   accentHex: null,
+  imageS3Key: null,
+  imageUrl: null,
 };
 
 export function ThemePicker({

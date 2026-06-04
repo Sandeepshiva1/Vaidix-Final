@@ -22,8 +22,10 @@ import {
   Eye,
   Image as ImageIcon,
   Italic,
+  Loader2,
   Pencil,
   Sparkles,
+  Trash2,
   Type as TypeIcon,
   Underline,
 } from 'lucide-react';
@@ -75,6 +77,10 @@ export function DeckEditorClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Per-slide AI image state: which slide is generating, and which (if any)
+  // hit the offline (503) path so the panel can show an inline note.
+  const [imageBusyId, setImageBusyId] = useState<string | null>(null);
+  const [imageOfflineId, setImageOfflineId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('coach');
   const [themeId, setThemeId] = useState<string>(initialTheme ?? 'deep-space');
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('Home');
@@ -151,6 +157,56 @@ export function DeckEditorClient({
       router.refresh();
     } catch (err) {
       setError((err as Error).message);
+    }
+  }
+
+  async function generateImage(id: string) {
+    setImageBusyId(id);
+    setImageOfflineId(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/decks/${jobId}/slides/${id}/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify({}),
+      });
+      if (res.status === 503) {
+        setImageOfflineId(id);
+        return;
+      }
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(j?.error?.message ?? `Image generation failed (${res.status})`);
+      }
+      const j = (await res.json()) as {
+        data: { imageS3Key: string | null; imageUrl: string | null };
+      };
+      updateLocal(id, { imageS3Key: j.data.imageS3Key, imageUrl: j.data.imageUrl });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setImageBusyId(null);
+    }
+  }
+
+  async function removeImage(id: string) {
+    setImageBusyId(id);
+    setImageOfflineId(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/decks/${jobId}/slides/${id}/image`, {
+        method: 'DELETE',
+        headers: { ...csrfHeaders() },
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(j?.error?.message ?? `Remove failed (${res.status})`);
+      }
+      updateLocal(id, { imageS3Key: null, imageUrl: null });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setImageBusyId(null);
     }
   }
 
@@ -469,6 +525,10 @@ export function DeckEditorClient({
                     saving={savingId === active.id}
                     onChange={(patch) => updateLocal(active.id, patch)}
                     onCommit={(patch) => persistSlide(active.id, patch)}
+                    imageBusy={imageBusyId === active.id}
+                    imageOffline={imageOfflineId === active.id}
+                    onGenerateImage={() => generateImage(active.id)}
+                    onRemoveImage={() => removeImage(active.id)}
                   />
                 ) : null}
               </div>
@@ -535,11 +595,19 @@ function SlideEditPanel({
   saving,
   onChange,
   onCommit,
+  imageBusy,
+  imageOffline,
+  onGenerateImage,
+  onRemoveImage,
 }: {
   slide: SlideViewModel;
   saving: boolean;
   onChange: (patch: Partial<SlideViewModel>) => void;
   onCommit: (patch: Partial<SlideViewModel>) => void;
+  imageBusy: boolean;
+  imageOffline: boolean;
+  onGenerateImage: () => void;
+  onRemoveImage: () => void;
 }) {
   return (
     <div className="space-y-4 text-sm">
@@ -648,6 +716,58 @@ function SlideEditPanel({
           className="w-full rounded-xl border border-border/60 bg-background/60 px-2.5 py-2 text-[12px] outline-none focus:border-teal-500/50"
         />
       </label>
+
+      {/* ── AI image ──────────────────────────────────────────────────── */}
+      <div className="space-y-2 border-t border-border/60 pt-4">
+        <span className="text-[11.5px] text-muted-foreground">Slide image</span>
+
+        {slide.imageUrl && (
+          <div className="overflow-hidden rounded-xl border border-border/60">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={slide.imageUrl}
+              alt={slide.title}
+              className="aspect-video w-full object-cover"
+            />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onGenerateImage}
+          disabled={imageBusy}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-[12.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-50"
+        >
+          {imageBusy ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              Generating image…
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-3.5 text-amber-500" />
+              {slide.imageUrl ? 'Regenerate image (AI)' : 'Generate image (AI)'}
+            </>
+          )}
+        </button>
+
+        {slide.imageUrl && !imageBusy && (
+          <button
+            type="button"
+            onClick={onRemoveImage}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/60 px-3 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+          >
+            <Trash2 className="size-3" />
+            Remove image
+          </button>
+        )}
+
+        {imageOffline && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11.5px] text-amber-700 dark:text-amber-300">
+            AI image builder offline — please try again shortly.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
