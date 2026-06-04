@@ -1,0 +1,17 @@
+# livekit-agents 0.12.x — using explicit plugin packages instead of the
+# [deepgram] extras. The extras in 0.12.x silently no-ops: it doesn't
+# actually pull livekit-plugins-deepgram, so `from livekit.plugins import
+# deepgram` in main.py fails at runtime even though the image builds clean.
+# Pinned <1.0 because the 1.x line of livekit-plugins-deepgram targets
+# livekit-agents 1.x, which has breaking API changes.
+livekit-agents==0.12.*
+livekit-plugins-deepgram<1.0
+
+httpx>=0.27,<0.29
+
+# PyAV: imported transitively by livekit.agents.utils.codecs.decoder at
+# module load time. Not pulled by any livekit-agents 0.12.x extras, so the
+# agent builds fine but crashes on first import. Pin <14 because PyAV 14
+# broke API. The Dockerfile import smoke catches regressions of this class
+# at build time.
+av>=11,<14

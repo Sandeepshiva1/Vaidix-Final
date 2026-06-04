@@ -1,0 +1,68 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Vaidix — Standalone Redis (BullMQ + rate limit + session cache)
+# ════════════════════════════════════════════════════════════════════════════
+# Run on its own host (or beside the app on a single host) BEFORE bringing the
+# app up. Joins the shared external network `vaidix-net` so the app reaches
+# Redis at hostname `redis` (REDIS_URL=redis://redis:6379).
+#
+# First-time setup:
+#   docker network create vaidix-net   # one-time, shared by all stacks
+#
+# Usage:
+#   docker compose -f docker-compose.redis.yml up -d
+#   docker compose -f docker-compose.redis.yml logs -f
+#   docker compose -f docker-compose.redis.yml down
+# ════════════════════════════════════════════════════════════════════════════
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: vaidix-redis
+    restart: unless-stopped
+    # Expose 6379 ONLY on the loopback so other hosts can't hit it. Comment
+    # this `ports:` block out when running redis on a different machine than
+    # the app — the network alias inside `vaidix-net` is enough.
+    ports:
+      - "127.0.0.1:6379:6379"
+    # Auth is enabled. LiveKit Server reads the password via the
+    # LIVEKIT_REDIS_PASSWORD env var (verified). Egress does not honor any env
+    # override — its password is templated into egress.yaml from
+    # egress.yaml.tpl at deploy time via scripts/render-configs.sh.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - "1gb"
+      # noeviction over allkeys-lru: BullMQ jobs (transcribe, transcode, recording
+      # post-processing) and NextAuth sessions live in this Redis. With LRU,
+      # under memory pressure Redis would silently evict pending jobs and active
+      # sessions. noeviction returns an OOM error instead, which surfaces the
+      # problem rather than losing patient-related work.
+      - --maxmemory-policy
+      - "noeviction"
+      - --requirepass
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
+    volumes:
+      - vaidix-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vaidix-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 2G
+
+networks:
+  vaidix-net:
+    external: true
+    name: vaidix-net
+
+volumes:
+  vaidix-redis-data:
+    name: vaidix-redis-data

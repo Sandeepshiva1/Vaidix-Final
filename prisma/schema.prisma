@@ -1,0 +1,3752 @@
+// ════════════════════════════════════════════════════════════════════════════
+// Vaidix — Prisma Schema v1.0
+// ════════════════════════════════════════════════════════════════════════════
+// 42 domains · ~94 tables · 11 tiers · Initial migration: initial_schema_v1
+// Date: 2026-04-13
+// Locked per Week 0 / Approach C (holistic design, one migration).
+// See: Vaidix-Build-Approach.md, VAIDIX-BUILD-PLAN-NOW.md
+// ════════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ════════════════════════════════════════════════════════════════════════════
+
+enum Role {
+  RESIDENT
+  FACULTY
+  PROGRAM_DIRECTOR
+  ADMIN
+  EXTERNAL_LEARNER
+}
+
+enum UserStatus {
+  PENDING_INVITE
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum SessionType {
+  LECTURE
+  GRAND_ROUNDS
+  CASE_CONFERENCE
+  JOURNAL_CLUB
+  SKILLS_WORKSHOP
+  ASSESSMENT
+}
+
+enum SessionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum SessionApprovalStatus {
+  DRAFT
+  PENDING_FACULTY
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum SessionInviteStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+}
+
+enum CohortStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum SessionApprovalAction {
+  PROPOSED
+  APPROVED
+  REJECTED
+  CANCELLED
+  RESCHEDULED
+  AUTO_APPROVED
+}
+
+enum AdmissionStatus {
+  PENDING
+  ADMITTED
+  DENIED
+  EXPIRED
+}
+
+enum RecordingStatus {
+  RECORDING
+  RECORDING_PARTIAL
+  RECORDING_FAILED
+  TRANSCODING
+  TRANSCODING_FAILED
+  TRANSCRIBING
+  TRANSCRIBING_FAILED
+  AI_PROCESSING
+  AI_PROCESSING_FAILED
+  READY
+  ARCHIVED
+  EXPUNGED
+}
+
+enum DocumentStatus {
+  UPLOADED
+  SCANNING_PHI
+  PENDING_REVIEW
+  PRIVATE_FACULTY
+  PUBLIC_WITH_SESSION
+  REJECTED
+  EXPUNGED
+}
+
+enum DocumentKind {
+  PPT
+  PDF
+  DOC
+  MARKDOWN
+  IMAGE
+  VIDEO
+  AUDIO
+  OTHER
+}
+
+enum DocumentRoute {
+  DECK_FORGE
+  REFERENCE
+  CASE_NOTE
+  PROMO_ASSET
+  PROMO_TEASER_VIDEO
+  UNCLASSIFIED
+}
+
+enum ClipKind {
+  REGULAR
+  REEL
+}
+
+enum KirkpatrickLevel {
+  L1_REACTION
+  L2_LEARNING
+  L3_BEHAVIOR
+  L4_RESULTS
+}
+
+enum EngagementSignalKind {
+  ATTENTION_DROP
+  INTERACTION_SILENCE
+  HOOK_RESPONSE
+  PARTICIPATION
+  CHAT_MESSAGE
+  HAND_RAISE
+  POLL_VOTE
+  CAMERA_ON
+  CAMERA_OFF
+  PRE_READING_VIEWED
+  PRE_VIDEO_WATCHED
+  PRE_CASE_STARTED
+  PRE_CASE_COMPLETED
+}
+
+enum LiveHookKind {
+  TRUE_FALSE
+  POLL
+  ONE_WORD
+  REPEAT_CONCEPT
+  DILEMMA
+}
+
+enum PresenterAlertKind {
+  ENGAGEMENT_LOW
+  ATTENTION_DROPPING
+  ASK_QUESTION
+  TOO_MUCH_LECTURE
+  TIME_REMAINING
+  SILENT_PARTICIPANTS
+}
+
+enum PresenterAlertSeverity {
+  INFO
+  WARN
+  HIGH
+}
+
+enum CaseStage {
+  PATIENT_STORY
+  OBSERVATION
+  HYPOTHESIS
+  INVESTIGATION
+  REFLECTION
+  COMPLETED
+}
+
+enum CaseDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CaseTemplateStatus {
+  /// Faculty draft — visible only to the owner. Result of an AI forge or
+  /// hand-authored. Cannot be assigned to residents.
+  DRAFT
+  /// Promoted to the program case bank — any resident in the program can
+  /// reach it via /cases. Set when faculty clicks Publish.
+  PUBLISHED
+  /// Removed from the bank. Past Conversation rows survive for audit but
+  /// the template is hidden from new resident-side queries.
+  ARCHIVED
+}
+
+enum CaseStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABANDONED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  COMPLETED
+  FLAGGED
+}
+
+enum ScoringSource {
+  CASE_CONVERSATION
+  DOPS
+  MINI_CEX
+  COURSE_QUIZ
+  CHALLENGE
+  SIMULATOR
+  FACULTY_MANUAL
+}
+
+enum ScoringHead {
+  HEAD
+  HEART
+  HANDS
+}
+
+enum JobStage {
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum DeckForgeStatus {
+  QUEUED
+  EXTRACTING
+  GENERATING_SLIDES
+  REVIEW_PENDING
+  APPROVED
+  REJECTED
+  FAILED
+}
+
+enum DeckForgeSource {
+  DOCUMENT // PDF / PPT / DOC / notes uploaded to /teacher/documents
+  TRANSCRIPT // Forged from a recording's transcript
+  HYBRID // Both a document and a transcript (slides cite both)
+}
+
+// Faculty intent at the start of the forge wizard. Branches the AI prompt
+// and the input rules.
+//   ENHANCE_EXISTING   — exactly 1 PRIMARY_PPTX + 0..N SOURCE refs. AI keeps
+//                        the deck shape, proposes content/density/visual edits.
+//   DRAFT_FROM_SCRATCH — no PRIMARY_PPTX, 1..N SOURCE / PRIOR_TRANSCRIPT.
+//                        AI authors a deck from briefing + extracted content.
+enum DeckForgeIntent {
+  ENHANCE_EXISTING
+  DRAFT_FROM_SCRATCH
+}
+
+// Role of each Document attached to a DeckForgeJob.
+enum DeckForgeInputRole {
+  PRIMARY_PPTX // Faculty's deck-to-enhance. ENHANCE_EXISTING only, exactly 1.
+  SOURCE // Reference material the AI reads to compose / enhance content.
+  PRIOR_TRANSCRIPT // A previous session transcript — "I've taught this before."
+}
+
+enum SlideLayout {
+  TITLE_ONLY // hero / section divider — large title, no bullets
+  TITLE_BULLETS // standard content slide
+  TWO_COLUMN // bullets split L/R
+  IMAGE_FOCUS // big image, caption below
+  QUOTE // pull-quote with attribution
+  INTERACTION // poll / T-F / discussion prompt
+  CLOSING // thank-you / Q&A
+}
+
+enum EscalationSeverity {
+  TIER_1_DIRECT
+  TIER_2_INDIRECT
+  TIER_3_ROLEPLAY
+}
+
+enum EscalationStatus {
+  DETECTED
+  NOTIFIED
+  ACKNOWLEDGED
+  DELIVERY_FAILED
+  CLOSED
+}
+
+enum DpdpaRequestType {
+  ACCESS
+  ERASURE
+  CORRECTION
+  EXPORT
+  CONSENT_WITHDRAWAL
+}
+
+enum DpdpaRequestStatus {
+  RECEIVED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum WebhookStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SLACK
+  WEBHOOK
+  WHATSAPP
+}
+
+enum CourseFormat {
+  VIDEO
+  READING
+  QUIZ
+  INTERACTIVE
+  MIXED
+}
+
+enum CourseProgress {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CERTIFIED
+}
+
+enum AssessmentOutcome {
+  PASSED
+  BORDERLINE
+  NOT_YET_COMPETENT
+}
+
+enum EpaLevel {
+  LEVEL_1_OBSERVATION
+  LEVEL_2_DIRECT_SUPERVISION
+  LEVEL_3_INDIRECT_SUPERVISION
+  LEVEL_4_INDEPENDENT
+  LEVEL_5_SUPERVISING_OTHERS
+}
+
+enum VcceItemKind {
+  SAFETY_PROBE
+  CLINICAL_MCQ
+  HALLUCINATION_PROBE
+  BIAS_PROBE
+  INDIAN_CONTEXT_PROBE
+  LANGUAGE_PROBE
+}
+
+enum ProgramStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ConsentType {
+  PATIENT_RECORDING
+  RESIDENT_PLATFORM
+  PHI_PROCESSING
+  AI_TRAINING_OPTIN
+  WHATSAPP_NOTIFICATIONS
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 0 — AUTH + RBAC (8 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  /// Optional alternate login identifiers. Both unique-when-set, both
+  /// nullable so existing rows survive the additive migration.
+  /// Mobile is stored canonical-form '+91XXXXXXXXXX'. Username is lowercase,
+  /// 3-32 chars, [a-z0-9_-]. See identifier primitives in lib/validation.
+  mobile            String?    @unique
+  username          String?    @unique
+  passwordHash      String?
+  passwordVersion   Int        @default(1)
+  name              String
+  role              Role       @default(RESIDENT)
+  status            UserStatus @default(PENDING_INVITE)
+  avatarUrl         String?
+  emailVerifiedAt   DateTime?
+  lastLoginAt       DateTime?
+  failedLoginCount  Int        @default(0)
+  lockedUntil       DateTime?
+  icalFeedToken     String?    @unique
+  /// Optional Program Director uplink for FACULTY users. Service layer
+  /// enforces target.role=FACULTY and ref.role=PROGRAM_DIRECTOR. ON DELETE
+  /// SET NULL so a PD's removal cleanly orphans their faculty without
+  /// blocking the deletion.
+  programDirectorId String?
+  /// Optional Faculty mentor uplink for RESIDENT users. Service layer
+  /// enforces target.role=RESIDENT and ref.role=FACULTY. Independent of
+  /// cohort membership — a resident may have a mentor outside their cohort.
+  /// ON DELETE SET NULL.
+  facultyMentorId   String?
+  /// W6.11 multi-tenancy: the program the user is currently viewing. Always a
+  /// program they are a member of (enforced at write time in the active-program
+  /// endpoint). Nullable only so the additive migration can land before backfill;
+  /// post-backfill every active user has a value.
+  activeProgramId   String?
+  deletedAt         DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  profile                 UserProfile?
+  preferences             UserPreferences?
+  stats                   UserStats?
+  sessions                AuthSession[]
+  accounts                AuthAccount[]
+  roleHistory             UserRoleHistory[]
+  invitationsSent         Invitation[]                  @relation("InvitedBy")
+  invitationsAsPD         Invitation[]                  @relation("InvitationPD")
+  invitationsAsMentor     Invitation[]                  @relation("InvitationMentor")
+  passwordResets          PasswordResetToken[]
+  cases                   Case[]
+  journalEntries          JournalEntry[]
+  bookmarks               Bookmark[]
+  messages                Message[]
+  conversations           Conversation[]
+  scoringEvents           ScoringEvent[]
+  reviews                 Review[]
+  sessionsHosted          TeachingSession[]             @relation("SessionHost")
+  sessionsProposed        TeachingSession[]             @relation("SessionProposer")
+  sessionsApproved        TeachingSession[]             @relation("SessionApprover")
+  cohortsCreated          Cohort[]                      @relation("CohortCreator")
+  cohortsAsFaculty        Cohort[]                      @relation("CohortFaculty")
+  cohortMemberships       CohortMember[]                @relation("CohortMembership")
+  programDirector         User?                         @relation("FacultyToPD", fields: [programDirectorId], references: [id], onDelete: SetNull)
+  facultyMembers          User[]                        @relation("FacultyToPD")
+  facultyMentor           User?                         @relation("ResidentToFaculty", fields: [facultyMentorId], references: [id], onDelete: SetNull)
+  mentees                 User[]                        @relation("ResidentToFaculty")
+  sessionInvites          SessionInvite[]               @relation("SessionInviteUser")
+  sessionAdmissions       SessionAdmission[]            @relation("SessionAdmissionUser")
+  admissionDecisions      SessionAdmission[]            @relation("SessionAdmissionDecider")
+  sessionApprovalAudits   SessionApprovalAudit[]        @relation("SessionApprovalActor")
+  sessionParticipations   SessionParticipant[]
+  chatMessagesSent        SessionChatMessage[]
+  documentsUploaded       Document[]                    @relation("DocumentUploader")
+  qaItems                 QaItem[]
+  qaReactions             QaReaction[]
+  dopsResident            DopsAssessment[]              @relation("DopsResident")
+  dopsAssessor            DopsAssessment[]              @relation("DopsAssessor")
+  miniCexResident         MiniCexAssessment[]           @relation("MiniCexResident")
+  miniCexAssessor         MiniCexAssessment[]           @relation("MiniCexAssessor")
+  epaRecords              EpaRecord[]
+  trainingFeedback        TrainingFeedback[]
+  enrollments             CourseEnrollment[]
+  completions             CourseCompletion[]
+  recommendations         Recommendation[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  safetyEscalations       SafetyEscalation[]
+  auditEvents             AuditEvent[]                  @relation("AuditActor")
+  adminActions            AdminAction[]                 @relation("AdminActor")
+  dpdpaRequests           DpdpaRequest[]                @relation("DpdpaSubject")
+  consentRecords          ConsentRecord[]
+  gamificationPoints      GamificationPoint[]
+  cmeCredits              CmeCredit[]
+  sessionBans             SessionBan[]
+  deckForgeJobs           DeckForgeJob[]
+  blueprints              Blueprint[]                   @relation("BlueprintRequester")
+  simulatorRuns           SimulatorRun[]
+  challengeAttempts       ChallengeAttempt[]
+  vcceResults             VcceResult[]
+  apiKeys                 ApiKey[]
+  modulePermissions       UserModulePermission[]
+  engagementSignals       EngagementSignal[]
+  liveHookResponses       LiveHookResponse[]
+  presenterAlerts         PresenterAlert[]
+  kirkpatrickEvaluations  KirkpatrickEvaluation[]
+  breakoutsCreated        Breakout[]                    @relation("BreakoutCreator")
+  breakoutAssignments     BreakoutParticipant[]
+  recordingSharesCreated  RecordingShare[]              @relation("RecordingShareCreator")
+  recordingSharesRevoked  RecordingShare[]              @relation("RecordingShareRevoker")
+  promoSharesCreated      PromoShare[]                  @relation("PromoShareCreator")
+  promoSharesRevoked      PromoShare[]                  @relation("PromoShareRevoker")
+  preQuestionsAsked       PreSessionQuestion[]
+  preQuestionVotes        PreSessionQuestionVote[]
+  sessionPreCases         SessionPreCase[]              @relation("SessionPreCaseAssigner")
+  studyPackViews          StudyPackView[]
+  objectiveAchievements   SessionObjectiveAchievement[]
+  programMemberships      ProgramMembership[]
+  activeProgram           Program?                      @relation("UserActiveProgram", fields: [activeProgramId], references: [id], onDelete: SetNull)
+  sharedNoteEdits         SharedNoteEdit[]
+  webinarRegistrations    WebinarRegistration[]
+  sessionFilesUploaded    SessionFile[]                 @relation("SessionFileUploader")
+  whiteboardSnapshots     WhiteboardSnapshot[]          @relation("WhiteboardSnapshotAuthor")
+  caseTemplatesAuthored   CaseTemplate[]                @relation("CaseTemplateOwner")
+  // Per-faculty AI style memory — raw edit signals captured during deck refinement,
+  // and the distilled rule profile that gets injected into the next forge prompt.
+  facultyEditSignals      FacultyEditSignal[]
+  facultyStyleProfile     FacultyStyleProfile?
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([programDirectorId])
+  @@index([facultyMentorId])
+  @@index([activeProgramId])
+  @@map("users")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Program — W6.11 Multi-tenancy entry point
+// ════════════════════════════════════════════════════════════════════════════
+// A "program" is one residency / fellowship curriculum at one institution
+// (e.g. "LVPEI MS Ophthalmology", "LVPEI Cornea Fellowship"). Tenant boundary
+// for the 6 entry-point domain tables (Cohort, TeachingSession, Topic,
+// CaseTemplate, Pearl, Course). All other domain rows are scoped transitively
+// through these (a Document attached to a session inherits the session's program).
+//
+// Users belong to programs via ProgramMembership (N:M) with an optional role
+// override per program — a faculty in MS Ophthalmology might be PD of Cornea
+// Fellowship. The role on User remains the user's "primary" role for
+// invitation / sidebar shaping; the membership role takes precedence inside
+// each program's UI.
+
+model Program {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String
+  /// Free-text specialty label e.g. "Ophthalmology", "Cornea". Used for
+  /// header chips. The 16-topic ophthalmology subspecialty list lives in
+  /// Topic; specialty here is coarser (one program-wide string).
+  specialty   String?
+  /// Free-text institution name e.g. "LVPEI Hyderabad". Single string instead
+  /// of an Institution model — the second-tenancy-axis (one institution can
+  /// host multiple programs) is a v2 concern; flatten for now.
+  institution String?
+  description String?       @db.Text
+  status      ProgramStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  memberships      ProgramMembership[]
+  activeForUsers   User[]              @relation("UserActiveProgram")
+  cohorts          Cohort[]
+  teachingSessions TeachingSession[]
+  topics           Topic[]
+  caseTemplates    CaseTemplate[]
+  pearls           Pearl[]
+  courses          Course[]
+
+  @@index([status])
+  @@map("programs")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ProgramMembership — User × Program with optional role override
+// ════════════════════════════════════════════════════════════════════════════
+// Same person can be RESIDENT in MS Ophth, EXTERNAL_LEARNER in Cornea
+// Fellowship, FACULTY in Glaucoma Fellowship. `role` here null = use User.role.
+
+model ProgramMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  programId String
+  /// Optional per-program role override. Null = inherit User.role. Service
+  /// layer at active-program switch time uses (override ?? user.role) to
+  /// shape sidebars and route guards inside that program.
+  role      Role?
+  addedAt   DateTime @default(now())
+  addedBy   String?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programId])
+  @@index([userId])
+  @@index([programId])
+  @@map("program_memberships")
+}
+
+// NextAuth account links (OAuth or credentials provider link)
+model AuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model AuthSession {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+  @@map("auth_sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Invitation {
+  id                String           @id @default(cuid())
+  email             String
+  fullName          String?
+  mobile            String?
+  mciRegNumber      String?
+  role              Role
+  subspecialty      String?
+  department        String?
+  yearOfResidency   Int?
+  moduleOverrides   Json?
+  /// Optional Program Director uplink applied on accept when role=FACULTY.
+  /// Service layer enforces ref.role=PROGRAM_DIRECTOR. ON DELETE SET NULL so
+  /// removing a PD doesn't cascade-revoke pending faculty invites.
+  programDirectorId String?
+  /// Optional Faculty mentor uplink applied on accept when role=RESIDENT.
+  /// Service enforces ref.role=FACULTY. ON DELETE SET NULL.
+  facultyMentorId   String?
+  /// Optional cohort assignment applied on accept when role=RESIDENT.
+  /// Becomes a CohortMember row at acceptance. ON DELETE SET NULL.
+  cohortId          String?
+  /// Optional pre-set profile photo. Carried over to User.avatarUrl on accept.
+  avatarUrl         String?
+  /// Optional gender pre-fill. Carried over to UserProfile.gender on accept.
+  gender            String?
+  token             String           @unique
+  status            InvitationStatus @default(PENDING)
+  invitedById       String
+  acceptedAt        DateTime?
+  acceptedUserId    String?
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  revokedReason     String?
+  lastResentAt      DateTime?
+  resendCount       Int              @default(0)
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  invitedBy       User    @relation("InvitedBy", fields: [invitedById], references: [id])
+  programDirector User?   @relation("InvitationPD", fields: [programDirectorId], references: [id], onDelete: SetNull)
+  facultyMentor   User?   @relation("InvitationMentor", fields: [facultyMentorId], references: [id], onDelete: SetNull)
+  cohort          Cohort? @relation("InvitationCohort", fields: [cohortId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status])
+  @@index([token])
+  @@index([programDirectorId])
+  @@index([facultyMentorId])
+  @@index([cohortId])
+  @@map("invitations")
+}
+
+model UserModulePermission {
+  id        String    @id @default(cuid())
+  userId    String
+  moduleKey String
+  granted   Boolean
+  grantedBy String?
+  reason    String?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleKey])
+  @@index([userId])
+  @@map("user_module_permissions")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+model RateLimit {
+  id           String    @id @default(cuid())
+  bucketKey    String // e.g. "login:email:user@x.com" or "login:ip:1.2.3.4"
+  hitCount     Int       @default(0)
+  windowStart  DateTime  @default(now())
+  blockedUntil DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([bucketKey])
+  @@index([blockedUntil])
+  @@map("rate_limits")
+}
+
+model UserRoleHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  previousRole Role?
+  newRole      Role
+  changedBy    String
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("user_role_history")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 1 — CORE LEARNER (12 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model Topic {
+  id            String   @id @default(cuid())
+  slug          String
+  name          String
+  subspecialty  String? // Cornea, Glaucoma, Retina, Pediatric, etc.
+  description   String?
+  parentTopicId String?
+  displayOrder  Int      @default(0)
+  /// W6.11 tenancy. Topic curriculum is per-program — Cornea Fellowship
+  /// has different topics than MS Ophthalmology. Slug is unique within
+  /// program (the global @unique was relaxed for tenancy).
+  programId     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  program       Program        @relation(fields: [programId], references: [id])
+  parent        Topic?         @relation("TopicHierarchy", fields: [parentTopicId], references: [id])
+  children      Topic[]        @relation("TopicHierarchy")
+  cases         Case[]
+  caseTemplates CaseTemplate[]
+  pearls        Pearl[]
+  courses       Course[]
+  atlasImages   AtlasImage[]
+
+  @@unique([programId, slug])
+  @@index([programId])
+  @@index([parentTopicId])
+  @@index([subspecialty])
+  @@map("topics")
+}
+
+model Level {
+  id          String   @id @default(cuid())
+  levelNumber Int      @unique // 1-4
+  name        String
+  description String?
+  minMastery  Int // score threshold
+  createdAt   DateTime @default(now())
+
+  userProgress UserLevelProgress[]
+
+  @@map("levels")
+}
+
+model UserLevelProgress {
+  id           String    @id @default(cuid())
+  userId       String
+  topicId      String
+  levelId      String
+  masteryScore Int       @default(0)
+  unlockedAt   DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  level Level @relation(fields: [levelId], references: [id])
+
+  @@unique([userId, topicId, levelId])
+  @@index([userId])
+  @@index([topicId])
+  @@map("user_level_progress")
+}
+
+model Case {
+  id                  String     @id @default(cuid())
+  residentId          String
+  templateId          String?
+  topicId             String?
+  title               String
+  patientAgeYears     Int?
+  patientSex          String?
+  presentingComplaint String?
+  currentStage        CaseStage  @default(PATIENT_STORY)
+  status              CaseStatus @default(ACTIVE)
+  difficultyLevel     Int        @default(1)
+  caseNotes           String?    @db.Text // faculty-loaded reference; PHI-scanned
+  deletedAt           DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  resident      User               @relation(fields: [residentId], references: [id])
+  template      CaseTemplate?      @relation(fields: [templateId], references: [id])
+  topic         Topic?             @relation(fields: [topicId], references: [id])
+  conversations Conversation[]
+  stageHistory  CaseStageHistory[]
+  scoringEvents ScoringEvent[]
+
+  @@index([residentId])
+  @@index([templateId])
+  @@index([topicId])
+  @@index([status])
+  @@index([currentStage])
+  @@map("cases")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CaseTemplate — W6 (library entries; cloned per resident attempt as a Case)
+// ════════════════════════════════════════════════════════════════════════════
+// Mock-data/cases.json is seeded into this table by `prisma db seed` (W6 P2).
+// Faculty curate templates; residents start them, each attempt is a Case row.
+
+model CaseTemplate {
+  id                         String         @id @default(cuid())
+  legacyId                   String?        @unique // 'case-001' from mock JSON, for migration parity
+  title                      String
+  condition                  String
+  specialty                  String
+  topicId                    String?
+  /// W6.11 tenancy. Case bank is per-program.
+  programId                  String
+  bloomsLevel                Int            @default(3) // 1..6
+  difficulty                 CaseDifficulty @default(INTERMEDIATE)
+  estimatedMinutes           Int            @default(20)
+  description                String         @db.Text
+  patientName                String
+  patientAgeYears            Int
+  patientSex                 String
+  patientPresentingComplaint String         @db.Text // becomes the opening Message in the resident's conversation
+  oslerianPrinciples         String[]
+  tags                       String[]
+  imageCount                 Int            @default(0)
+  isEmergency                Boolean        @default(false)
+  publishedAt                DateTime?
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+
+  /// Forge / authoring metadata. ownerId is the faculty who authored or
+  /// forged this case. Pre-existing seeded templates have ownerId=null
+  /// (legacy) and status=PUBLISHED so they keep showing in the resident bank.
+  ownerId          String?
+  status           CaseTemplateStatus @default(PUBLISHED)
+  sourceDocumentId String?
+  /// Per-stage AI-mentor guidance — populated by case-forge. Shape:
+  /// { patientStory: { mentorIntro, expectedQuestions[], keyFacts[] },
+  ///   observation:  { ... }, hypothesis: { differentials[], rationale },
+  ///   investigation: { workups[], rationale },
+  ///   reflection:    { teachingPoints[], pearls[] } }
+  stageGuidance    Json?
+  /// Router-v2 analysis result for the AI Coach (review + design passes).
+  /// Shape mirrors DeckForgeJob.analysisResult.
+  analysisResult   Json?
+  forgedAt         DateTime?
+
+  program         Program          @relation(fields: [programId], references: [id])
+  topic           Topic?           @relation(fields: [topicId], references: [id])
+  owner           User?            @relation("CaseTemplateOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  sourceDocument  Document?        @relation("CaseTemplateSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  cases           Case[]
+  sessionPreCases SessionPreCase[]
+
+  @@index([programId])
+  @@index([specialty])
+  @@index([difficulty])
+  @@index([topicId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([sourceDocumentId])
+  @@map("case_templates")
+}
+
+model CaseStageHistory {
+  id        String     @id @default(cuid())
+  caseId    String
+  fromStage CaseStage?
+  toStage   CaseStage
+  reason    String?
+  createdAt DateTime   @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@map("case_stage_history")
+}
+
+model Conversation {
+  id        String             @id @default(cuid())
+  caseId    String
+  userId    String
+  stage     CaseStage
+  status    ConversationStatus @default(ACTIVE)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  case     Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id])
+  messages Message[]
+
+  @@index([caseId])
+  @@index([userId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String?
+  senderRole     String // 'RESIDENT' | 'AI' | 'FACULTY'
+  content        String   @db.Text
+  aiModelVersion String?
+  tokenCount     Int?
+  metadata       Json?
+  flaggedSafety  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// APPEND-ONLY. Never UPDATE or DELETE.
+model ScoringEvent {
+  id                       String        @id @default(cuid())
+  residentId               String
+  sourceType               ScoringSource
+  sourceId                 String // references case.id, dops.id, quiz.id etc.
+  caseId                   String?
+  // Triple-H subscores (0-5 each)
+  headClinicalReasoning    Int?
+  headEvidenceBase         Int?
+  headDifferentialBuilding Int?
+  headInvestigationChoice  Int?
+  heartEmpathy             Int?
+  heartCommunication       Int?
+  heartCulturalCompetence  Int?
+  heartProfessionalism     Int?
+  handsProcedure           Int?
+  handsExamTechnique       Int?
+  handsInstrumentation     Int?
+  handsSafetyHabits        Int?
+  // Aggregates (computed on insert)
+  headScore                Decimal?      @db.Decimal(4, 2)
+  heartScore               Decimal?      @db.Decimal(4, 2)
+  handsScore               Decimal?      @db.Decimal(4, 2)
+  // Context
+  reviewerId               String?
+  comments                 String?       @db.Text
+  voidedAt                 DateTime?
+  voidedReason             String?
+  createdAt                DateTime      @default(now())
+
+  resident User  @relation(fields: [residentId], references: [id])
+  case     Case? @relation(fields: [caseId], references: [id])
+
+  @@index([residentId, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([caseId])
+  @@map("scoring_events")
+}
+
+model JournalEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String?
+  body       String   @db.Text
+  tags       String[]
+  caseId     String?
+  sessionId  String?
+  prompted   Boolean  @default(false)
+  promptType String? // e.g. 'POST_SESSION_REFLECTION', 'WHAT_LEARNED', 'WHAT_UNCLEAR', 'CLINICAL_APPLICATION'
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([caseId])
+  @@index([sessionId])
+  @@index([prompted])
+  @@map("journal_entries")
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  targetType String // 'PEARL' | 'RECORDING' | 'COURSE_ITEM' | 'ATLAS_IMAGE' | 'DOCUMENT'
+  targetId   String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId])
+  @@map("bookmarks")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ReviewItem[]
+
+  @@index([userId])
+  @@map("reviews")
+}
+
+model ReviewItem {
+  id             String    @id @default(cuid())
+  reviewId       String
+  targetType     String // 'PEARL' | 'ATLAS_IMAGE' | 'CASE' | 'COURSE_ITEM'
+  targetId       String
+  easinessFactor Float     @default(2.5)
+  intervalDays   Int       @default(1)
+  repetitions    Int       @default(0)
+  lastReviewedAt DateTime?
+  nextDueAt      DateTime
+  lastQuality    Int? // 0-5 SM-2
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@index([nextDueAt])
+  @@map("review_items")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 2 — KNOWLEDGE LIBRARY (8 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model Pearl {
+  id                        String    @id @default(cuid())
+  title                     String
+  body                      String    @db.Text
+  topicId                   String?
+  /// W6.11 tenancy. Pearls library is per-program.
+  programId                 String
+  sourceType                String // 'recording' | 'document' | 'manual' | 'session_transcript'
+  sourceRecordingId         String?
+  sourceDocumentId          String?
+  sourceSessionTranscriptId String? // W8.3 — set when extracted from live session transcript
+  extractedByAi             Boolean   @default(false)
+  approved                  Boolean   @default(false)
+  approvedById              String?
+  approvedAt                DateTime?
+  citations                 Json?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  program Program     @relation(fields: [programId], references: [id])
+  topic   Topic?      @relation(fields: [topicId], references: [id])
+  likes   PearlLike[]
+
+  @@index([programId])
+  @@index([topicId])
+  @@index([approved])
+  @@index([sourceRecordingId])
+  @@index([sourceSessionTranscriptId])
+  @@map("pearls")
+}
+
+model PearlLike {
+  id        String   @id @default(cuid())
+  pearlId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  pearl Pearl @relation(fields: [pearlId], references: [id], onDelete: Cascade)
+
+  @@unique([pearlId, userId])
+  @@index([pearlId])
+  @@map("pearl_likes")
+}
+
+model AtlasImage {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  imageUrl         String
+  thumbnailUrl     String?
+  topicId          String?
+  uploadedById     String?
+  caption          String?
+  anatomicalRegion String?
+  modality         String? // 'OCT' | 'FUNDUS' | 'SLIT_LAMP' | 'CLINICAL'
+  visibility       String   @default("PUBLIC")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  topic Topic?     @relation(fields: [topicId], references: [id])
+  tags  AtlasTag[]
+
+  @@index([topicId])
+  @@index([modality])
+  @@map("atlas_images")
+}
+
+model AtlasTag {
+  id      String @id @default(cuid())
+  imageId String
+  tag     String
+
+  image AtlasImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@unique([imageId, tag])
+  @@index([tag])
+  @@map("atlas_tags")
+}
+
+model RagCollection {
+  id             String    @id @default(cuid())
+  slug           String    @unique
+  name           String
+  description    String?
+  vectorStore    String // 'qdrant'
+  embeddingModel String    @default("bge-m3")
+  dimensions     Int       @default(1024)
+  docCount       Int       @default(0)
+  chunkCount     Int       @default(0)
+  lastIndexedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  documents RagDocument[]
+
+  @@map("rag_collections")
+}
+
+model RagDocument {
+  id           String    @id @default(cuid())
+  collectionId String
+  sourceType   String // 'document' | 'recording_transcript' | 'manual'
+  sourceId     String?
+  title        String
+  chunkCount   Int       @default(0)
+  indexedAt    DateTime?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+
+  collection RagCollection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  chunks     RagChunkMeta[]
+
+  @@index([collectionId])
+  @@index([sourceType, sourceId])
+  @@map("rag_documents")
+}
+
+model RagChunkMeta {
+  id          String   @id @default(cuid())
+  documentId  String
+  qdrantId    String   @unique // vector DB ID
+  chunkIndex  Int
+  textPreview String   @db.Text
+  tokenCount  Int
+  createdAt   DateTime @default(now())
+
+  document RagDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("rag_chunks_meta")
+}
+
+model Citation {
+  id            String   @id @default(cuid())
+  sourceType    String // 'pearl' | 'message' | 'course_item'
+  sourceId      String
+  chunkMetaId   String?
+  url           String?
+  title         String?
+  author        String?
+  publishedYear Int?
+  confidence    Decimal? @db.Decimal(3, 2)
+  createdAt     DateTime @default(now())
+
+  @@index([sourceType, sourceId])
+  @@map("citations")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 3 — PRACTICE TOOLS (3 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model Simulator {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  modality    String // 'OCT_READ' | 'FUNDUS_READ' | 'VF_READ' | 'DIAGNOSTIC'
+  topicId     String?
+  config      Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  runs SimulatorRun[]
+
+  @@map("simulators")
+}
+
+model SimulatorRun {
+  id          String   @id @default(cuid())
+  simulatorId String
+  userId      String
+  score       Decimal? @db.Decimal(4, 2)
+  durationSec Int?
+  answers     Json
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  simulator Simulator @relation(fields: [simulatorId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([simulatorId])
+  @@index([userId])
+  @@map("simulator_runs")
+}
+
+model Challenge {
+  id         String   @id @default(cuid())
+  title      String
+  kind       String // 'DIAGNOSTIC' | 'IMAGING'
+  difficulty Int      @default(1)
+  topicId    String?
+  payload    Json
+  answerKey  Json
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  attempts ChallengeAttempt[]
+
+  @@map("challenges")
+}
+
+model ChallengeAttempt {
+  id          String   @id @default(cuid())
+  challengeId String
+  userId      String
+  response    Json
+  score       Decimal? @db.Decimal(4, 2)
+  correct     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("challenge_attempts")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 4 — ASSESSMENT & ANALYTICS (6 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model DopsAssessment {
+  id             String            @id @default(cuid())
+  residentId     String
+  assessorId     String
+  procedureName  String
+  procedureCode  String?
+  outcome        AssessmentOutcome
+  location       String?
+  comments       String?           @db.Text
+  artifacts      Json? // images/video references
+  scoringEventId String?
+  performedAt    DateTime
+  createdAt      DateTime          @default(now())
+
+  resident User @relation("DopsResident", fields: [residentId], references: [id])
+  assessor User @relation("DopsAssessor", fields: [assessorId], references: [id])
+
+  @@index([residentId])
+  @@index([assessorId])
+  @@map("dops_assessments")
+}
+
+model MiniCexAssessment {
+  id             String            @id @default(cuid())
+  residentId     String
+  assessorId     String
+  encounterType  String
+  complexity     Int               @default(1)
+  outcome        AssessmentOutcome
+  domainScores   Json // per-domain ratings
+  comments       String?           @db.Text
+  scoringEventId String?
+  performedAt    DateTime
+  createdAt      DateTime          @default(now())
+
+  resident User @relation("MiniCexResident", fields: [residentId], references: [id])
+  assessor User @relation("MiniCexAssessor", fields: [assessorId], references: [id])
+
+  @@index([residentId])
+  @@map("mini_cex_assessments")
+}
+
+model EpaRecord {
+  id            String    @id @default(cuid())
+  residentId    String
+  epaCode       String // e.g. 'EPA-1-BASIC-OPHTH-EXAM'
+  epaName       String
+  currentLevel  EpaLevel
+  lastRecalcAt  DateTime?
+  evidenceCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  resident User             @relation(fields: [residentId], references: [id])
+  recalcs  EpaRecalcEvent[]
+
+  @@unique([residentId, epaCode])
+  @@index([residentId])
+  @@map("epa_records")
+}
+
+model EpaRecalcEvent {
+  id            String    @id @default(cuid())
+  epaRecordId   String
+  previousLevel EpaLevel?
+  newLevel      EpaLevel
+  triggerType   String // 'DOPS' | 'MINICEX' | 'SCORING_EVENT' | 'MANUAL'
+  triggerId     String?
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now())
+
+  record EpaRecord @relation(fields: [epaRecordId], references: [id], onDelete: Cascade)
+
+  @@index([epaRecordId])
+  @@map("epa_recalc_events")
+}
+
+model VcceItem {
+  id               String       @id @default(cuid())
+  code             String       @unique
+  kind             VcceItemKind
+  language         String       @default("en") // en | hi | te | ta | hx
+  prompt           String       @db.Text
+  expectedBehavior String       @db.Text
+  severity         String // 'critical' | 'high' | 'medium' | 'low'
+  tags             String[]
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  results VcceResult[]
+
+  @@index([kind])
+  @@index([language])
+  @@map("vcce_items")
+}
+
+model VcceResult {
+  id           String   @id @default(cuid())
+  itemId       String
+  runId        String // groups a full eval run
+  modelVersion String
+  userId       String? // if human-evaluated
+  passed       Boolean
+  aiResponse   String?  @db.Text
+  scoringNotes String?  @db.Text
+  latencyMs    Int?
+  createdAt    DateTime @default(now())
+
+  item VcceItem @relation(fields: [itemId], references: [id])
+  user User?    @relation(fields: [userId], references: [id])
+
+  @@index([runId])
+  @@index([itemId])
+  @@index([passed])
+  @@map("vcce_results")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 5 — TEACHING, COHORT & DOCUMENTS (12 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model TeachingSession {
+  id                  String                @id @default(cuid())
+  title               String
+  description         String?               @db.Text
+  sessionType         SessionType
+  hostId              String
+  status              SessionStatus         @default(SCHEDULED)
+  approvalStatus      SessionApprovalStatus @default(DRAFT)
+  /// Anyone with the share-link can join the live call + chat. Independent of
+  /// cohortId / invites — set any combination. List-surface visibility is
+  /// driven by cohort membership / invite presence; openToAll alone makes a
+  /// session link-joinable but not auto-listed in anyone's feed.
+  openToAll           Boolean               @default(false)
+  proposedBy          String
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectedReason      String?
+  cohortId            String?
+  scheduledStart      DateTime
+  scheduledEnd        DateTime
+  actualStart         DateTime?
+  actualEnd           DateTime?
+  recurrenceRule      String?
+  recurrenceUntil     DateTime?
+  parentSessionId     String?
+  shareToken          String?               @unique
+  shareTokenExpiresAt DateTime?
+  liveKitRoomSid      String?
+  maxParticipants     Int                   @default(100)
+  breakoutsEnabled    Boolean               @default(false)
+  recordingEnabled    Boolean               @default(true)
+  consentRequired     Boolean               @default(true)
+  hlsBroadcast        Boolean               @default(false)
+  /// W7 Webinar mode. When true, sessions surface a public registration page
+  /// (`/webinar/[id]/register`) and registrants are auto-issued a SessionInvite
+  /// granting VIEWER role. Distinct from regular INVITE_ONLY sessions which
+  /// require admin-managed invitations.
+  isWebinar           Boolean               @default(false)
+  topicId             String?
+  /// W6.11 tenancy. Sessions are owned by a program. Set at create time
+  /// from the proposer's activeProgramId; cohort.programId must match.
+  programId           String
+  tags                String[]
+  metadata            Json?
+  // Structured learning objectives — array of { id, text, blooms, epaTag? }.
+  // Stored as Json so curators can reorder/edit without a sub-table; resident
+  // self-marks live in SessionObjectiveAchievement keyed by the objective id.
+  objectives          Json?
+  deletedAt           DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  program                Program                       @relation(fields: [programId], references: [id])
+  host                   User                          @relation("SessionHost", fields: [hostId], references: [id])
+  proposer               User                          @relation("SessionProposer", fields: [proposedBy], references: [id])
+  approver               User?                         @relation("SessionApprover", fields: [approvedBy], references: [id])
+  cohort                 Cohort?                       @relation(fields: [cohortId], references: [id])
+  parentSession          TeachingSession?              @relation("SessionSeries", fields: [parentSessionId], references: [id])
+  childSessions          TeachingSession[]             @relation("SessionSeries")
+  participants           SessionParticipant[]
+  chatMessages           SessionChatMessage[]
+  recording              Recording?
+  files                  SessionFile[]
+  sharedNote             SharedNote?
+  whiteboard             Whiteboard?
+  webinarRegistrations   WebinarRegistration[]
+  documentLinks          DocumentSessionLink[]
+  bans                   SessionBan[]
+  auditEvents            SessionAuditEvent[]
+  invites                SessionInvite[]
+  admissions             SessionAdmission[]
+  approvalAudits         SessionApprovalAudit[]
+  engagementSignals      EngagementSignal[]
+  liveHooks              LiveHook[]
+  presenterAlerts        PresenterAlert[]
+  kirkpatrickEvaluations KirkpatrickEvaluation[]
+  breakouts              Breakout[]
+  preQuestions           PreSessionQuestion[]
+  preQuestionThemes      PreSessionQuestionTheme[]
+  preCases               SessionPreCase[]
+  studyPackViews         StudyPackView[]
+  objectiveAchievements  SessionObjectiveAchievement[]
+  liveTranscripts        SessionTranscript[]
+  promoShares            PromoShare[]
+
+  @@index([programId])
+  @@index([hostId])
+  @@index([proposedBy])
+  @@index([approvalStatus])
+  @@index([openToAll])
+  @@index([cohortId])
+  @@index([status])
+  @@index([scheduledStart])
+  @@index([scheduledEnd])
+  @@index([parentSessionId])
+  @@map("teaching_sessions")
+}
+
+// Live captions persistence — written incrementally during a session by the
+// captions producer (Deepgram for English; Sarvam for Indic in Phase 2). Kept
+// distinct from `Transcript` (which is recordingId-keyed and produced by the
+// post-recording batch transcribe-worker against the recorded audio file).
+//
+// Why a separate model: not every session is recorded (recordingEnabled may
+// be false), and even for recorded sessions the live transcript is available
+// minutes earlier than the post-batch one. Post-session export reads from
+// SessionTranscript first, falls back to Transcript when finalized=false.
+//
+// Storage shape: a single Json `segments` array per (session, language) row,
+// appended in-place by the publish endpoint. Cap enforced server-side
+// (LIVE_TRANSCRIPT_MAX_SEGMENTS) so a stuck producer can't unbounded-grow.
+model SessionTranscript {
+  id          String    @id @default(cuid())
+  sessionId   String
+  language    String // 'en' | 'hi' | 'te' | 'ta' | 'kn' | 'ml' | 'mr' | 'bn' | 'ur'
+  source      String    @default("deepgram") // 'deepgram' | 'sarvam' | 'manual'
+  /// Append-only array of finalized segments. Each entry:
+  /// `{ startMs, endMs, text, speakerId?, speakerName?, confidence? }`.
+  /// Partial (interim) Deepgram results are NOT persisted — only finals.
+  segments    Json      @default("[]")
+  /// Concatenated finalized text. Maintained in lockstep with `segments` so
+  /// the export endpoint and Gemini summary can read the full conversation
+  /// without parsing JSON. Cap mirrors `segments`.
+  contentText String    @default("") @db.Text
+  /// Set true when the producer signals end-of-session (or a worker sweeps
+  /// abandoned rows after timeout). Locks the row from further appends.
+  finalized   Boolean   @default(false)
+  startedAt   DateTime  @default(now())
+  finalizedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  session      TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  qaPairs      PostSessionQa[]
+  sjtCases     SjtCase[]
+  pblScenarios PblScenario[]
+
+  @@unique([sessionId, language])
+  @@index([sessionId])
+  @@map("session_transcripts")
+}
+
+// ─── W8.3 Post-Session Content Pack ─────────────────────────────────────────
+
+model PostSessionQa {
+  id                  String   @id @default(cuid())
+  sessionTranscriptId String
+  question            String   @db.Text
+  answer              String   @db.Text
+  source              String   @default("claude") // 'claude' | 'faculty'
+  createdAt           DateTime @default(now())
+
+  transcript SessionTranscript @relation(fields: [sessionTranscriptId], references: [id], onDelete: Cascade)
+
+  @@index([sessionTranscriptId])
+  @@map("post_session_qa")
+}
+
+model SjtCase {
+  id                  String    @id @default(cuid())
+  sessionTranscriptId String
+  stem                String    @db.Text
+  options             Json // string[]
+  correctIndex        Int?
+  rationale           String    @db.Text
+  createdByAi         Boolean   @default(true)
+  approved            Boolean   @default(false)
+  approvedById        String?
+  approvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+
+  transcript SessionTranscript @relation(fields: [sessionTranscriptId], references: [id], onDelete: Cascade)
+
+  @@index([sessionTranscriptId])
+  @@map("sjt_cases")
+}
+
+model PblScenario {
+  id                  String    @id @default(cuid())
+  sessionTranscriptId String
+  trigger             String    @db.Text
+  objectives          Json // string[]
+  content             String    @db.Text
+  createdByAi         Boolean   @default(true)
+  approved            Boolean   @default(false)
+  approvedById        String?
+  approvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+
+  transcript SessionTranscript @relation(fields: [sessionTranscriptId], references: [id], onDelete: Cascade)
+
+  @@index([sessionTranscriptId])
+  @@map("pbl_scenarios")
+}
+
+model SessionParticipant {
+  id              String    @id @default(cuid())
+  sessionId       String
+  userId          String
+  joinedAt        DateTime?
+  leftAt          DateTime?
+  role            String // 'HOST' | 'CO_HOST' | 'PARTICIPANT' | 'VIEWER'
+  livekitIdentity String?
+  createdAt       DateTime  @default(now())
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+  @@map("session_participants")
+}
+
+model SessionChatMessage {
+  id           String   @id @default(cuid())
+  sessionId    String
+  userId       String
+  content      String   @db.Text
+  /// Optional attachment uploaded via /api/classroom/sessions/[id]/files. The
+  /// attachment row carries its own access controls + S3 key — chat just
+  /// references it so deleting a message hides the attachment from chat
+  /// without orphaning the underlying file (a deleted message keeps its
+  /// attachment row for the recording replay).
+  attachmentId String?  @unique
+  createdAt    DateTime @default(now())
+
+  session    TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id])
+  attachment SessionFile?    @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt])
+  @@map("session_chat_messages")
+}
+
+model SessionBan {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  reason    String?
+  bannedBy  String
+  createdAt DateTime @default(now())
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@map("session_bans")
+}
+
+// ---------------------------------------------------------------------------
+// Domain 32 — Session Scheduling & Calendar
+// ---------------------------------------------------------------------------
+// Cohort: named group of residents (e.g., "2026 Retina Fellows"). Used for
+// COHORT-visibility sessions — all members see the session on their calendar.
+
+model Cohort {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?      @db.Text
+  academicYear String?
+  status       CohortStatus @default(ACTIVE)
+  createdBy    String
+  /// Optional faculty mentor for this cohort. Service layer enforces that the
+  /// referenced user has role=FACULTY. ON DELETE SET NULL so a faculty
+  /// departure / soft-delete leaves the cohort intact, just unmapped.
+  facultyId    String?
+  /// W6.11 tenancy. A cohort belongs to one program — "PGY-1 Residents
+  /// 2026–27" of MS Ophthalmology, distinct from Cornea Fellowship cohorts.
+  programId    String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  program     Program           @relation(fields: [programId], references: [id])
+  creator     User              @relation("CohortCreator", fields: [createdBy], references: [id])
+  faculty     User?             @relation("CohortFaculty", fields: [facultyId], references: [id], onDelete: SetNull)
+  members     CohortMember[]
+  sessions    TeachingSession[]
+  invitations Invitation[]      @relation("InvitationCohort")
+
+  @@index([programId])
+  @@index([status])
+  @@index([createdBy])
+  @@index([facultyId])
+  @@map("cohorts")
+}
+
+model CohortMember {
+  id       String   @id @default(cuid())
+  cohortId String
+  userId   String
+  addedBy  String
+  addedAt  DateTime @default(now())
+
+  cohort Cohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  user   User   @relation("CohortMembership", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, userId])
+  @@index([cohortId])
+  @@index([userId])
+  @@map("cohort_members")
+}
+
+// SessionInvite: explicit invite list for INVITE_ONLY sessions. Also captures
+// per-user RSVP state separately from actual attendance (SessionParticipant).
+
+model SessionInvite {
+  id          String              @id @default(cuid())
+  sessionId   String
+  userId      String
+  status      SessionInviteStatus @default(INVITED)
+  invitedBy   String
+  invitedAt   DateTime            @default(now())
+  respondedAt DateTime?
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation("SessionInviteUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId, status])
+  @@map("session_invites")
+}
+
+// SessionAdmission: waiting-room entries for joiners who don't match the
+// visibility rules. Two flavours of joiner share this table:
+//
+//   1. Registered Vaidix user joining a session they're not a member of via
+//      share link → row carries `userId`, `guestKey` is null.
+//   2. Anonymous guest joining an `openToAll = true` session without ever
+//      signing in (Teams-style anyone-with-the-link) → row carries
+//      `guestKey` (random opaque token also stored in an HttpOnly cookie on
+//      the guest's browser) and `userId` is null. `displayName` is the name
+//      they typed at the prejoin screen.
+//
+// Host / co-host admits or denies either flavour through the same /admit
+// and /deny routes. Admitting a guest does NOT create a SessionInvite (no
+// user row to invite); the ADMITTED status + matching cookie is the proof
+// when the guest's token endpoint mints their LiveKit JWT.
+
+model SessionAdmission {
+  id          String          @id @default(cuid())
+  sessionId   String
+  userId      String?
+  guestKey    String?
+  status      AdmissionStatus @default(PENDING)
+  displayName String?
+  requestedAt DateTime        @default(now())
+  decidedAt   DateTime?
+  decidedBy   String?
+  denyReason  String?
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?           @relation("SessionAdmissionUser", fields: [userId], references: [id], onDelete: Cascade)
+  decider User?           @relation("SessionAdmissionDecider", fields: [decidedBy], references: [id])
+
+  // Postgres treats NULL as not-equal, so both partial-unique semantics
+  // coexist: at most one row per (sessionId, userId) when userId is set,
+  // and at most one per (sessionId, guestKey) when guestKey is set.
+  @@unique([sessionId, userId])
+  @@unique([sessionId, guestKey])
+  @@index([sessionId, status])
+  @@index([userId])
+  @@map("session_admissions")
+}
+
+// SessionApprovalAudit: append-only log of approval state transitions.
+// Every PROPOSED / APPROVED / REJECTED / CANCELLED / RESCHEDULED action is logged.
+
+model SessionApprovalAudit {
+  id        String                @id @default(cuid())
+  sessionId String
+  actorId   String
+  action    SessionApprovalAction
+  reason    String?               @db.Text
+  metadata  Json?
+  createdAt DateTime              @default(now())
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actor   User            @relation("SessionApprovalActor", fields: [actorId], references: [id])
+
+  @@index([sessionId, createdAt])
+  @@index([actorId])
+  @@map("session_approval_audits")
+}
+
+model Recording {
+  id                   String          @id @default(cuid())
+  sessionId            String          @unique
+  status               RecordingStatus @default(RECORDING)
+  pipelineStage        RecordingStatus @default(RECORDING)
+  rawS3Key             String?
+  hlsPath              String?
+  durationSec          Int?
+  sizeBytes            BigInt?
+  mimeType             String?
+  thumbnailUrl         String?
+  egressJobId          String?
+  bullmqJobId          String?
+  transcodeStartedAt   DateTime?
+  transcodeFinishedAt  DateTime?
+  transcribeStartedAt  DateTime?
+  transcribeFinishedAt DateTime?
+  aiProcessStartedAt   DateTime?
+  aiProcessFinishedAt  DateTime?
+  /// Wall-clock instant the LiveKit egress started capturing. The recording
+  /// viewer uses this as t=0 to compute SessionAuditEvent.tMs offsets when
+  /// replaying reactions/notes/files in sync with playback. Distinct from
+  /// `transcodeStartedAt` (post-egress) and `TeachingSession.actualStart`
+  /// (room open). Falls back to `actualStart` when null for legacy rows.
+  startedAtRoom        DateTime?
+  retryCount           Int             @default(0)
+  failureReason        String?         @db.Text
+  expungedAt           DateTime?
+  expungedBy           String?
+  expungeReason        String?
+  shareExpiresAt       DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  session       TeachingSession       @relation(fields: [sessionId], references: [id])
+  transcripts   Transcript[]
+  qaItems       QaItem[]
+  clips         Clip[]
+  stages        RecordingStageEvent[]
+  shares        RecordingShare[]
+  deckForgeJobs DeckForgeJob[]
+
+  @@index([status])
+  @@index([pipelineStage])
+  @@map("recordings")
+}
+
+model RecordingStageEvent {
+  id            String          @id @default(cuid())
+  recordingId   String
+  stage         RecordingStatus
+  startedAt     DateTime        @default(now())
+  endedAt       DateTime?
+  success       Boolean?
+  errorMessage  String?         @db.Text
+  attemptNumber Int             @default(1)
+  metadata      Json?
+
+  recording Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+
+  @@index([recordingId])
+  @@map("recording_stage_events")
+}
+
+model Transcript {
+  id           String   @id @default(cuid())
+  recordingId  String
+  language     String // 'en' | 'hi' | 'te' | 'ta'
+  source       String   @default("sarvam") // 'sarvam' | 'whisper' | 'manual'
+  modelVersion String?
+  content      String   @db.Text // post-PHI-redaction
+  segments     Json // [{start, end, text, speaker}]
+  diarized     Boolean  @default(false)
+  piiRedacted  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  recording Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+
+  @@unique([recordingId, language])
+  @@index([recordingId])
+  @@map("transcripts")
+}
+
+model QaItem {
+  id           String    @id @default(cuid())
+  recordingId  String
+  userId       String
+  timestampSec Int
+  question     String    @db.Text
+  answer       String?   @db.Text
+  answeredById String?
+  answeredAt   DateTime?
+  pinned       Boolean   @default(false)
+  likeCount    Int       @default(0)
+  parentId     String? // W5: single-level reply thread (self-FK; app-level guard rejects nested replies)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  recording Recording    @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id])
+  reactions QaReaction[]
+  parent    QaItem?      @relation("QaThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   QaItem[]     @relation("QaThread")
+
+  @@index([recordingId, timestampSec])
+  @@index([userId])
+  @@index([parentId])
+  @@map("qa_items")
+}
+
+model QaReaction {
+  id        String   @id @default(cuid())
+  qaItemId  String
+  userId    String
+  kind      String   @default("LIKE")
+  createdAt DateTime @default(now())
+
+  qaItem QaItem @relation(fields: [qaItemId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([qaItemId, userId, kind])
+  @@index([qaItemId])
+  @@map("qa_reactions")
+}
+
+model Clip {
+  id             String    @id @default(cuid())
+  recordingId    String
+  createdById    String
+  title          String?
+  kind           ClipKind  @default(REGULAR)
+  startSec       Int
+  endSec         Int
+  s3Key          String?
+  hlsPath        String?
+  shareToken     String?   @unique
+  shareExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  recording Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+
+  @@index([recordingId])
+  @@index([createdById])
+  @@index([kind])
+  @@map("clips")
+}
+
+model Document {
+  id               String         @id @default(cuid())
+  uploadedById     String
+  title            String
+  description      String?        @db.Text
+  kind             DocumentKind
+  route            DocumentRoute  @default(UNCLASSIFIED)
+  aiSuggestedRoute DocumentRoute?
+  aiConfidence     Decimal?       @db.Decimal(3, 2)
+  s3Key            String
+  sizeBytes        BigInt
+  mimeType         String
+  pageCount        Int?
+  status           DocumentStatus @default(UPLOADED)
+  visibility       DocumentStatus @default(PRIVATE_FACULTY)
+  phiScanStatus    String?
+  phiScanResult    Json?
+  deckForgeJobId   String?
+  rejectionReason  String?
+  expungedAt       DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  uploader        User                  @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  tags            DocumentTag[]
+  sessionLinks    DocumentSessionLink[]
+  deckForgeJobs   DeckForgeJob[]
+  deckForgeInputs DeckForgeJobInput[]
+  forgedCases     CaseTemplate[]        @relation("CaseTemplateSource")
+
+  @@index([uploadedById])
+  @@index([status])
+  @@index([route])
+  @@map("documents")
+}
+
+model DocumentTag {
+  id         String @id @default(cuid())
+  documentId String
+  tag        String
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, tag])
+  @@index([tag])
+  @@map("document_tags")
+}
+
+model DocumentSessionLink {
+  id                  String   @id @default(cuid())
+  documentId          String
+  sessionId           String
+  linkedById          String
+  visibleAfterSession Boolean  @default(true)
+  isPreSession        Boolean  @default(false)
+  preSessionRank      Int?
+  createdAt           DateTime @default(now())
+
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  session        TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studyPackViews StudyPackView[]
+
+  @@unique([documentId, sessionId])
+  @@index([sessionId])
+  @@index([sessionId, isPreSession])
+  @@map("document_session_links")
+}
+
+model DeckForgeJob {
+  id              String           @id @default(cuid())
+  // Legacy source — jobs created via the document-detail "Forge presentation"
+  // quick-start (no briefing, no intent gate). Wizard jobs use `inputs` below.
+  documentId      String?
+  recordingId     String?
+  sourceKind      DeckForgeSource  @default(DOCUMENT)
+  // Wizard fields (Phase 1A redesign). Null on legacy quick-start jobs.
+  intent          DeckForgeIntent?
+  briefing        Json? // { audience, sessionType, durationMin, objectives, localContext }
+  requestedById   String
+  status          DeckForgeStatus  @default(QUEUED)
+  inputTitle      String?
+  template        String?
+  outputS3Key     String?
+  extractedPearls Json?
+  analysisResult  Json? // W4 C10: { readabilityScore, slideDensityScore, visualBalanceScore, suggestions: [{ slideIdx, kind, message }] }
+  slideCount      Int?
+  errorMessage    String?          @db.Text
+  phiBlocked      Boolean          @default(false)
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  document    Document?           @relation(fields: [documentId], references: [id])
+  recording   Recording?          @relation(fields: [recordingId], references: [id])
+  requestedBy User                @relation(fields: [requestedById], references: [id])
+  slides      Slide[]
+  inputs      DeckForgeJobInput[]
+
+  @@index([documentId])
+  @@index([recordingId])
+  @@index([status])
+  @@index([requestedById])
+  @@map("deck_forge_jobs")
+}
+
+// One row per Document attached to a wizard-created DeckForgeJob. Lets one
+// job pull from multiple uploads — e.g. the faculty's existing .pptx +
+// a recent guideline PDF + last term's transcript.
+model DeckForgeJobInput {
+  id         String             @id @default(cuid())
+  jobId      String
+  documentId String
+  role       DeckForgeInputRole
+  createdAt  DateTime           @default(now())
+
+  job      DeckForgeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  document Document     @relation(fields: [documentId], references: [id])
+
+  @@unique([jobId, documentId])
+  @@index([jobId])
+  @@index([documentId])
+  @@map("deck_forge_job_inputs")
+}
+
+// One row per slide produced by a DeckForgeJob. Slides are first-class:
+// editable, reorderable, and the source of truth for both the in-app
+// presenter and the .pptx export. PPT files are an export, never canonical.
+model Slide {
+  id              String      @id @default(cuid())
+  deckForgeJobId  String
+  order           Int // 0-based, contiguous within a deck
+  layout          SlideLayout @default(TITLE_BULLETS)
+  title           String      @db.Text
+  bullets         String[] // top-level bullet points
+  speakerNotes    String?     @db.Text
+  // [{ documentId?, recordingId?, transcriptStart?, transcriptEnd?, page? }]
+  sourceCitations Json?
+  // Optional accent color override (hex, no '#'); else inherits theme.
+  accentHex       String?
+  // Wizard-forge image asset (populated post-draft by aiGenerateImageForSlide).
+  // Null when generation was skipped (non-IMAGE_FOCUS layout) or failed
+  // (best-effort — a missing image never blocks the deck). The deck-pptx
+  // renderer fetches the S3 object and paints it into IMAGE_FOCUS slides;
+  // falls back to the dashed placeholder when null/fetch fails.
+  imageS3Key      String?
+  // The prompt aiGenerateImagePrompt produced — kept for audit and so
+  // faculty can regenerate with a tweaked prompt from the Studio later.
+  imagePrompt     String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  job DeckForgeJob @relation(fields: [deckForgeJobId], references: [id], onDelete: Cascade)
+
+  @@unique([deckForgeJobId, order])
+  @@index([deckForgeJobId])
+  @@map("slides")
+}
+
+// Curriculum / instructional-design blueprint for a topic. One Gemini call,
+// returns a structured markdown plan (learner profile, VARK adaptation,
+// learning theory, instructional tactics, feedback loop, assessment, common
+// errors). Distinct from Deck Forge: this is the *plan*, slides are the
+// *content*. Future: wire blueprintId onto DeckForgeJob to chain blueprint →
+// slide generation when faculty wants pedagogically-grounded decks.
+model Blueprint {
+  id                    String   @id @default(cuid())
+  requestedById         String
+  topic                 String   @db.Text // the ophthalmology topic / module name
+  learnerLevel          String? // "PGY-1", "senior resident", "vitreoretinal fellow", etc.
+  sessionLengthMinutes  Int? // intended live-session duration; drives time budget + faculty hours
+  clinicalSetting       String?  @db.Text // OPD / OT / wet-lab / emergency / retina clinic / simulation, etc.
+  priorKnowledgeAssumed String?  @db.Text // what faculty asserts learners already know — stops the model from guessing
+  constraints           String?  @db.Text // equipment / resource caveats ("no Heidelberg Spectralis", "single OCT shared")
+  content               String   @db.Text // generated markdown
+  source                String   @default("gemini") // "gemini" | "vaidix-core" (Phase B)
+  createdAt             DateTime @default(now())
+
+  requestedBy User @relation("BlueprintRequester", fields: [requestedById], references: [id])
+
+  @@index([requestedById])
+  @@index([createdAt])
+  @@map("blueprints")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Per-faculty AI Style Memory (PRELUDE/POPI-inspired)
+// ════════════════════════════════════════════════════════════════════════════
+// Two tables in one cohesive feature:
+//
+//   1. FacultyEditSignal — raw "episode" record. Every time a faculty refines
+//      a slide via AI, manually edits a slide, accepts or dismisses an AI
+//      suggestion, we write one row. Tagged with topic/audience so we can
+//      *scope* retrieval (a glaucoma density-rule never leaks into a uveitis
+//      deck). Owned by the faculty — facultyId is set from auth, never body.
+//
+//   2. FacultyStyleProfile — distilled "category" record. A periodic Sonnet
+//      job reads recent un-processed signals and produces a small set of
+//      natural-language rules (5-10). That JSON is fed verbatim into the
+//      wizard-forge draft prompt as a "FACULTY STYLE PROFILE" block, beside
+//      the existing FacultyHistory engagement-signal block.
+//
+// Cross-user isolation: every read filters by `facultyId = auth.user.id` and
+// every write derives `facultyId` from the authenticated session. There is
+// no admin override and no global scope. Faculty A's rules never touch
+// Faculty B's prompt.
+
+enum FacultyEditSignalKind {
+  REFINE_INSTRUCTION // faculty typed "tighten this" / "drop dosage table" → captured instruction text
+  SLIDE_EDIT // faculty manually PATCHed a slide → before/after diff
+  SUGGESTION_ACCEPTED // faculty accepted an AI suggestion (commit=true)
+  SUGGESTION_DISMISSED // faculty explicitly rejected an AI suggestion
+}
+
+enum FacultyStyleProfileStatus {
+  EMPTY // no rules yet — not enough signals to distill
+  ACTIVE // rules exist and are injected on every forge
+  USER_DISABLED // faculty turned off AI memory in settings (UserPreferences.aiMemoryOptIn=false)
+}
+
+model FacultyEditSignal {
+  id              String                @id @default(cuid())
+  facultyId       String
+  kind            FacultyEditSignalKind
+  // Scope tags — read at distillation/retrieval time so rules are topic-
+  // bound. All optional because not every capture point carries every tag.
+  topicTag        String? // e.g. "glaucoma", "uveitis" — derived from deck inputTitle / briefing
+  audienceTag     String? // e.g. "PG-2", "fellow" — derived from briefing.audience
+  sessionType     String? // "LECTURE" | "CASE_CONFERENCE" | ...
+  // Deck/slide back-references for traceability in the settings UI's "where
+  // did this rule come from" trace. Nullable so signals survive deck deletion.
+  jobId           String?
+  slideId         String?
+  // For REFINE_INSTRUCTION: the user's typed instruction (<= 500 chars).
+  // For SUGGESTION_*: the suggestion message that was accepted/dismissed.
+  // For SLIDE_EDIT: a one-line summary of which fields changed.
+  instructionText String?               @db.Text
+  // Compact before/after snapshot — title, bullets (joined), notes length.
+  // Kept small on purpose: distillation reads patterns, not full payloads.
+  beforeJson      Json?
+  afterJson       Json?
+  // Distillation bookkeeping. Set when this row was rolled into the active
+  // FacultyStyleProfile so we never re-process the same signal twice.
+  processedAt     DateTime?
+  createdAt       DateTime              @default(now())
+
+  faculty User @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  // Distillation reads by (facultyId, processedAt IS NULL, createdAt DESC).
+  // The settings UI lists by (facultyId, createdAt DESC).
+  @@index([facultyId, processedAt])
+  @@index([facultyId, createdAt])
+  @@index([facultyId, topicTag])
+  @@map("faculty_edit_signals")
+}
+
+model FacultyStyleProfile {
+  id                 String                    @id @default(cuid())
+  facultyId          String                    @unique // 1:1 with User — one active profile per faculty
+  status             FacultyStyleProfileStatus @default(EMPTY)
+  // Rules is an array of { id, rule, scopeTags, sourceSignalIds, createdAt }.
+  // 5-10 short natural-language rules, each tied back to the signal ids that
+  // produced it so the settings UI can show "this rule came from these edits".
+  rules              Json                      @default("[]")
+  // Pre-rendered "promptContext" string the wizard-forge service appends to
+  // the Opus draft prompt verbatim. Cached so we don't re-stringify on every
+  // forge — distillation writes this once and reads are free thereafter.
+  promptContext      String?                   @db.Text
+  // How many signals had been written when this profile was last rebuilt.
+  // Compared against current FacultyEditSignal count to decide if a rebuild
+  // is due (RebuildThreshold default = 5 new signals since last build).
+  signalCountAtBuild Int                       @default(0)
+  // Monotonic version so the UI can show "profile v3, updated 2 days ago"
+  // and so audit rows have something to point at when faculty inspects history.
+  version            Int                       @default(1)
+  lastBuildAt        DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  faculty User @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@map("faculty_style_profiles")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 6 — AI PIPELINE (8 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model AiModel {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  displayName String
+  baseModel   String // 'qwen-2.5-7b' | 'qwen-2.5-14b' | 'gemini-2.5-flash'
+  version     String
+  modality    String // 'text' | 'vision' | 'embedding'
+  provider    String // 'self-hosted' | 'sarvam' | 'google' | 'openai'
+  active      Boolean  @default(true)
+  config      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  loraAdapters LoraAdapter[]
+  fineTunes    FineTuneRun[]
+
+  @@map("ai_models")
+}
+
+model LoraAdapter {
+  id               String    @id @default(cuid())
+  baseModelId      String
+  name             String
+  version          String
+  purpose          String // 'clinical-ophth' | 'safety' | 'indian-context'
+  trainingDataSize Int?
+  vcceRunId        String?
+  vccePassed       Boolean?
+  deployedAt       DateTime?
+  retiredAt        DateTime?
+  s3Key            String?
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  baseModel AiModel @relation(fields: [baseModelId], references: [id])
+
+  @@index([baseModelId])
+  @@map("lora_adapters")
+}
+
+model FineTuneRun {
+  id              String    @id @default(cuid())
+  modelId         String
+  triggeredBy     String
+  status          String // 'queued' | 'running' | 'completed' | 'failed'
+  datasetSize     Int?
+  hyperparams     Json?
+  lossCurve       Json?
+  outputAdapterId String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  model AiModel @relation(fields: [modelId], references: [id])
+
+  @@index([modelId])
+  @@index([status])
+  @@map("fine_tune_runs")
+}
+
+model TrainingQueueItem {
+  id         String    @id @default(cuid())
+  sourceType String // 'recording_transcript' | 'document' | 'case_conversation'
+  sourceId   String
+  status     String    @default("QUEUED")
+  reviewedBy String?
+  reviewedAt DateTime?
+  included   Boolean? // null = not yet reviewed
+  notes      String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status])
+  @@index([sourceType, sourceId])
+  @@map("training_queue_items")
+}
+
+model TrainingFeedback {
+  id         String   @id @default(cuid())
+  userId     String
+  sourceType String // 'message' | 'pearl' | 'citation'
+  sourceId   String
+  feedback   String // 'UPVOTE' | 'DOWNVOTE' | 'FLAG'
+  reason     String?
+  comments   String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([sourceType, sourceId])
+  @@map("training_feedback")
+}
+
+model SafetyEscalation {
+  id                 String             @id @default(cuid())
+  userId             String
+  conversationId     String?
+  messageId          String?
+  severity           EscalationSeverity
+  language           String
+  matchedPattern     String?            @db.Text
+  inputPreview       String?            @db.Text
+  status             EscalationStatus   @default(DETECTED)
+  webhookFiredAt     DateTime?
+  notificationSentAt DateTime?
+  acknowledgedAt     DateTime?
+  acknowledgedBy     String?
+  latencyMs          Int?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([severity])
+  @@index([status])
+  @@map("safety_escalations")
+}
+
+model EscalationFailure {
+  id           String    @id @default(cuid())
+  escalationId String
+  reason       String
+  details      Json?
+  retryCount   Int       @default(0)
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([escalationId])
+  @@map("escalation_failures")
+}
+
+model RagReindexJob {
+  id            String    @id @default(cuid())
+  collectionId  String
+  status        String    @default("QUEUED")
+  docsProcessed Int       @default(0)
+  chunksCreated Int       @default(0)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  errorMessage  String?   @db.Text
+  createdAt     DateTime  @default(now())
+
+  @@index([collectionId])
+  @@index([status])
+  @@map("rag_reindex_jobs")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 7 — PATHWAYS (COURSES + RECOMMENDATIONS) (7 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model Course {
+  id               String       @id @default(cuid())
+  slug             String
+  title            String
+  description      String?      @db.Text
+  track            ScoringHead // HEAD / HEART / HANDS
+  format           CourseFormat @default(MIXED)
+  topicId          String?
+  /// W6.11 tenancy. Courses are per-program. Slug uniqueness relaxed from
+  /// global to per-program — same "empathy-basics" slug can exist in two
+  /// programs without collision.
+  programId        String
+  estimatedMinutes Int?
+  prerequisites    String[]
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  program     Program            @relation(fields: [programId], references: [id])
+  topic       Topic?             @relation(fields: [topicId], references: [id])
+  modules     CourseModule[]
+  enrollments CourseEnrollment[]
+  completions CourseCompletion[]
+
+  @@unique([programId, slug])
+  @@index([programId])
+  @@index([track])
+  @@index([topicId])
+  @@map("courses")
+}
+
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  orderIndex  Int
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  items  CourseItem[]
+
+  @@index([courseId])
+  @@map("course_modules")
+}
+
+model CourseItem {
+  id               String       @id @default(cuid())
+  moduleId         String
+  kind             CourseFormat
+  title            String
+  orderIndex       Int
+  content          Json // format-specific payload
+  estimatedMinutes Int?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  module CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId])
+  @@map("course_items")
+}
+
+model CourseEnrollment {
+  id              String         @id @default(cuid())
+  courseId        String
+  userId          String
+  progress        CourseProgress @default(NOT_STARTED)
+  startedAt       DateTime?
+  lastActivityAt  DateTime?
+  percentComplete Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([courseId, userId])
+  @@index([userId])
+  @@map("course_enrollments")
+}
+
+model CourseCompletion {
+  id            String   @id @default(cuid())
+  courseId      String
+  userId        String
+  completedAt   DateTime @default(now())
+  certificateId String?
+  score         Decimal? @db.Decimal(4, 2)
+  cmeCredits    Decimal? @db.Decimal(4, 1)
+  createdAt     DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([courseId, userId])
+  @@index([userId])
+  @@map("course_completions")
+}
+
+model Recommendation {
+  id           String    @id @default(cuid())
+  residentId   String
+  triggerType  String // 'SCORING_EVENT' | 'EPA_RECALC' | 'CASE_FEEDBACK'
+  triggerId    String?
+  weakSubscore String? // e.g. 'heartEmpathy'
+  targetType   String // 'COURSE' | 'PEARL' | 'CASE' | 'COURSE_ITEM'
+  targetId     String
+  reason       String?   @db.Text
+  priority     Int       @default(1)
+  dismissedAt  DateTime?
+  outcomeType  String? // 'ENROLLED' | 'COMPLETED' | 'IMPROVED'
+  outcomeAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  resident User @relation(fields: [residentId], references: [id])
+
+  @@index([residentId])
+  @@index([targetType, targetId])
+  @@map("recommendations")
+}
+
+model Certificate {
+  id                String   @id @default(cuid())
+  userId            String
+  courseId          String?
+  courseTitle       String
+  completionDate    DateTime
+  cmeCredits        Decimal? @db.Decimal(4, 1)
+  certificateNumber String   @unique
+  pdfS3Key          String?
+  issuedAt          DateTime @default(now())
+
+  @@index([userId])
+  @@map("certificates")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 8 — USER PROFILE (4 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  mciRegNumber    String?
+  yearOfResidency Int?
+  subspecialty    String?
+  affiliation     String?
+  bio             String?  @db.Text
+  /// Free-form gender string; use enum-like values from the UI ('male',
+  /// 'female', 'other', 'prefer_not_to_say'). Kept as String to allow future
+  /// inclusivity additions without a schema migration.
+  gender          String?
+  languages       String[]
+  timezone        String?  @default("Asia/Kolkata")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserPreferences {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  preferredLanguage    String   @default("en")
+  emailNotifications   Boolean  @default(true)
+  browserNotifications Boolean  @default(false)
+  dailyDigestEnabled   Boolean  @default(true)
+  aiMemoryOptIn        Boolean  @default(true)
+  trainingDataOptIn    Boolean  @default(false)
+  uiTheme              String   @default("light")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model UserStats {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  casesCompleted    Int       @default(0)
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  totalStudyMinutes Int       @default(0)
+  lastStudyAt       DateTime?
+  pearlsBookmarked  Int       @default(0)
+  qaAsked           Int       @default(0)
+  totalScore        Decimal?  @db.Decimal(6, 2)
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_stats")
+}
+
+model GamificationPoint {
+  id         String   @id @default(cuid())
+  userId     String
+  amount     Int
+  reason     String
+  sourceType String?
+  sourceId   String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("gamification_points")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 9 — CROSS-CUTTING INFRASTRUCTURE (10 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model File {
+  id        String    @id @default(cuid())
+  ownerId   String?
+  purpose   String // 'AVATAR' | 'ATTACHMENT' | 'EXPORT'
+  s3Key     String
+  mimeType  String
+  sizeBytes BigInt
+  metadata  Json?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([ownerId])
+  @@index([purpose])
+  @@map("files")
+}
+
+model JobRecord {
+  id          String    @id @default(cuid())
+  queueName   String
+  jobId       String
+  status      JobStage  @default(QUEUED)
+  payload     Json?
+  result      Json?
+  error       String?   @db.Text
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([queueName, status])
+  @@index([jobId])
+  @@map("job_records")
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  targetUrl String
+  events    String[] // event types this webhook fires on
+  secret    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveries WebhookDelivery[]
+
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id             String        @id @default(cuid())
+  webhookId      String
+  eventType      String
+  payload        Json
+  status         WebhookStatus @default(PENDING)
+  responseStatus Int?
+  responseBody   String?       @db.Text
+  attempts       Int           @default(0)
+  deliveredAt    DateTime?
+  createdAt      DateTime      @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([status])
+  @@map("webhook_deliveries")
+}
+
+model Notification {
+  id             String              @id @default(cuid())
+  userId         String
+  channel        NotificationChannel @default(IN_APP)
+  kind           String
+  title          String
+  body           String?             @db.Text
+  payload        Json?
+  readAt         DateTime?
+  sentAt         DateTime?
+  deliveryStatus String?
+  createdAt      DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([kind])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id        String              @id @default(cuid())
+  userId    String
+  kind      String
+  channel   NotificationChannel
+  enabled   Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, channel])
+  @@map("notification_preferences")
+}
+
+model FeatureFlag {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  enabled        Boolean  @default(false)
+  rolloutPercent Int      @default(0)
+  description    String?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@map("feature_flags")
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String?
+  name       String
+  prefix     String // first chars shown to user
+  tokenHash  String    @unique
+  scopes     String[]
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model CmeCredit {
+  id            String    @id @default(cuid())
+  userId        String
+  sourceType    String
+  sourceId      String?
+  credits       Decimal   @db.Decimal(4, 1)
+  issuedAt      DateTime  @default(now())
+  validUntil    DateTime?
+  certificateId String?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("cme_credits")
+}
+
+model SearchIndex {
+  id         String   @id @default(cuid())
+  entityType String // 'pearl' | 'recording' | 'document' | 'case'
+  entityId   String
+  title      String
+  body       String?  @db.Text
+  tags       String[]
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@unique([entityType, entityId])
+  @@index([entityType])
+  @@map("search_index")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 10 — ADMIN & COMPLIANCE (12 tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+model AuditEvent {
+  id             String   @id @default(cuid())
+  actorId        String?
+  actorRole      Role?
+  eventType      String // 'LOGIN' | 'ROLE_CHANGE' | 'EXPUNGE' | 'DOC_PUBLISHED' | ...
+  entityType     String?
+  entityId       String?
+  summary        String?
+  details        Json?
+  ipAddress      String?
+  userAgent      String?
+  success        Boolean  @default(true)
+  /// HARDENING-PLAN item #14 — idempotency key for the audit-write queue
+  /// retry path. Direct writes can omit it; queued retries always set it.
+  idempotencyKey String?  @unique
+  createdAt      DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([eventType, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_events")
+}
+
+model AdminAction {
+  id         String   @id @default(cuid())
+  actorId    String
+  actionType String // 'USER_SUSPEND' | 'INVITATION_REVOKE' | 'RECORDING_EXPUNGE' | ...
+  targetType String?
+  targetId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("AdminActor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([actionType])
+  @@map("admin_actions")
+}
+
+model DpdpaRequest {
+  id              String             @id @default(cuid())
+  subjectUserId   String
+  kind            DpdpaRequestType
+  status          DpdpaRequestStatus @default(RECEIVED)
+  description     String?            @db.Text
+  receivedAt      DateTime           @default(now())
+  targetSlaAt     DateTime?
+  completedAt     DateTime?
+  handledById     String?
+  resolutionNotes String?            @db.Text
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  subject     User         @relation("DpdpaSubject", fields: [subjectUserId], references: [id])
+  expungeJobs ExpungeJob[]
+
+  @@index([subjectUserId])
+  @@index([status])
+  @@map("dpdpa_requests")
+}
+
+model ExpungeJob {
+  id             String    @id @default(cuid())
+  dpdpaRequestId String?
+  targetType     String // 'RECORDING' | 'DOCUMENT' | 'TRANSCRIPT' | 'FULL_USER'
+  targetId       String
+  status         String    @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | FAILED
+  s3DeletedAt    DateTime?
+  dbDeletedAt    DateTime?
+  ragDeletedAt   DateTime?
+  auditEventId   String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?   @db.Text
+  rolledBackAt   DateTime?
+  createdAt      DateTime  @default(now())
+
+  request DpdpaRequest? @relation(fields: [dpdpaRequestId], references: [id])
+
+  @@index([status])
+  @@index([targetType, targetId])
+  @@map("expunge_jobs")
+}
+
+model DataExport {
+  id            String    @id @default(cuid())
+  userId        String
+  requestedById String
+  kind          String // 'USER_DATA' | 'TRANSCRIPTS' | 'SCORING_HISTORY'
+  status        String    @default("PENDING")
+  s3Key         String?
+  expiresAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@map("data_exports")
+}
+
+model RetentionPolicy {
+  id                  String    @id @default(cuid())
+  entityType          String    @unique
+  retentionDays       Int
+  archiveAfterDays    Int?
+  legalHoldExceptions Json?
+  active              Boolean   @default(true)
+  /// HARDENING-PLAN item #16 — strategy is `purge` (default) or `anonymise`
+  /// for kinds where we keep the row but redact identifiers.
+  strategy            String    @default("purge")
+  /// Set by the retention-worker after each successful sweep.
+  lastSweepAt         DateTime?
+  /// Operator-facing description; nullable for back-compat.
+  description         String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("retention_policies")
+}
+
+model ConsentRecord {
+  id           String      @id @default(cuid())
+  userId       String
+  consentType  ConsentType
+  granted      Boolean
+  version      String
+  grantedAt    DateTime?
+  withdrawnAt  DateTime?
+  sourceIp     String?
+  evidenceBlob Json?
+  createdAt    DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, consentType])
+  @@map("consent_records")
+}
+
+model PhiScanResult {
+  id               String   @id @default(cuid())
+  targetType       String // 'DOCUMENT' | 'TRANSCRIPT' | 'CASE_NOTE'
+  targetId         String
+  detectedEntities Json // [{type, span, redaction}]
+  severity         String
+  blocked          Boolean  @default(false)
+  scannerVersion   String
+  createdAt        DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@map("phi_scan_results")
+}
+
+model DeploymentRecord {
+  id               String    @id @default(cuid())
+  adapterId        String?
+  modelVersion     String
+  vcceRunId        String?
+  vccePassed       Boolean
+  silencePassed    Boolean
+  deployedById     String
+  deploymentTarget String // 'staging' | 'production'
+  rolloutPercent   Int       @default(0)
+  rolledBackAt     DateTime?
+  deployedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+
+  @@index([adapterId])
+  @@index([deploymentTarget])
+  @@map("deployment_records")
+}
+
+model SilenceTestRun {
+  id               String   @id @default(cuid())
+  modelVersion     String
+  adapterId        String?
+  totalProbes      Int
+  passedCount      Int
+  failedCount      Int
+  languagesCovered String[]
+  passed           Boolean // must be 100% to be true
+  runByUserId      String?
+  environment      String // 'ci' | 'pre-deploy' | 'weekly'
+  logS3Key         String?
+  createdAt        DateTime @default(now())
+
+  @@index([modelVersion])
+  @@index([createdAt])
+  @@map("silence_test_runs")
+}
+
+model SessionAuditEvent {
+  id           String   @id @default(cuid())
+  sessionId    String
+  eventType    String // see SESSION_AUDIT in services/session-audit.ts for the canonical set
+  actorId      String?
+  targetUserId String?
+  details      Json?
+  /// Server-assigned monotonic offset from Recording.startedAtRoom (or
+  /// TeachingSession.actualStart fallback) in ms, used by the recording
+  /// viewer to align replay overlays (reactions, spotlight, note-edits, file
+  /// shares) with the video timeline. Negative values are kept for audit but
+  /// dropped from replay. Null for moderation/lifecycle events that don't
+  /// need replay alignment (JOIN, LEAVE, KICK, etc.).
+  tMs          Int?
+  createdAt    DateTime @default(now())
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, eventType, createdAt])
+  @@index([sessionId, tMs])
+  @@map("session_audit_events")
+}
+
+model ComplianceRecord {
+  id          String    @id @default(cuid())
+  kind        String // 'NABH' | 'NMC' | 'DPDPA_AUDIT' | 'ISO' | 'INCIDENT'
+  title       String
+  description String?   @db.Text
+  status      String
+  dueAt       DateTime?
+  ownerId     String?
+  evidence    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([kind])
+  @@map("compliance_records")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIER 11 — PHASE 2 STUBS (4 tables — empty until EMR + SSO work begins)
+// ════════════════════════════════════════════════════════════════════════════
+
+model EmrIntegrationStub {
+  id        String   @id @default(cuid())
+  name      String
+  vendor    String? // 'EPIC' | 'CERNER' | 'LVPEI_INTERNAL'
+  config    Json?
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("emr_integrations_stub")
+}
+
+model EmrMappingStub {
+  id            String   @id @default(cuid())
+  integrationId String
+  localField    String
+  externalField String
+  transformJson Json?
+  createdAt     DateTime @default(now())
+
+  @@map("emr_mappings_stub")
+}
+
+model SsoProviderStub {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  kind        String // 'saml' | 'oidc'
+  metadataUrl String?
+  config      Json?
+  active      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("sso_providers_stub")
+}
+
+model ScimGroupStub {
+  id          String   @id @default(cuid())
+  externalId  String   @unique
+  displayName String
+  membersJson Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("scim_groups_stub")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W4-Sprint additions — Live Engagement, Hooks, Alerts, Kirkpatrick
+// ════════════════════════════════════════════════════════════════════════════
+
+// Per-participant time-series. Producers: Stream A (recording events),
+// Stream D (hook responses, chat messages, hand raises, leaderboard updates).
+// Consumers: Stream D (presenter alerts, readiness predictor — W11).
+model EngagementSignal {
+  id        String               @id @default(cuid())
+  sessionId String
+  userId    String
+  kind      EngagementSignalKind
+  value     Decimal?             @db.Decimal(6, 3) // optional numeric (e.g., attention score 0–1)
+  metadata  Json?
+  createdAt DateTime             @default(now())
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([sessionId, userId, kind])
+  @@index([userId, createdAt])
+  @@map("engagement_signals")
+}
+
+// Auto-injected attention hook fired by the Hooks Engine (Stream D #4).
+// Examples: T/F prompt, poll, one-word, repeat-the-concept, dilemma.
+model LiveHook {
+  id              String       @id @default(cuid())
+  sessionId       String
+  kind            LiveHookKind
+  prompt          String       @db.Text
+  options         Json? // for POLL: ["A", "B", "C"]; null for free-form
+  correctOption   String? // if any
+  explanation     String?      @db.Text
+  intervalSeconds Int? // if recurring (e.g., every 6–8 min)
+  scheduledAt     DateTime? // when this hook should fire
+  firedAt         DateTime? // when it actually fired in-session
+  closedAt        DateTime? // when it stopped accepting responses
+  /// W9.4 — when the presenter pre-published this hook for resident voting
+  /// BEFORE the live session starts. Independent of `firedAt`: a hook can be
+  /// pre-published only, fired-only, or both (responses aggregate). Null
+  /// means the hook is a draft hidden from residents.
+  prePublishedAt  DateTime?
+  createdById     String
+  createdAt       DateTime     @default(now())
+
+  session   TeachingSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  responses LiveHookResponse[]
+
+  @@index([sessionId, scheduledAt])
+  @@index([sessionId, firedAt])
+  @@index([sessionId, prePublishedAt])
+  @@map("live_hooks")
+}
+
+model LiveHookResponse {
+  id        String   @id @default(cuid())
+  hookId    String
+  userId    String
+  response  String   @db.Text
+  isCorrect Boolean?
+  latencyMs Int? // time from hook fire to response — feeds engagement signals
+  createdAt DateTime @default(now())
+
+  hook LiveHook @relation(fields: [hookId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([hookId, userId])
+  @@index([userId])
+  @@map("live_hook_responses")
+}
+
+// Private alerts shown ONLY to the presenter (Stream D #5).
+// Computed from EngagementSignal aggregates by alert-evaluator (BullMQ-backed).
+model PresenterAlert {
+  id             String                 @id @default(cuid())
+  sessionId      String
+  presenterId    String
+  kind           PresenterAlertKind
+  severity       PresenterAlertSeverity @default(INFO)
+  message        String                 @db.Text
+  metadata       Json?
+  acknowledgedAt DateTime?
+  createdAt      DateTime               @default(now())
+
+  session   TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  presenter User            @relation(fields: [presenterId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([presenterId, acknowledgedAt])
+  @@map("presenter_alerts")
+}
+
+// Kirkpatrick L1–L4 evaluations (Stream D #11). L1 from post-session survey,
+// L2 from quiz scores (auto), L3 from DOPS evidence (W8), L4 from Phase-2 outcomes.
+model KirkpatrickEvaluation {
+  id         String           @id @default(cuid())
+  userId     String
+  level      KirkpatrickLevel
+  sessionId  String? // nullable: L4 may aggregate across many sessions
+  score      Decimal          @db.Decimal(5, 2) // 0–100
+  surveyData Json? // L1 reaction survey responses
+  metadata   Json? // free-form (e.g. quiz IDs for L2)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session  TeachingSession?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  evidence KirkpatrickEvidence[]
+
+  @@index([userId, level])
+  @@index([sessionId])
+  @@map("kirkpatrick_evaluations")
+}
+
+model KirkpatrickEvidence {
+  id           String   @id @default(cuid())
+  evaluationId String
+  evidenceType String // 'SCORING_EVENT' | 'DOPS' | 'MINI_CEX' | 'EPA' | 'SURVEY' | 'QUIZ'
+  evidenceId   String // FK to the relevant table (loose — different per type)
+  weight       Decimal  @default(1.0) @db.Decimal(4, 2)
+  createdAt    DateTime @default(now())
+
+  evaluation KirkpatrickEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId])
+  @@index([evidenceType, evidenceId])
+  @@map("kirkpatrick_evidence")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W5 — Breakouts + Recording Share
+// ════════════════════════════════════════════════════════════════════════════
+// Breakout: faculty splits a live session into N child rooms. Random or
+// self-select grouping in Phase 1; AI auto-grouping ships in W11 with the
+// readiness predictor (engagement signals are the input).
+//
+// BreakoutAgentLog mirrors the LIVEKIT-AGENT-CONTRACT pattern: the actual
+// Python sidecar that joins each breakout as the AI Discussion Co-Facilitator
+// is a separate deliverable. This repo defines the wire contract + storage.
+// See docs/BREAKOUT-AGENT-CONTRACT.md.
+
+enum BreakoutGroupingMode {
+  RANDOM
+  SELF_SELECT
+  AI_AUTO // schema-only in Phase 1; route returns 501 until W11
+}
+
+enum BreakoutStatus {
+  ACTIVE
+  ENDED
+}
+
+enum BreakoutAgentLogKind {
+  SUMMARY
+  PROBE_QUESTION
+  SILENCE_NUDGE
+  UNANSWERED_QUESTION
+  INTERVENTION
+}
+
+model Breakout {
+  id              String               @id @default(cuid())
+  sessionId       String
+  createdById     String
+  name            String
+  groupingMode    BreakoutGroupingMode
+  livekitRoomName String               @unique
+  status          BreakoutStatus       @default(ACTIVE)
+  endedAt         DateTime?
+  endedById       String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  session      TeachingSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdBy    User                  @relation("BreakoutCreator", fields: [createdById], references: [id])
+  participants BreakoutParticipant[]
+  agentLogs    BreakoutAgentLog[]
+
+  @@index([sessionId])
+  @@index([status])
+  @@map("breakouts")
+}
+
+model BreakoutParticipant {
+  id         String    @id @default(cuid())
+  breakoutId String
+  userId     String
+  joinedAt   DateTime?
+  leftAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  breakout Breakout @relation(fields: [breakoutId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([breakoutId, userId])
+  @@index([userId])
+  @@map("breakout_participants")
+}
+
+model BreakoutAgentLog {
+  id         String               @id @default(cuid())
+  breakoutId String
+  kind       BreakoutAgentLogKind
+  content    String               @db.Text
+  metadata   Json?
+  createdAt  DateTime             @default(now())
+
+  breakout Breakout @relation(fields: [breakoutId], references: [id], onDelete: Cascade)
+
+  @@index([breakoutId, createdAt])
+  @@map("breakout_agent_logs")
+}
+
+model RecordingShare {
+  id           String    @id @default(cuid())
+  recordingId  String
+  /// Legacy plaintext token column. Kept nullable across one release for
+  /// safe rolling deploy; dropped in a follow-up migration. New rows leave
+  /// this NULL — lookup is by `tokenHash` (HARDENING-PLAN item #12).
+  token        String?
+  /// sha256 hex of the raw URL token. Lookup index. Never reversible.
+  tokenHash    String    @unique
+  passwordHash String?
+  expiresAt    DateTime
+  createdById  String
+  revokedAt    DateTime?
+  revokedById  String?
+  accessCount  Int       @default(0)
+  lastAccessAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  recording Recording              @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  createdBy User                   @relation("RecordingShareCreator", fields: [createdById], references: [id])
+  revokedBy User?                  @relation("RecordingShareRevoker", fields: [revokedById], references: [id])
+  accesses  RecordingShareAccess[]
+
+  @@index([recordingId])
+  @@index([expiresAt])
+  @@map("recording_shares")
+}
+
+model RecordingShareAccess {
+  id         String   @id @default(cuid())
+  shareId    String
+  ipAddress  String?
+  userAgent  String?  @db.Text
+  succeeded  Boolean  @default(true)
+  failReason String?
+  accessedAt DateTime @default(now())
+
+  share RecordingShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([shareId, accessedAt])
+  @@map("recording_share_accesses")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W9 — Promo Share (public flyer / WA banner / IG card landing page)
+// ════════════════════════════════════════════════════════════════════════════
+// Faculty generates promo assets via /api/promo/generate then "shares" the
+// session by creating a PromoShare row. The token is the short URL slug at
+// /p/[token]; tokenHash is what we actually index on (raw token never stored).
+// Public route is unauthenticated and exposes session title, host, when,
+// objectives summary, and the generated SVG previews. Revocable; expires by
+// default in 90 days unless the speaker pins it open.
+model PromoShare {
+  id           String    @id @default(cuid())
+  sessionId    String
+  /// Raw URL token. Stored so the speaker can re-open an existing share
+  /// after reloading the prep panel (the share page is public marketing
+  /// material, not PHI — same threat model as a newsletter URL).
+  token        String    @unique
+  /// sha256 hex of the raw token. Kept for cheap defense-in-depth on the
+  /// public read path and to keep parity with RecordingShare's pattern.
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  createdById  String
+  revokedAt    DateTime?
+  revokedById  String?
+  accessCount  Int       @default(0)
+  lastAccessAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  session   TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdBy User            @relation("PromoShareCreator", fields: [createdById], references: [id])
+  revokedBy User?           @relation("PromoShareRevoker", fields: [revokedById], references: [id])
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("promo_shares")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W6 — Pre-Conference Question Submission Engine (Feeddback #2)
+// ════════════════════════════════════════════════════════════════════════════
+// Residents submit questions ahead of a session and upvote others. A debounced
+// BullMQ worker calls Gemini to cluster the submitted text into themes (label
+// + summary + count) so the presenter sees the top-N anticipated concerns on
+// their pre-session dashboard.
+//
+// Phase A uses Gemini for clustering (see src/server/services/pre-questions/
+// cluster-questions.ts). Phase B will swap to Vaidix Core via the same
+// AIProvider seam — no schema change needed.
+
+enum PreSessionQuestionUrgency {
+  LOW
+  NORMAL
+  HIGH
+}
+
+model PreSessionQuestion {
+  id        String                    @id @default(cuid())
+  sessionId String
+  userId    String
+  content   String                    @db.Text
+  urgency   PreSessionQuestionUrgency @default(NORMAL)
+  themeId   String?
+  voteCount Int                       @default(0)
+  parentId  String? // Single-level reply thread (self-FK; service rejects nested replies)
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+
+  session TeachingSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User                     @relation(fields: [userId], references: [id])
+  theme   PreSessionQuestionTheme? @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  votes   PreSessionQuestionVote[]
+  parent  PreSessionQuestion?      @relation("PreQuestionThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies PreSessionQuestion[]     @relation("PreQuestionThread")
+
+  @@index([sessionId, voteCount])
+  @@index([sessionId, createdAt])
+  @@index([userId])
+  @@index([themeId])
+  @@index([parentId])
+  @@map("pre_session_questions")
+}
+
+model PreSessionQuestionVote {
+  id         String   @id @default(cuid())
+  questionId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  question PreSessionQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User               @relation(fields: [userId], references: [id])
+
+  @@unique([questionId, userId])
+  @@index([userId])
+  @@map("pre_session_question_votes")
+}
+
+model PreSessionQuestionTheme {
+  id            String   @id @default(cuid())
+  sessionId     String
+  label         String
+  summary       String   @db.Text
+  questionCount Int      @default(0)
+  rank          Int      @default(0)
+  generatedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  session   TeachingSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions PreSessionQuestion[]
+
+  @@index([sessionId, rank])
+  @@map("pre_session_question_themes")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W6.8 — Pre-Conference Polish (Study Pack + Pre-Cases)
+// ════════════════════════════════════════════════════════════════════════════
+// SessionPreCase: faculty assigns curated CaseTemplates as session prep.
+// Residents instantiate them via the existing cases engine; completion writes
+// an EngagementSignal of kind PRE_CASE_COMPLETED so the readiness predictor
+// picks it up. `required` is a soft signal — the Study Pack nudges, but joining
+// the live session is never blocked (project pedagogy is "difficult but fair",
+// not punitive — see project_vaidix.md memory).
+//
+// StudyPackView: per-(session, learner) record of which pre-readings, pre-watch
+// videos, and pre-cases the learner has interacted with. Distinct from
+// EngagementSignal because we need uniqueness queries ("did user X view link Y")
+// and FK joins back to the link/case. The service layer ALSO writes a matching
+// EngagementSignal so the existing aggregation pipeline (presenter alerts,
+// readiness) keeps working without a parallel codepath.
+
+model SessionPreCase {
+  id             String   @id @default(cuid())
+  sessionId      String
+  caseTemplateId String
+  assignedById   String
+  rank           Int      @default(0)
+  required       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  session        TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  caseTemplate   CaseTemplate    @relation(fields: [caseTemplateId], references: [id], onDelete: Cascade)
+  assignedBy     User            @relation("SessionPreCaseAssigner", fields: [assignedById], references: [id])
+  studyPackViews StudyPackView[]
+
+  @@unique([sessionId, caseTemplateId])
+  @@index([sessionId, rank])
+  @@index([caseTemplateId])
+  @@map("session_pre_cases")
+}
+
+model StudyPackView {
+  id             String    @id @default(cuid())
+  sessionId      String
+  userId         String
+  documentLinkId String?
+  preCaseId      String?
+  viewedAt       DateTime  @default(now())
+  durationSec    Int?
+  completedAt    DateTime?
+
+  session TeachingSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  link    DocumentSessionLink? @relation(fields: [documentLinkId], references: [id], onDelete: SetNull)
+  preCase SessionPreCase?      @relation(fields: [preCaseId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, userId])
+  @@index([userId, viewedAt])
+  @@index([sessionId, documentLinkId])
+  @@index([sessionId, preCaseId])
+  @@map("study_pack_views")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Learning objectives — resident self-marks per objective per session
+// ════════════════════════════════════════════════════════════════════════════
+// Objectives themselves live as a Json array on TeachingSession.objectives
+// (each item: { id, text, blooms, epaTag? }). This table stores per-(session,
+// user, objectiveId) achievement marks the resident sets after a session.
+// objectiveId is the cuid embedded in the Json — NOT a FK, because objectives
+// can be edited and we want orphan marks to surface as "achieved an objective
+// that no longer exists" rather than disappearing silently.
+
+enum ObjectiveAchievementStatus {
+  YES
+  PARTLY
+  NO
+}
+
+model SessionObjectiveAchievement {
+  id          String                     @id @default(cuid())
+  sessionId   String
+  userId      String
+  objectiveId String
+  status      ObjectiveAchievementStatus
+  note        String?                    @db.Text
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId, objectiveId])
+  @@index([sessionId, objectiveId])
+  @@index([userId])
+  @@map("session_objective_achievements")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W7 — Collaboration surfaces (notes, files, webinar registrations)
+// ════════════════════════════════════════════════════════════════════════════
+// Replay-able transient events (reactions, spotlight, note-edit beacons, file-
+// share beacons, blur/noise/PiP toggles, webinar joins) are NOT modelled as a
+// new table. They are written to the existing `SessionAuditEvent` model
+// extended with a nullable `tMs` (offset from recording start, ms) so the
+// recording-viewer can align replay overlays with the video timeline. The
+// canonical set of `eventType` strings lives in
+// `services/session-audit.ts:SESSION_AUDIT` and the new types added in W7 are
+// flagged "// REPLAY" in the constant block.
+
+// One shared note per session (faculty + co-host edit, residents read or
+// co-edit per `editableByResidents`). Stored as a single content blob plus an
+// append-only edit log so the recording viewer can replay how the note grew
+// over time. We deliberately use a simple last-writer-wins model with
+// optimistic concurrency (`version`) instead of a full CRDT — the panel is
+// auto-saved every few seconds, conflicts are rare in practice, and tldraw-
+// style multiplayer wasn't worth dragging in for a textarea.
+model SharedNote {
+  id                  String   @id @default(cuid())
+  sessionId           String   @unique
+  content             String   @db.Text
+  version             Int      @default(0)
+  editableByResidents Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  session TeachingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  edits   SharedNoteEdit[]
+
+  @@map("shared_notes")
+}
+
+// Edit log for the shared note. Each row captures the post-edit snapshot so
+// the recording-viewer can scrub through how the note evolved. `delta` is the
+// diff for compact transmission over the data channel, `snapshot` is the
+// canonical full text at that version. Old edits are retained — pruning is a
+// future op once volume warrants.
+model SharedNoteEdit {
+  id        String   @id @default(cuid())
+  noteId    String
+  authorId  String
+  version   Int
+  delta     Json
+  snapshot  String   @db.Text
+  createdAt DateTime @default(now())
+
+  note   SharedNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  author User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, version])
+  @@index([noteId, createdAt])
+  @@map("shared_note_edits")
+}
+
+// File attachment uploaded inside a live session — either as a chat
+// attachment (referenced from SessionChatMessage.attachmentId) or as a
+// host-published handout. Files live in the same S3 bucket as recordings
+// under `session-files/<sessionId>/<id>/<filename>` and are exposed to the
+// recording viewer via a SessionAuditEvent FILE_SHARE row, so a learner
+// scrubbing the timeline sees the file appear at the moment it was shared.
+//
+// Access control: everyone with `getEffectiveSessionRole != null` can read;
+// only PARTICIPANT/CO_HOST/HOST can upload. Files survive session deletion
+// via the Cascade on session — when the session is hard-deleted, files go
+// with it (S3 cleanup is the worker's job, not modelled here).
+model SessionFile {
+  id           String   @id @default(cuid())
+  sessionId    String
+  uploadedById String
+  name         String
+  mimeType     String
+  sizeBytes    Int
+  s3Key        String   @unique
+  /// SHA-256 of the uploaded bytes. Set after presigned upload completes via
+  /// the /files/[id]/finalize endpoint. Null until then — the chat UI hides
+  /// attachments without a checksum.
+  sha256       String?
+  createdAt    DateTime @default(now())
+
+  session     TeachingSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  uploadedBy  User                @relation("SessionFileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  chatMessage SessionChatMessage?
+
+  @@index([sessionId, createdAt])
+  @@index([uploadedById])
+  @@map("session_files")
+}
+
+// Public-facing webinar registrations. Created when isWebinar=true and a
+// visitor fills the /webinar/[id]/register form. We keep this table separate
+// from SessionInvite/SessionAdmission because webinar registrants:
+//   • may not have a User row at registration time (auto-provisioned on join),
+//   • carry marketing-style fields (organisation, role title) that don't
+//     belong on the User profile,
+//   • need a confirmation email + ICS attachment delivered out-of-band.
+//
+// On confirmation, a SessionInvite is created (linking to the auto-provisioned
+// User) granting VIEWER role; on session start, the invite is the auth gate
+// for the webinar viewer's LiveKit token.
+model WebinarRegistration {
+  id           String    @id @default(cuid())
+  sessionId    String
+  email        String
+  name         String
+  organisation String?
+  roleTitle    String?
+  /// Set once the registrant clicks the email confirmation link. The token is
+  /// random and single-use; once confirmed the invite is created and the user
+  /// is auto-provisioned (or matched by existing email).
+  confirmToken String    @unique
+  confirmedAt  DateTime?
+  /// Linked to a User row once the webinar registrant signs in or is auto-
+  /// provisioned. Nullable for registrations that never confirmed.
+  userId       String?
+  /// Free-text source ("twitter", "linkedin", "newsletter") for attribution.
+  source       String?
+  /// True after consent confirmation (privacy + recording). Required to
+  /// confirm the registration; the registration row is kept either way for
+  /// audit / abuse signals (e.g. spam form submissions).
+  consented    Boolean   @default(false)
+  attendedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, email])
+  @@index([sessionId, confirmedAt])
+  @@index([email])
+  @@map("webinar_registrations")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// W7 Phase 2 — Whiteboard
+// ════════════════════════════════════════════════════════════════════════════
+// One Whiteboard per session, plus an append-only WhiteboardSnapshot log.
+//
+// Sync model is intentionally simple snapshot-based: when the host edits the
+// canvas, we (a) persist a new snapshot every few seconds of idle change and
+// (b) broadcast that snapshot over the LiveKit data channel so participants
+// re-load their tldraw store from it. We considered tldraw's CRDT-based
+// multiplayer but its sync server is paid + the classroom flow has a single
+// editor (the faculty); concurrent collaborative editing is Phase 3 if the
+// product calls for it.
+//
+// Snapshots double as the recording-viewer replay source — each row carries
+// a `tMs` offset (matching SessionAuditEvent.tMs semantics) so the recording
+// timeline can scrub through how the board evolved.
+
+model Whiteboard {
+  id                  String   @id @default(cuid())
+  sessionId           String   @unique
+  /// Hosts can flip this on to let residents draw too. Defaults to host-only
+  /// because uncontrolled editing in a classroom of 30 quickly turns into
+  /// scribble-storm; the host opts in when running a workshop session.
+  editableByResidents Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  session   TeachingSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  snapshots WhiteboardSnapshot[]
+
+  @@map("whiteboards")
+}
+
+model WhiteboardSnapshot {
+  id           String   @id @default(cuid())
+  whiteboardId String
+  authorId     String
+  /// tldraw v5 store snapshot (call `editor.store.getSnapshot()`). Stored as
+  /// raw Json — we never rehydrate on the server, just hand it back to the
+  /// next client so they can `editor.store.loadSnapshot(...)`.
+  snapshot     Json
+  /// Server-assigned offset from Recording.startedAtRoom (or actualStart
+  /// fallback) in ms. Used by the recording viewer to scrub through history.
+  tMs          Int?
+  createdAt    DateTime @default(now())
+
+  whiteboard Whiteboard @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+  author     User       @relation("WhiteboardSnapshotAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([whiteboardId, createdAt])
+  @@index([whiteboardId, tMs])
+  @@map("whiteboard_snapshots")
+}

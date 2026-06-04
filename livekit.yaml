@@ -1,0 +1,71 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Vaidix — LiveKit Server Config (DEVELOPMENT ONLY)
+# ════════════════════════════════════════════════════════════════════════════
+# This file is used by docker-compose.dev.yml. Production uses
+# livekit.prod.yaml (mounted by docker-compose.prod.yml). DO NOT deploy
+# this file to prod — the hardcoded LAN node_ip and host.docker.internal
+# webhook URL only work in a developer-laptop topology.
+#
+# API key/secret must match .env.local LIVEKIT_API_KEY / LIVEKIT_API_SECRET
+
+port: 7880
+bind_addresses:
+  - ""
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: false
+  # Local-dev node_ip: this address must be reachable from BOTH:
+  #   1) the browser running on the Windows host
+  #   2) the egress recorder container (vaidix-livekit-egress) on Docker net
+  #
+  # 127.0.0.1 only works for case (1) — for the egress bot, 127.0.0.1 means
+  # "the egress container itself," so ICE checks fail and recording aborts
+  # with "Start signal not received."
+  #
+  # The Windows host LAN IP (e.g. 192.168.1.7) satisfies both: the browser
+  # reaches it directly, and the egress container reaches it via Docker's
+  # NAT-loopback to the host's mapped ports. Run `ipconfig` if your IP
+  # changes.
+  # On production Linux: use the server's public IP or use_external_ip: true.
+  node_ip: "192.168.1.7"
+
+redis:
+  address: redis:6379
+  # Redis is started with --requirepass devpassword in docker-compose.dev.yml.
+  # Without this password field LiveKit hits NOAUTH and the container restart-
+  # loops every ~15s — the browser then shows "Connection trouble — local
+  # LiveKit server isn't responding on ws://localhost:7880" which is really a
+  # Redis-auth failure, not LiveKit being down. Override via the
+  # LIVEKIT_REDIS_PASSWORD env var if REDIS_PASSWORD differs from the default.
+  password: devpassword
+
+keys:
+  # Keep in sync with .env.local — change both before going to production
+  devkey: secret_change_me_in_week_0_day_5_32chars_min
+
+logging:
+  level: info
+  pion_level: warn
+  json: false
+
+turn:
+  enabled: false  # dev mode — handled by external coturn container
+
+# Room defaults
+room:
+  auto_create: true
+  enable_remote_unmute: true
+  max_participants: 1000
+  empty_timeout: 300       # seconds — auto-close empty rooms
+  departure_timeout: 20    # seconds after last person leaves
+
+# Webhooks — LiveKit signs payloads with api_key; Next.js verifies via WebhookReceiver
+# - Docker (default): use host.docker.internal so the container reaches the host.
+# - Native binary on Windows: use 127.0.0.1 instead.
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:3000/api/classroom/webhooks/livekit

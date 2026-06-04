@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# ════════════════════════════════════════════════════════════════════════════
+# pre-push hook — blocks direct pushes to master/main
+# ════════════════════════════════════════════════════════════════════════════
+# Installed via: ./scripts/install-git-hooks.sh
+#
+# Why: a direct push to master bypasses the branch → review → merge --no-ff
+# discipline. On 2026-05-16 commit ee7f905 landed directly on master (chmod
+# hotfix under pressure). The hook is the only gate that catches this before
+# the push reaches the remote.
+#
+# Emergency bypass (only if absolutely required, document the reason):
+#   git push --no-verify
+# ════════════════════════════════════════════════════════════════════════════
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" == "refs/heads/master" || "$remote_ref" == "refs/heads/main" ]]; then
+    echo "[pre-push] ✗  Direct push to $remote_ref is blocked." >&2
+    echo "[pre-push]    Create a feature branch and open a PR:" >&2
+    echo "[pre-push]      git checkout -b feat/your-feature" >&2
+    echo "[pre-push]      git push -u origin feat/your-feature" >&2
+    echo "[pre-push]    Emergency bypass: git push --no-verify (document the reason in Slack)" >&2
+    exit 1
+  fi
+done
+
+exit 0

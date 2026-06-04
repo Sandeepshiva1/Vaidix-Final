@@ -1,0 +1,2 @@
+-- Add SILENT_PARTICIPANTS to PresenterAlertKind enum (W8.2)
+ALTER TYPE "PresenterAlertKind" ADD VALUE IF NOT EXISTS 'SILENT_PARTICIPANTS';

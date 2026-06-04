@@ -1,0 +1,117 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Vaidix — HA overlay for docker-compose.prod.yml (HARDENING-PLAN item #6)
+# ════════════════════════════════════════════════════════════════════════════
+# Run with:
+#   ./scripts/load-env.sh
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ha.yml \
+#       --env-file .env up -d
+#
+# What this overlay adds:
+#   - postgres-primary  : PG with WAL streaming enabled + replication slot
+#   - postgres-replica  : hot standby reading from primary; manual promotion
+#                         per RUNBOOK-PG-FAILOVER.md (no auto-failover in v1)
+#   - redis-replica     : ioredis-aware replica
+#   - redis-sentinel    : 1-node Sentinel monitoring primary; bumps the
+#                         "vaidix" master on quorum loss
+#
+# LiveKit remains single-node — clustering is a paid-tier feature in v1.x.
+# Acceptable for Phase 1 with the fast-restart runbook (≤90s).
+
+services:
+  postgres-primary:
+    image: postgres:16-alpine
+    container_name: vaidix-postgres-primary
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vaidix
+      POSTGRES_USER: ${POSTGRES_PRIMARY_USER:-vaidix_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PRIMARY_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=4
+      - -c
+      - hot_standby=on
+      - -c
+      - wal_keep_size=1GB
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=512MB
+    volumes:
+      - vaidix-pg-primary:/var/lib/postgresql/data
+      - ./scripts/pg-init-replication.sh:/docker-entrypoint-initdb.d/pg-init-replication.sh:ro
+    networks:
+      - vaidix-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_PRIMARY_USER:-vaidix_admin}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres-replica:
+    image: postgres:16-alpine
+    container_name: vaidix-postgres-replica
+    restart: unless-stopped
+    depends_on:
+      - postgres-primary
+    environment:
+      PGUSER: replicator
+      PGPASSWORD: ${POSTGRES_REPLICATOR_PASSWORD}
+      PGHOST: postgres-primary
+    command: >
+      bash -c "
+      until pg_isready -h postgres-primary; do sleep 2; done;
+      if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+        pg_basebackup -h postgres-primary -D /var/lib/postgresql/data -U replicator -Fp -Xs -P -R;
+      fi;
+      exec postgres -c hot_standby=on
+      "
+    volumes:
+      - vaidix-pg-replica:/var/lib/postgresql/data
+    networks:
+      - vaidix-net
+
+  redis-replica:
+    image: redis:7-alpine
+    container_name: vaidix-redis-replica
+    restart: unless-stopped
+    depends_on:
+      - redis
+    command: >
+      redis-server --appendonly yes
+                   --slaveof redis 6379
+                   --replica-read-only yes
+    volumes:
+      - vaidix-redis-replica:/data
+    networks:
+      - vaidix-net
+
+  redis-sentinel:
+    image: redis:7-alpine
+    container_name: vaidix-redis-sentinel
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - redis-replica
+    command: >
+      sh -c "echo \"
+      port 26379
+      sentinel monitor vaidix redis 6379 1
+      sentinel down-after-milliseconds vaidix 5000
+      sentinel failover-timeout vaidix 30000
+      sentinel parallel-syncs vaidix 1
+      \" > /tmp/sentinel.conf && exec redis-sentinel /tmp/sentinel.conf"
+    networks:
+      - vaidix-net
+
+volumes:
+  vaidix-pg-primary:
+    name: vaidix-pg-primary
+  vaidix-pg-replica:
+    name: vaidix-pg-replica
+  vaidix-redis-replica:
+    name: vaidix-redis-replica

@@ -1,0 +1,14 @@
+{
+  "id": "lvpei-001",
+  "name": "LV Prasad Eye Institute",
+  "city": "Hyderabad",
+  "state": "Telangana",
+  "departments": [
+    "Vitreoretinal Surgery",
+    "Cornea & Anterior Segment",
+    "Glaucoma",
+    "Neuro-ophthalmology",
+    "Pediatric Ophthalmology",
+    "Oculoplastics"
+  ]
+}

@@ -1,0 +1,156 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Vaidix — Local Development Docker Compose
+# ════════════════════════════════════════════════════════════════════════════
+# Starts: LiveKit SFU, LiveKit Egress (recording), Redis, coturn (NAT), MinIO
+# Run:   docker compose -f docker-compose.dev.yml up -d
+# Stop:  docker compose -f docker-compose.dev.yml down
+# Logs:  docker compose -f docker-compose.dev.yml logs -f [service-name]
+#
+# Data persisted to E:/vaidix-data/* (see .env.local VAIDIX_DATA_ROOT)
+# On Linux production: change E:/vaidix-data to /var/lib/vaidix-data
+# ════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ─── LiveKit Server (WebRTC SFU) ─────────────────────────────────────────
+  # NOTE for local dev on Docker Desktop (Windows + WSL2): WebRTC media via
+  # this container is unreliable because WSL2 is a separate network namespace
+  # from Windows and Docker's UDP port-forwarder mangles ICE candidates.
+  # On the production Linux server this works fine. For LOCAL dev, the
+  # recommended path is to run the native livekit-server binary on Windows
+  # (see scripts/start-livekit-native.md) and stop this container.
+  livekit:
+    # v1.9+ added the /rtc/v1 signal path used by livekit-client >= 2.x.
+    # v1.8.x rejects the upgraded client with "v1 RTC path not found".
+    image: livekit/livekit-server:v1.10
+    container_name: vaidix-livekit
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    environment:
+      # LiveKit accepts LIVEKIT_<KEY>=<value> env vars to override any field
+      # in the YAML at runtime. We pass the Redis password here so devs who
+      # change REDIS_PASSWORD in .env.local don't need to edit livekit.yaml
+      # too — the YAML's `redis.password: devpassword` is just the safe
+      # default for the no-env-file case.
+      LIVEKIT_REDIS_PASSWORD: ${REDIS_PASSWORD:-devpassword}
+    ports:
+      - "7880:7880"        # WebSocket signalling
+      - "7881:7881"        # TCP media fallback
+      - "7882:7882/udp"    # RTC UDP
+      - "50000-50100:50000-50100/udp"  # media port range
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - E:/vaidix-data/livekit-data:/data
+    depends_on:
+      - redis
+    networks:
+      - vaidix-net
+
+  # ─── LiveKit Egress (server-side recording → MP4) ────────────────────────
+  livekit-egress:
+    image: livekit/egress:v1.9
+    container_name: vaidix-livekit-egress
+    restart: unless-stopped
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - E:/vaidix-data/recordings/raw:/output
+    depends_on:
+      - livekit
+      - redis
+    networks:
+      - vaidix-net
+    cap_add:
+      - SYS_ADMIN           # required by Chrome headless inside container
+    security_opt:
+      - seccomp:unconfined
+
+  # ─── Redis (BullMQ queue + rate limiting + session cache) ────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vaidix-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    # Password must match REDIS_PASSWORD in .env.local (default: devpassword).
+    # Mirrors prod (docker-compose.redis.yml) so client config behaves the same.
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-devpassword}
+    volumes:
+      - E:/vaidix-data/redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-devpassword}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vaidix-net
+
+  # ─── coturn (STUN/TURN for WebRTC NAT traversal) ─────────────────────────
+  coturn:
+    image: coturn/coturn:latest
+    container_name: vaidix-coturn
+    restart: unless-stopped
+    network_mode: host    # required for WebRTC ICE candidate gathering
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+  # ─── Vaidix Captions Agent (LiveKit Agent → Deepgram → /ingest) ─────────
+  # Joins every LIVE room as a hidden participant, runs Deepgram STT per
+  # subscribed audio track, POSTs transcripts to the Next.js app's
+  # /api/classroom/sessions/<id>/live-captions/ingest endpoint.
+  # Needs DEEPGRAM_API_KEY + LIVE_CAPTIONS_INGEST_SECRET in .env.local.
+  # The Next.js app must be reachable from this container at VAIDIX_INGEST_URL —
+  # on Docker Desktop (Windows) that's http://host.docker.internal:3000 when
+  # the dev server runs natively on Windows; on Linux prod it's the app URL.
+  vaidix-captions-agent:
+    build:
+      context: ./vaidix-agent
+      dockerfile: Dockerfile
+    container_name: vaidix-captions-agent
+    restart: unless-stopped
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret_at_least_32_chars_long_for_jwt}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-3}
+      VAIDIX_INGEST_URL: ${VAIDIX_INGEST_URL:-http://host.docker.internal:3000}
+      LIVE_CAPTIONS_INGEST_SECRET: ${LIVE_CAPTIONS_INGEST_SECRET:-}
+      LOG_LEVEL: INFO
+    extra_hosts:
+      # Lets the agent reach the Next.js dev server running on the Windows
+      # host. On Linux prod this is unnecessary — VAIDIX_INGEST_URL points
+      # directly at the app service hostname inside the compose network.
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - livekit
+      - redis
+    networks:
+      - vaidix-net
+
+  # ─── MinIO (S3-compatible local object storage) ──────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: vaidix-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"    # S3 API
+      - "9001:9001"    # Web console (http://localhost:9001)
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - E:/vaidix-data/minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vaidix-net
+
+networks:
+  vaidix-net:
+    driver: bridge
+    name: vaidix-net

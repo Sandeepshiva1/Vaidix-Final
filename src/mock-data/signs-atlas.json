@@ -1,0 +1,340 @@
+[
+  {
+    "id": "sign-001",
+    "name": "Rain-Cloud Sign",
+    "description": "Round hyperreflective aggregates (compact fungal balls) in the vitreous or on the retinal surface with homogeneous internal reflectivity and posterior shadowing on OCT and B-scan ultrasonography.",
+    "mechanism": "Compact Candida fungal colonies (yeast cells and pseudohyphae) create dense, spherical masses with uniform cellular density. The high optical density attenuates the OCT/ultrasound signal posteriorly, producing a shadowing artifact that resembles rain falling from a cloud. The homogeneous internal reflectivity distinguishes fungal balls from bacterial vitreous opacities, which are more diffuse.",
+    "conditions": [
+      "Candida Endophthalmitis",
+      "Fungal Endophthalmitis"
+    ],
+    "imagingModality": "OCT / B-Scan Ultrasonography",
+    "clinicalSignificance": "Pathognomonic for endogenous fungal endophthalmitis. Requires systemic antifungal therapy (fluconazole or voriconazole IV) and intravitreal antifungals (amphotericin B 5-10 mcg or voriconazole 100 mcg). Early vitrectomy is indicated if response is poor.",
+    "category": "infection",
+    "tags": [
+      "candida",
+      "endophthalmitis",
+      "OCT",
+      "fungal",
+      "B-scan",
+      "vitreous"
+    ],
+    "topic": "comprehensive"
+  },
+  {
+    "id": "sign-002",
+    "name": "Brushfire Appearance",
+    "description": "Advancing white-yellow border of active retinal necrosis with granular opacification and scattered hemorrhages at the leading edge, trailing atrophic and gliotic retina posteriorly. Best seen in immunocompromised patients with minimal vitreous haze.",
+    "mechanism": "CMV spreads contiguously through the retinal nerve fiber layer via direct cell-to-cell contact through gap junctions. The advancing edge represents active viral replication with full-thickness retinal necrosis and capillary involvement (hemorrhage). The trailing zone shows retinal atrophy and RPE mottling where viral cytopathic effect is complete. Minimal host inflammatory response (CD4 <50) allows clear visualization of this advancing front.",
+    "conditions": [
+      "CMV Retinitis"
+    ],
+    "imagingModality": "Fundoscopy / Fundus Photography",
+    "clinicalSignificance": "Classic presentation of CMV retinitis in AIDS. The leading edge advances at approximately 250 microns/week without treatment. Requires systemic ganciclovir/valganciclovir or intravitreal ganciclovir/foscarnet. Immune reconstitution with ART is essential for long-term control.",
+    "category": "infection",
+    "tags": [
+      "CMV",
+      "retinitis",
+      "HIV",
+      "AIDS",
+      "immunocompromise",
+      "NFL"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-003",
+    "name": "Inverse Leopard Spot",
+    "description": "Hyperreflective spots on a hyporeflective background on infrared autofluorescence (IRAF) imaging of the posterior pole in syphilitic posterior placoid chorioretinitis — the photographic negative of the classic leopard-spot pattern.",
+    "mechanism": "Treponema pallidum causes patchy RPE damage with disruption of melanin distribution. On IRAF (787-830 nm), melanin in RPE is the primary fluorophore. Areas of melanin clumping from RPE hypertrophy appear hyperreflective (bright spots), while areas of RPE atrophy with melanin loss appear hyporeflective (dark background). This creates an inverted pattern compared to the hyper-on-hypo FAF seen in other maculopathies.",
+    "conditions": [
+      "Syphilitic Posterior Placoid Chorioretinitis",
+      "Ocular Syphilis"
+    ],
+    "imagingModality": "Infrared Autofluorescence (IRAF)",
+    "clinicalSignificance": "Highly suggestive of syphilitic etiology. Demands serological confirmation (RPR/VDRL, FTA-ABS) and IV penicillin G treatment. Often associated with HIV co-infection. Resolves with appropriate antibiotic therapy.",
+    "category": "infection",
+    "tags": [
+      "syphilis",
+      "placoid",
+      "IRAF",
+      "melanin",
+      "RPE",
+      "autofluorescence"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-004",
+    "name": "Fern Pattern on FFA",
+    "description": "Branching, fern-leaf-shaped pattern of fluorescein dye leakage from retinal vessels during angiography, tracking along the perivascular space in a characteristic arborizing configuration.",
+    "mechanism": "Active vasculitis disrupts endothelial tight junctions (ZO-1, occludin, claudin-5) through inflammatory cytokines (TNF-alpha, IL-1-beta) and matrix metalloproteinases (MMP-2, MMP-9). Fluorescein (376 Da) escapes through the compromised endothelium, initially staining the vessel wall then diffusing into the perivascular retinal tissue in a branching pattern that follows the arborizing vascular architecture, resembling fern fronds.",
+    "conditions": [
+      "Retinal Vasculitis",
+      "Behcet Disease",
+      "Sarcoidosis",
+      "TB Vasculitis"
+    ],
+    "imagingModality": "Fundus Fluorescein Angiography (FFA)",
+    "clinicalSignificance": "Indicates active blood-retinal barrier breakdown and transmural vascular inflammation. Its presence mandates immunosuppressive therapy escalation. Resolution of the fern pattern on serial FFA confirms treatment response and can guide taper decisions.",
+    "category": "inflammation",
+    "tags": [
+      "FFA",
+      "vasculitis",
+      "BRB",
+      "fluorescein",
+      "leakage",
+      "tight junctions"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-005",
+    "name": "Danda Sign",
+    "description": "Dactylitis (sausage-shaped swelling of an entire digit — 'danda' meaning stick in Hindi) observed in a patient presenting with anterior uveitis, serving as a clinical clue to psoriatic arthritis as the underlying systemic association.",
+    "mechanism": "Psoriatic arthritis involves IL-17/IL-23 axis-driven inflammation at entheses (tendon-bone junctions). Dactylitis results from concurrent flexor tenosynovitis, enthesitis at digital insertions, and adjacent soft tissue edema affecting the entire digit. The same IL-17/IL-23 inflammatory pathway drives anterior uveal tract inflammation. HLA-B27 positivity (20-50% of PsA patients with uveitis) provides shared genetic susceptibility.",
+    "conditions": [
+      "Psoriatic Arthritis",
+      "HLA-B27 Anterior Uveitis",
+      "Spondyloarthropathy"
+    ],
+    "imagingModality": "Clinical Examination",
+    "clinicalSignificance": "Examining hands during slit-lamp examination can reveal dactylitis and clinch the diagnosis of PsA-associated uveitis. Directs systemic therapy toward anti-TNF or anti-IL-17 agents rather than empiric steroid taper alone. May present without skin psoriasis in up to 15% of PsA cases.",
+    "category": "autoimmune",
+    "tags": [
+      "dactylitis",
+      "psoriatic arthritis",
+      "HLA-B27",
+      "spondyloarthropathy",
+      "IL-17"
+    ],
+    "topic": "uvea"
+  },
+  {
+    "id": "sign-006",
+    "name": "Posterior KPs / Subhyaloid Precipitates",
+    "description": "Aggregates of inflammatory cells deposited on the posterior hyaloid face overlying a focus of active retinitis, resembling keratic precipitates but located in the posterior segment rather than on the corneal endothelium.",
+    "mechanism": "Focal retinitis (toxoplasma, viral) causes localized disruption of the inner blood-retinal barrier. Inflammatory cells (macrophages, lymphocytes, epithelioid cells) migrate through the necrotic retina into the vitreous and settle on the posterior hyaloid membrane by gravity and vitreous convection currents. These deposits accumulate preferentially over and around the active retinitis focus, marking the site of maximal posterior segment inflammation.",
+    "conditions": [
+      "Toxoplasma Retinitis",
+      "Focal Viral Retinitis",
+      "Toxocara Granuloma"
+    ],
+    "imagingModality": "Slit-Lamp Biomicroscopy / Indirect Ophthalmoscopy",
+    "clinicalSignificance": "Helps localize the active inflammatory focus in the posterior segment. Their presence in a patient with vitritis directs careful examination of the underlying retina for an active retinitis lesion. Not to be confused with anterior KPs on the corneal endothelium.",
+    "category": "infection",
+    "tags": [
+      "KPs",
+      "subhyaloid",
+      "posterior precipitates",
+      "retinitis",
+      "hyaloid",
+      "vitritis"
+    ],
+    "topic": "uvea"
+  },
+  {
+    "id": "sign-007",
+    "name": "RPE Hump Sign",
+    "description": "Dome-shaped elevation of the retinal pigment epithelium on OCT beneath an active toxoplasma retinitis lesion, indicating extension of infection and inflammation into the choroid (choroiditis component).",
+    "mechanism": "Toxoplasma gondii initially infects the inner retina but extends through all retinal layers to involve the RPE and choroid. The underlying choroidal granulomatous response (epithelioid cells, lymphocytes, tachyzoite-laden macrophages) creates focal choroidal thickening that displaces the RPE anteriorly. On OCT, this manifests as a dome-shaped RPE elevation with underlying choroidal hyperreflectivity, while the overlying retina shows full-thickness hyperreflective disorganization from necrosis.",
+    "conditions": [
+      "Toxoplasma Retinochoroiditis"
+    ],
+    "imagingModality": "Spectral-Domain OCT",
+    "clinicalSignificance": "Distinguishes toxoplasma retinochoroiditis from conditions causing isolated retinitis (CMV, ARN) where the RPE and choroid remain flat. Confirms deeper tissue involvement requiring adequate treatment duration. The hump gradually flattens with successful therapy, serving as a treatment response marker.",
+    "category": "infection",
+    "tags": [
+      "toxoplasmosis",
+      "RPE",
+      "OCT",
+      "choroiditis",
+      "hump",
+      "granuloma"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-008",
+    "name": "Headlight in the Fog",
+    "description": "A bright, well-defined, yellowish-white focus of active retinitis (the 'headlight') seen through dense vitreous haze (the 'fog') in ocular toxoplasmosis. The retinal lesion glows through the inflammatory vitritis like a car headlight penetrating foggy conditions.",
+    "mechanism": "Toxoplasma retinochoroiditis characteristically produces dense vitritis (unlike CMV retinitis in immunocompromised patients). The active retinal lesion contains dense inflammatory infiltrate with necrotic retinal tissue that is highly reflective/bright on ophthalmoscopy. The surrounding vitreous is filled with inflammatory cells (lymphocytes, macrophages) creating a hazy medium. The contrast between the bright focal lesion and diffuse vitreous haze creates the pathognomonic headlight-in-fog appearance.",
+    "conditions": [
+      "Toxoplasma Retinochoroiditis"
+    ],
+    "imagingModality": "Indirect Ophthalmoscopy / Fundoscopy",
+    "clinicalSignificance": "Classic presentation of active ocular toxoplasmosis in immunocompetent patients. Often seen adjacent to a pigmented old scar (reactivation). Combination therapy (pyrimethamine + sulfadiazine + folinic acid, or TMP-SMX) with corticosteroids is the standard treatment. The vitritis severity helps differentiate from CMV retinitis.",
+    "category": "infection",
+    "tags": [
+      "toxoplasmosis",
+      "vitritis",
+      "retinitis",
+      "headlight",
+      "fog",
+      "classic sign"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-009",
+    "name": "Pizza Pie Fundus",
+    "description": "Fundus appearance in fulminant CMV retinitis showing confluent areas of white-yellow retinal necrosis interspersed with hemorrhages and vascular sheathing, creating a variegated red-white-yellow pattern resembling a pizza.",
+    "mechanism": "Extensive CMV retinitis produces large zones of full-thickness retinal necrosis (white-yellow — the 'cheese') with hemorrhage from involved retinal capillaries (red — the 'sauce'). Vascular sheathing and perivascular exudates add additional color variation. In severe immunosuppression, multiple foci coalesce, creating the mosaic-like appearance. Unlike the brushfire pattern (which shows a clear advancing front), pizza pie fundus represents widespread, multifocal, near-simultaneous involvement.",
+    "conditions": [
+      "CMV Retinitis",
+      "AIDS-related CMV"
+    ],
+    "imagingModality": "Fundoscopy / Fundus Photography",
+    "clinicalSignificance": "Indicates fulminant, vision-threatening CMV retinitis requiring urgent systemic and intravitreal antiviral therapy (ganciclovir/foscarnet). High risk of retinal detachment from extensive necrosis. ART initiation for immune reconstitution is critical. Consider ganciclovir implant for sustained local drug delivery.",
+    "category": "infection",
+    "tags": [
+      "CMV",
+      "retinitis",
+      "pizza pie",
+      "fulminant",
+      "AIDS",
+      "hemorrhage"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-010",
+    "name": "Candle-Wax Drippings",
+    "description": "Yellow-white, waxy exudates along retinal veins resembling drips of candle wax (taches de bougie), pathognomonic for sarcoid retinal involvement. The exudates represent perivascular granulomatous infiltrates.",
+    "mechanism": "Sarcoidosis produces non-caseating granulomas composed of epithelioid histiocytes, multinucleated giant cells, and lymphocytes. These granulomas form along retinal venule walls, creating segmental perivascular infiltrates. The yellowish, waxy appearance results from lipid-laden epithelioid cells and the proteinaceous exudate surrounding the granuloma. Gravity causes the exudates to elongate along the vessel, creating the characteristic dripping pattern. FFA shows segmental vessel wall staining and leakage at these sites.",
+    "conditions": [
+      "Sarcoid Uveitis",
+      "Ocular Sarcoidosis"
+    ],
+    "imagingModality": "Fundoscopy / FFA",
+    "clinicalSignificance": "Pathognomonic for ocular sarcoidosis. Their presence warrants systemic workup including chest CT, serum ACE, lysozyme, and calcium levels. Treatment includes periocular/systemic corticosteroids and steroid-sparing immunosuppressives (methotrexate, mycophenolate, anti-TNF agents) for chronic disease.",
+    "category": "autoimmune",
+    "tags": [
+      "sarcoidosis",
+      "granuloma",
+      "perivascular",
+      "candle wax",
+      "taches de bougie",
+      "venous"
+    ],
+    "topic": "uvea"
+  },
+  {
+    "id": "sign-011",
+    "name": "Mutton-Fat KPs",
+    "description": "Large, greasy, yellowish-white keratic precipitates on the corneal endothelium, typically in a Arlt triangle distribution (inferiorly). They are composed of epithelioid cells and macrophages fused into granulomatous aggregates.",
+    "mechanism": "In granulomatous anterior uveitis, activated macrophages undergo epithelioid transformation and fusion into multinucleated giant cells in the anterior chamber. These large cells (20-50 microns), along with aggregated epithelioid histiocytes and lipid-laden macrophages, deposit on the corneal endothelium by aqueous convection currents and gravity. The 'mutton-fat' (greasy, yellowish) appearance results from lipid content within epithelioid cells. They preferentially deposit inferiorly (Arlt triangle) due to thermal aqueous convection — cooler cornea inferiorly creates downward flow near the endothelium.",
+    "conditions": [
+      "Sarcoidosis",
+      "Tuberculosis",
+      "VKH",
+      "Sympathetic Ophthalmia",
+      "Syphilis",
+      "Granulomatous Uveitis"
+    ],
+    "imagingModality": "Slit-Lamp Biomicroscopy",
+    "clinicalSignificance": "Hallmark of granulomatous uveitis. Narrows differential to sarcoidosis, TB, VKH, sympathetic ophthalmia, syphilis, and lens-induced uveitis. Old mutton-fat KPs become pigmented and glassy ('ghost KPs'). Their persistence despite treatment suggests inadequate inflammation control.",
+    "category": "inflammation",
+    "tags": [
+      "KPs",
+      "granulomatous",
+      "mutton fat",
+      "epithelioid",
+      "Arlt triangle",
+      "anterior uveitis"
+    ],
+    "topic": "uvea"
+  },
+  {
+    "id": "sign-012",
+    "name": "Snowbanking",
+    "description": "White-yellow, band-like exudative accumulation over the pars plana and inferior ora serrata, resembling a snowbank. It represents organized inflammatory debris and fibrovascular proliferation at the vitreous base.",
+    "mechanism": "In pars planitis (intermediate uveitis), chronic inflammation at the vitreous base leads to: (1) Fibrin and inflammatory cell (lymphocyte, macrophage) accumulation over the pars plana, (2) fibroglial proliferation from activated Muller cells extending into the vitreous base, (3) neovascularization within the fibrovascular membrane. The snowbank is a composite of organized fibrin, inflammatory cells, glial tissue, and neovasculature. Its inferior predominance follows gravity-dependent settling of vitreous inflammatory debris. Snowbanking indicates more severe disease than snowballs (vitreous aggregates) alone.",
+    "conditions": [
+      "Pars Planitis",
+      "Intermediate Uveitis",
+      "Multiple Sclerosis-associated Uveitis"
+    ],
+    "imagingModality": "Indirect Ophthalmoscopy with Scleral Depression",
+    "clinicalSignificance": "Indicates severe intermediate uveitis requiring aggressive treatment. Associated with higher risk of cystoid macular edema, epiretinal membrane, and neovascularization. Treatment includes periocular triamcinolone, systemic corticosteroids, and steroid-sparing agents. Cryotherapy to the snowbank may be needed for associated neovascularization.",
+    "category": "inflammation",
+    "tags": [
+      "pars planitis",
+      "intermediate uveitis",
+      "snowbank",
+      "vitreous base",
+      "fibrovascular",
+      "ora serrata"
+    ],
+    "topic": "uvea"
+  },
+  {
+    "id": "sign-013",
+    "name": "Frosted Branch Angiitis",
+    "description": "Thick, white, translucent perivascular sheathing affecting retinal veins and arteries diffusely, giving the vessels an appearance of frosted or ice-covered tree branches. A dramatic but rare presentation of retinal vasculitis.",
+    "mechanism": "Intense, acute immune-mediated inflammation targets the retinal vessel walls circumferentially. Massive perivenular and periarterial inflammatory cell infiltration (lymphocytes, macrophages) with fibrin deposition creates thick, white cuffs around vessels. Unlike typical vasculitis with segmental involvement, frosted branch angiitis shows diffuse, contiguous perivascular infiltration. The etiology includes viral infections (CMV, HSV, VZV, EBV), autoimmune conditions (SLE, Behcet), and lymphoproliferative disorders. The translucent quality of the sheathing results from organized fibrin rather than dense cellular infiltrate.",
+    "conditions": [
+      "Viral Retinal Vasculitis",
+      "CMV Vasculitis",
+      "Autoimmune Vasculitis",
+      "Behcet Disease",
+      "Lymphoma-associated"
+    ],
+    "imagingModality": "Fundoscopy / FFA",
+    "clinicalSignificance": "A medical emergency requiring urgent etiological workup (viral PCR, autoimmune panel, CBC with differential). Prognosis is generally good in viral and idiopathic cases with prompt corticosteroid therapy. In lymphoproliferative disease, it may be the presenting sign. FFA shows diffuse vessel wall staining and leakage.",
+    "category": "inflammation",
+    "tags": [
+      "frosted branch",
+      "vasculitis",
+      "perivascular",
+      "sheathing",
+      "viral",
+      "autoimmune"
+    ],
+    "topic": "retina"
+  },
+  {
+    "id": "sign-014",
+    "name": "String of Pearls",
+    "description": "Discrete, spherical, white vitreous opacities arranged in linear chains or clusters (snowballs) in the inferior vitreous, resembling a string of pearls. Characteristic of intermediate uveitis.",
+    "mechanism": "In intermediate uveitis, macrophages and epithelioid cells aggregate in the vitreous cavity, forming discrete spherical condensations (snowballs). These are composed of multinucleated giant cells, epithelioid histiocytes, and surrounding lymphocytes — essentially vitreous granulomas. They settle inferiorly due to gravity and align along vitreous fibrillar scaffolds, creating the linear 'string of pearls' arrangement. The vitreous collagen framework acts as a template for cellular aggregation. Each 'pearl' is 100-500 microns in diameter.",
+    "conditions": [
+      "Intermediate Uveitis",
+      "Pars Planitis",
+      "Sarcoidosis"
+    ],
+    "imagingModality": "Slit-Lamp Biomicroscopy / Indirect Ophthalmoscopy",
+    "clinicalSignificance": "Indicates chronic intermediate uveitis with granulomatous vitreous inflammation. Less severe than snowbanking but still requires monitoring for cystoid macular edema. May be the only finding in early intermediate uveitis. Sarcoidosis workup is warranted when snowballs are prominent.",
+    "category": "inflammation",
+    "tags": [
+      "snowballs",
+      "intermediate uveitis",
+      "vitreous",
+      "granuloma",
+      "pars planitis",
+      "string of pearls"
+    ],
+    "topic": "uvea"
+  },
+  {
+    "id": "sign-015",
+    "name": "Sunrise Sign",
+    "description": "Orange-red, diffuse choroidal thickening and depigmentation visible through the fundus in the acute uveitic phase of Vogt-Koyanagi-Harada (VKH) disease, giving the fundus a characteristic sunset/sunrise glow appearance.",
+    "mechanism": "VKH is a T-cell-mediated autoimmune attack against melanocyte-associated antigens (tyrosinase, gp100, MART-1) in the choroid. Massive granulomatous choroidal infiltration by CD4+ T-lymphocytes and macrophages causes diffuse choroidal thickening (up to 2-3x normal). Melanocyte destruction leads to depigmentation of the choroid and RPE. The orange-red glow results from visualization of the choroidal vasculature through depigmented RPE — the scleral reflection and choroidal blood produce the sunrise/sunset appearance. Enhanced depth imaging OCT (EDI-OCT) demonstrates markedly thickened choroid with loss of normal architecture.",
+    "conditions": [
+      "Vogt-Koyanagi-Harada Disease"
+    ],
+    "imagingModality": "Fundoscopy / EDI-OCT / ICGA",
+    "clinicalSignificance": "Indicates acute/chronic VKH with active choroidal inflammation and melanocyte destruction. Requires aggressive systemic immunosuppression (IV methylprednisolone followed by oral steroid taper with steroid-sparing agents). Inadequate treatment leads to chronic recurrent disease with sunset glow fundus, Dalen-Fuchs nodules, and peripapillary atrophy. ICGA shows hypocyanescent dots indicating choroidal granulomas.",
+    "category": "autoimmune",
+    "tags": [
+      "VKH",
+      "Vogt-Koyanagi-Harada",
+      "choroidal thickening",
+      "melanocyte",
+      "sunrise",
+      "depigmentation"
+    ],
+    "topic": "comprehensive"
+  }
+]

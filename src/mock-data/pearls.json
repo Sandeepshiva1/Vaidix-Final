@@ -1,0 +1,821 @@
+[
+  {
+    "id": "pearl-001",
+    "question": "Tell me why unproportionally low vision in ARN should raise caution",
+    "answer": "Indicative of involvement of optic nerve. Can lead to anterior ischemic optic neuropathy. Demands immediate intravenous methylprednisolone therapy along with antivirals.",
+    "mechanism": "Viral spread to optic nerve via retrograde axonal transport causes ischemic damage before clinical retinal findings suggest severity. The optic nerve head vasculature is susceptible to viral-induced vasculitis, leading to AION even when peripheral retinal necrosis appears limited.",
+    "condition": "Acute Retinal Necrosis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Witmer MT, Pavan PR, Fouraker BD, Levy-Clarke GA",
+      "title": "Acute retinal necrosis associated optic neuropathy",
+      "journal": "Acta Ophthalmol",
+      "year": 2011,
+      "doi": "10.1111/j.1755-3768.2010.01911.x"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "ARN",
+      "optic neuropathy",
+      "VZV",
+      "HSV",
+      "emergency"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-002",
+    "question": "Tell me why arteritis predominates over phlebitis in ARN",
+    "answer": "Herpesviruses (VZV/HSV) have tropism for arterial endothelium over venous endothelium. Arterial walls are thicker with more smooth muscle cells that harbor latent virus. This results in occlusive arteritis, segmental necrosis, and ischemic retinal whitening.",
+    "mechanism": "VZV and HSV replicate preferentially in arterial smooth muscle cells and endothelium due to receptor-mediated entry via nectin-1 and HVEM. Arteries have a thicker tunica media with more susceptible smooth muscle targets. The resulting arteritis causes luminal occlusion, downstream ischemia, and confluent retinal necrosis progressing circumferentially.",
+    "condition": "Acute Retinal Necrosis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Atherton SS",
+      "title": "Acute retinal necrosis: insights into pathogenesis from the mouse model",
+      "journal": "Herpes",
+      "year": 2001,
+      "doi": ""
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "ARN",
+      "arteritis",
+      "VZV",
+      "HSV",
+      "viral tropism"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-003",
+    "question": "Tell me why retinal detachment risk varies with the causative agent in ARN",
+    "answer": "VZV-associated ARN carries higher RD risk (up to 75%) than HSV-ARN (approximately 50%). VZV causes more extensive, confluent, full-thickness retinal necrosis with greater peripheral involvement, leading to multiple posterior breaks at necrotic-normal retina junctions.",
+    "mechanism": "VZV produces more aggressive arteritis with wider zones of ischemic necrosis extending to the periphery. Full-thickness necrosis creates multiple retinal breaks. HSV tends to produce more posterior, less confluent involvement. Additionally, VZV-induced vitreous inflammation and traction exacerbate detachment risk through PVR at necrotic margins.",
+    "condition": "Acute Retinal Necrosis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Lau CH, Missotten T, Salzmann J, Lightman SL",
+      "title": "Acute retinal necrosis: features, management, and outcomes",
+      "journal": "Ophthalmology",
+      "year": 2007,
+      "doi": "10.1016/j.ophtha.2006.08.037"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "ARN",
+      "retinal detachment",
+      "VZV",
+      "HSV",
+      "PVR"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-004",
+    "question": "Tell me why neovascularization can occur in infectious retinitis such as toxoplasmosis",
+    "answer": "Toxoplasma retinochoroiditis causes arteriolitis leading to capillary non-perfusion. The resulting retinal ischemia triggers VEGF upregulation and neovascularization, either at the disc (NVD) or elsewhere (NVE). This is an under-recognized complication requiring anti-VEGF therapy alongside antimicrobials.",
+    "mechanism": "Toxoplasma-induced arteriolitis causes endothelial damage and luminal occlusion of retinal arterioles. Downstream capillary non-perfusion creates ischemic retina that upregulates HIF-1-alpha and VEGF. The resulting neovascularization can lead to vitreous hemorrhage. FFA demonstrates capillary dropout zones adjacent to active or healed lesions.",
+    "condition": "Toxoplasma Retinochoroiditis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Commodaro AG, Belfort RN, Rizzo LV, Muccioli C, Silveira C, Burnier MN Jr, Belfort R Jr",
+      "title": "Ocular toxoplasmosis: an update and review of the literature",
+      "journal": "Mem Inst Oswaldo Cruz",
+      "year": 2009,
+      "doi": "10.1590/S0074-02762009000200030"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "toxoplasmosis",
+      "neovascularization",
+      "arteriolitis",
+      "VEGF",
+      "ischemia"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-005",
+    "question": "Tell me why TB chorioretinitis reactivates at the edge of an old scar",
+    "answer": "Dormant Mycobacterium tuberculosis persists within the RPE-choroidal scar complex. Reactivation occurs at the junction of scarred and healthy tissue where residual bacilli encounter a renewed inflammatory milieu. The old scar margin becomes the epicenter of fresh choroiditis.",
+    "mechanism": "M. tuberculosis can persist intracellularly in macrophages and RPE cells within the fibrotic scar. The scar-normal tissue junction has a transition zone where immune surveillance is suboptimal yet vascular supply permits bacillary reactivation. Immunosuppression or steroid use without ATT coverage can trigger reactivation. Clinically, fresh yellowish choroiditis appears at the scar edge, expanding the lesion centrifugally.",
+    "condition": "Tubercular Chorioretinitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Gupta V, Gupta A, Rao NA",
+      "title": "Intraocular tuberculosis: an update",
+      "journal": "Surv Ophthalmol",
+      "year": 2007,
+      "doi": "10.1016/j.survophthal.2007.08.005"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "tuberculosis",
+      "chorioretinitis",
+      "reactivation",
+      "RPE",
+      "scar"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-006",
+    "question": "Tell me why Mantoux and IGRA tests rule out but do not rule in ocular TB",
+    "answer": "Mantoux (TST) and IGRA have high sensitivity (~90%) for TB exposure but low specificity for ocular TB. A negative test makes active TB unlikely (high negative predictive value), but a positive test only confirms prior exposure or latent TB, not intraocular disease. Clinical phenotype correlation is essential for diagnosis.",
+    "mechanism": "TST measures delayed-type hypersensitivity to PPD antigens shared by many mycobacteria. IGRA (QuantiFERON/T-SPOT) detects IFN-gamma release against TB-specific antigens (ESAT-6, CFP-10) but still measures immune sensitization, not active disease. In endemic populations, high background positivity (latent TB) reduces positive predictive value for ocular TB. Neither test confirms intraocular bacterial presence. Diagnosis requires compatible clinical phenotype plus supportive testing.",
+    "condition": "Ocular Tuberculosis",
+    "subspecialty": "Uvea",
+    "category": "infection",
+    "citation": {
+      "authors": "Trajman A, Steffen RE, Menzies D",
+      "title": "Interferon-Gamma Release Assays versus Tuberculin Skin Testing for the Diagnosis of Latent Tuberculosis Infection: An Overview of the Evidence",
+      "journal": "Pulm Med",
+      "year": 2013,
+      "doi": "10.1155/2013/601737"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "tuberculosis",
+      "Mantoux",
+      "IGRA",
+      "sensitivity",
+      "specificity",
+      "diagnosis"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-007",
+    "question": "Tell me why post-fever retinal vasculitis presents weeks after the acute febrile illness",
+    "answer": "It is an immune-mediated Type III hypersensitivity reaction, not direct infection. Circulating immune complexes deposit in retinal vessel walls 2-4 weeks after the febrile trigger (dengue, chikungunya, rickettsia). The lag period represents the time needed for antibody formation and immune complex deposition.",
+    "mechanism": "During acute viremia/bacteremia, antigens circulate and stimulate antibody production. By weeks 2-4, antigen-antibody immune complexes form in antigen excess, deposit in retinal vessel walls (Type III Arthus-like reaction), activate complement cascade (C3a, C5a), recruit neutrophils, and cause vasculitis with vessel wall necrosis, perivascular exudation, and retinal hemorrhages. The retinal vasculature is particularly susceptible due to blood-retinal barrier characteristics.",
+    "condition": "Post-Fever Retinal Vasculitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "inflammation",
+    "citation": {
+      "authors": "Khairallah M, Kahloun R, Ben Yahia S, Jelliti B, Messaoud R",
+      "title": "New infectious etiologies for posterior uveitis",
+      "journal": "Ophthalmic Res",
+      "year": 2013,
+      "doi": "10.1159/000350842"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "post-fever",
+      "vasculitis",
+      "immune complex",
+      "Type III",
+      "dengue",
+      "chikungunya"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-008",
+    "question": "Tell me why anti-VEGF can be used in TB granuloma with intraretinal hemorrhage",
+    "answer": "Intraretinal hemorrhage around a TB granuloma indicates VEGF overexpression from the inflammatory mass. The granuloma-associated macrophages and surrounding ischemic retina produce VEGF, making anti-VEGF a rational adjunct to ATT. It controls hemorrhage and exudation without worsening infection when given with antitubercular coverage.",
+    "mechanism": "TB granulomas contain activated macrophages producing TNF-alpha, IL-1, and VEGF. The granulomatous inflammation causes local capillary occlusion and ischemia, further upregulating VEGF via HIF-1-alpha. Intraretinal hemorrhage is a clinical marker of this VEGF-driven vascular incompetence. Anti-VEGF (bevacizumab/ranibizumab) targets the exudative component while ATT addresses the infectious etiology. Without ATT coverage, anti-VEGF alone may worsen infection by altering macrophage function.",
+    "condition": "Tubercular Granuloma",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Bansal P, Gupta A",
+      "title": "Intraretinal haemorrhage in tubercular choroidal granuloma - an underrated but important clinical sign",
+      "journal": "Eye (Lond)",
+      "year": 2024,
+      "doi": "10.1038/s41433-024-03092-3"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "tuberculosis",
+      "granuloma",
+      "anti-VEGF",
+      "VEGF",
+      "intraretinal hemorrhage"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-009",
+    "question": "Tell me why keratic precipitates appear posteriorly on the retina in focal retinitis",
+    "answer": "These are not true KPs but posterior subhyaloid precipitates — aggregates of inflammatory cells deposited on the posterior hyaloid face overlying focal retinitis. They indicate localized breakdown of the blood-retinal barrier with inflammatory cell accumulation at the vitreoretinal interface adjacent to the active lesion.",
+    "mechanism": "In focal retinitis (toxoplasma, viral), localized inflammation disrupts the inner blood-retinal barrier. Inflammatory cells (macrophages, lymphocytes) migrate through the retina and accumulate on the posterior hyaloid membrane by gravity and convection currents in the vitreous. These posterior 'KP-like' deposits settle on the hyaloid face overlying and surrounding the retinitis focus. Unlike anterior KPs on the corneal endothelium, these mark the site of posterior segment inflammation and help localize the active lesion.",
+    "condition": "Focal Retinitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Ashish Khalsa, Anup Kelgaonkar, Srikanta Kumar Padhy, Tushar Agarwal, Anamika Patel, Umesh Chandra Behera, Soumyava Basu",
+      "title": "Posterior Subhyaloid Precipitates: 'KPs' of the Posterior Segment",
+      "journal": "Seminars in Ophthalmology",
+      "year": 2021,
+      "doi": "10.1080/08820538.2021.1900291"
+    },
+    "bloomsLevel": 3,
+    "tags": [
+      "KPs",
+      "posterior precipitates",
+      "subhyaloid",
+      "focal retinitis",
+      "toxoplasmosis"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-010",
+    "question": "Tell me why syphilitic posterior placoid chorioretinitis shows inverse leopard spot on IRAF",
+    "answer": "On infrared autofluorescence (IRAF), syphilitic placoid lesions show hyperreflective spots on a hyporeflective background — the inverse of the classic leopard-spot pattern. This reflects outer retinal and RPE-level disruption with melanin redistribution characteristic of syphilis. Pearl of the pearl: the classic (non-inverse) leopard spot pattern — hypo-AF spots on a normal background — is seen in UES (Birdshot) and intraocular lymphoma, providing a key differential.",
+    "mechanism": "Syphilitic placoid chorioretinitis targets the outer retina and RPE. On IRAF (787-830 nm wavelength), melanin in the RPE is the primary fluorophore. Treponema pallidum causes patchy RPE damage with melanin clumping and loss. Areas of melanin clumping appear hyperreflective (bright spots), while areas of RPE atrophy with melanin loss appear hyporeflective (dark background). This creates the inverse leopard-spot pattern — the photographic negative of the classic hyper-on-hypo FAF pattern seen in other conditions. The pattern is highly suggestive of syphilitic etiology.",
+    "condition": "Syphilitic Posterior Placoid Chorioretinitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Pichi F, Ciardella AP, Cunningham ET Jr, Morara M, Veronese C, Jumper JM, Albini TA, Sarraf D, McCannel C, Freund KB, Srvivastava SK, Lowder CY, Nucci P",
+      "title": "Spectral domain optical coherence tomography findings in patients with acute syphilitic posterior placoid chorioretinopathy",
+      "journal": "Retina",
+      "year": 2014,
+      "doi": "10.1097/IAE.0000000000000068"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "syphilis",
+      "placoid",
+      "IRAF",
+      "leopard spot",
+      "RPE",
+      "outer retina"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-011",
+    "question": "Tell me why CMV retinitis has a brushfire appearance",
+    "answer": "CMV spreads contiguously through the retinal nerve fiber layer (NFL) from cell to cell, creating an advancing white-yellow border of active necrosis (the 'fire front') with atrophic, gliotic retina behind it. Minimal vitreous inflammation (due to immunocompromise) allows clear visualization of this pattern.",
+    "mechanism": "CMV is a slow-replicating herpesvirus that spreads via direct cell-to-cell contact through gap junctions in the NFL. The advancing edge shows full-thickness retinal necrosis with viral inclusions, hemorrhage (due to capillary involvement), and granular white opacification. Behind the active border, the retina becomes thin and atrophic with RPE mottling. Immunocompromised patients (CD4 <50) mount minimal inflammatory response, so there is little vitreous haze to obscure the characteristic brushfire or 'pizza pie' pattern. The leading edge advances at ~250 microns/week without treatment.",
+    "condition": "CMV Retinitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Jabs DA, Van Natta ML, Kempen JH, Reed Pavan P, Lim JI, Murphy RL, Hubbard LD",
+      "title": "Characteristics of patients with cytomegalovirus retinitis in the era of highly active antiretroviral therapy",
+      "journal": "Am J Ophthalmol",
+      "year": 2002,
+      "doi": "10.1016/S0002-9394(02)01327-0"
+    },
+    "bloomsLevel": 3,
+    "tags": [
+      "CMV",
+      "retinitis",
+      "brushfire",
+      "NFL",
+      "immunocompromise",
+      "HIV"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-012",
+    "question": "Tell me why intravitreal clindamycin is effective in toxoplasma retinochoroiditis",
+    "answer": "Intravitreal injection of clindamycin (1 mg/0.1 mL) achieves vitreous drug levels 100-fold higher than systemic administration. Clindamycin penetrates the retinal tissue effectively, acts on the ribosomal 50S subunit of Toxoplasma tachyzoites, and avoids systemic side effects like pseudomembranous colitis. Especially useful in pregnancy, sulfa allergy, or recalcitrant disease.",
+    "mechanism": "Systemic clindamycin achieves intraocular levels of only 1-3 mcg/mL due to the blood-retinal barrier. Intravitreal injection bypasses this barrier, delivering 1000 mcg directly into the vitreous cavity, achieving immediate therapeutic concentrations at the retinal lesion. Clindamycin binds the 23S rRNA of the 50S ribosomal subunit in the Toxoplasma apicoplast, inhibiting protein synthesis. The drug's lipophilicity allows good tissue penetration into the retina. Combined with intravitreal dexamethasone (400 mcg), it controls both the organism and the destructive inflammatory response.",
+    "condition": "Toxoplasma Retinochoroiditis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Soheilian M, Ramezani A, Azimzadeh A, Sadoughi MM, Dehghan MH, Shahghadami R, Yaseri M, Peyman GA",
+      "title": "Randomized trial of intravitreal clindamycin and dexamethasone versus pyrimethamine, sulfadiazine, and prednisolone in treatment of ocular toxoplasmosis",
+      "journal": "Ophthalmology",
+      "year": 2011,
+      "doi": "10.1016/j.ophtha.2010.07.020"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "toxoplasmosis",
+      "intravitreal",
+      "clindamycin",
+      "drug delivery",
+      "blood-retinal barrier"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-013",
+    "question": "Tell me why junctional PVR occurs specifically at the necrotic-normal retina border in ARN",
+    "answer": "Proliferative vitreoretinopathy (PVR) in ARN develops preferentially at the junction between necrotic and viable retina. This boundary zone has maximal inflammatory cytokine gradient, exposed RPE, and glial cell activation, creating the perfect substrate for fibrocellular membrane formation.",
+    "mechanism": "At the necrotic-normal junction: (1) Disrupted retina releases RPE cells, glial cells, and macrophages into the vitreous cavity. (2) TGF-beta, PDGF, and IL-6 are maximally concentrated at this transition zone. (3) Exposed RPE undergoes epithelial-mesenchymal transition (EMT), becoming fibroblast-like and contractile. (4) Muller cell gliosis at the junction creates a scaffold for membrane formation. (5) The resulting gliotic proliferative membrane contracts, creating tractional retinal detachment with breaks at the necrosis border. This is why prophylactic laser barricade is placed posterior to the necrotic edge.",
+    "condition": "Acute Retinal Necrosis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Hillenkamp J, Nölle B, Bruns C, Rautenberg P, Fickenscher H, Roider J",
+      "title": "Acute retinal necrosis: clinical features, early vitrectomy, and outcomes",
+      "journal": "Ophthalmology",
+      "year": 2009,
+      "doi": "10.1016/j.ophtha.2009.02.009"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "ARN",
+      "PVR",
+      "junctional",
+      "gliosis",
+      "retinal detachment",
+      "EMT"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-014",
+    "question": "Tell me why steroids must be given along with ATT in TB retinal vasculitis",
+    "answer": "In TB retinal vasculitis, the inflammatory load causes more tissue damage than the bacillary load. Immune-mediated vasculitis with perivascular cuffing, vessel wall necrosis, and macular edema cause vision loss. Steroids control this destructive inflammation while ATT addresses the underlying infection. Without steroids, the inflammatory response overwhelms and destroys retinal tissue despite ATT.",
+    "mechanism": "TB retinal vasculitis is primarily a Type IV hypersensitivity reaction where sensitized T-cells and macrophages mount a granulomatous response against mycobacterial antigens in vessel walls. TNF-alpha, IFN-gamma, and IL-17 drive vessel wall destruction, perivasculitis, and blood-retinal barrier breakdown. Steroids (oral prednisolone 1 mg/kg taper) suppress this T-cell mediated inflammation, reduce macular edema, and prevent ischemic damage from vasculitis. ATT (RHEZ regimen) concurrently eliminates the antigenic stimulus. Starting ATT 1-2 weeks before or simultaneously with steroids prevents paradoxical worsening.",
+    "condition": "Tubercular Retinal Vasculitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Gupta A, Sharma A, Bansal R, Sharma K",
+      "title": "Classification of intraocular tuberculosis",
+      "journal": "Ocul Immunol Inflamm",
+      "year": 2015,
+      "doi": "10.3109/09273948.2014.967351"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "tuberculosis",
+      "vasculitis",
+      "steroids",
+      "ATT",
+      "Type IV hypersensitivity"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-015",
+    "question": "Tell me why the rain-cloud sign is seen in candida endophthalmitis",
+    "answer": "Round hyperreflective aggregates (compact fungal balls) in the vitreous or on the retinal surface produce homogeneous internal reflectivity with posterior shadowing on OCT and B-scan, resembling rain clouds. This is pathognomonic for endogenous fungal endophthalmitis and mandates systemic and intravitreal antifungal therapy.",
+    "mechanism": "Candida species form compact colonies of yeast cells and pseudohyphae that create dense, spherical aggregates. These fungal balls have uniform cellular density producing homogeneous hyperreflectivity on OCT. The dense colony attenuates the OCT signal posteriorly, creating a shadowing artifact — the 'rain' falling from the 'cloud.' On B-scan ultrasonography, similar high-reflective preretinal opacities with posterior acoustic shadowing are seen. The sign helps differentiate fungal from bacterial endophthalmitis, where vitreous opacities are more diffuse and less organized.",
+    "condition": "Candida Endophthalmitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Lingappan A, Wykoff CC, Albini TA, Miller D, Pathengay A, Davis JL, Flynn HW Jr",
+      "title": "Endogenous fungal endophthalmitis: causative organisms, management strategies, and visual acuity outcomes",
+      "journal": "Am J Ophthalmol",
+      "year": 2012,
+      "doi": "10.1016/j.ajo.2011.06.020"
+    },
+    "bloomsLevel": 3,
+    "tags": [
+      "candida",
+      "endophthalmitis",
+      "rain-cloud",
+      "OCT",
+      "fungal",
+      "B-scan"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-016",
+    "question": "Tell me why FFA is essential in occlusive retinal vasculitis",
+    "answer": "Fundus fluorescein angiography reveals the true extent of capillary non-perfusion (CNP) areas, which are far more extensive than clinically apparent, typically in the midperipheral retina. These CNP areas determine the risk of neovascularization and guide the need for peripheral laser photocoagulation.",
+    "mechanism": "Clinical examination underestimates ischemia because the peripheral retina is poorly visualized and early CNP is clinically silent. FFA with wide-field imaging (Optos/Clarus) demonstrates: (1) Delayed arterial filling indicating proximal arteritis, (2) capillary dropout zones appearing as dark, hypofluorescent areas in mid-periphery, (3) vessel wall staining indicating active vasculitis, (4) leakage from neovascularization. The midperiphery is preferentially affected because watershed zones between posterior ciliary and retinal circulations are most vulnerable to occlusive vasculitis. Quantifying CNP area guides treatment — extensive CNP (>5 disc areas) warrants scatter laser to prevent neovascularization.",
+    "condition": "Occlusive Retinal Vasculitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "inflammation",
+    "citation": {
+      "authors": "Rosenbaum JT, Sibley CH, Lin P",
+      "title": "Retinal vasculitis",
+      "journal": "Curr Opin Rheumatol",
+      "year": 2016,
+      "doi": "10.1097/BOR.0000000000000235"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "FFA",
+      "vasculitis",
+      "CNP",
+      "neovascularization",
+      "wide-field imaging",
+      "ischemia"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-017",
+    "question": "Tell me why rifampicin reduces the efficacy of corticosteroids in TB uveitis",
+    "answer": "Rifampicin is a potent inducer of the hepatic cytochrome P450 3A4 (CYP3A4) enzyme system. It accelerates the metabolism of prednisolone and dexamethasone by 2-3 fold, reducing their plasma half-life and bioavailability. Steroid doses may need to be doubled during concurrent rifampicin therapy. Additionally, isoniazid increases the clearance and acetylation of steroids, compounding the reduction in steroid efficacy when both drugs are used together in the RHEZ regimen.",
+    "mechanism": "Rifampicin binds to the pregnane X receptor (PXR) in hepatocytes, a nuclear receptor that upregulates transcription of CYP3A4, CYP2C9, and P-glycoprotein. CYP3A4 is the primary enzyme metabolizing prednisolone via 6-beta-hydroxylation. Induction takes 7-10 days to reach steady state and increases prednisolone clearance by 45-65%. Isoniazid further contributes by increasing steroid acetylation and clearance. This results in subtherapeutic steroid levels, inadequate inflammation control, and apparent 'steroid resistance.' Clinicians must either increase steroid dose (1.5-2x), use steroid-sparing immunosuppressives, or consider substituting rifabutin (weaker CYP3A4 inducer). The interaction also affects cyclosporine, tacrolimus, and mycophenolate levels.",
+    "condition": "Tubercular Uveitis",
+    "subspecialty": "Uvea",
+    "category": "pharmacology",
+    "citation": {
+      "authors": "McAllister WA, Thompson PJ, Al-Habet SM, Rogers HJ",
+      "title": "Rifampicin reduces effectiveness and bioavailability of prednisolone",
+      "journal": "BMJ",
+      "year": 1983,
+      "doi": "10.1136/bmj.286.6369.923"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "rifampicin",
+      "CYP3A4",
+      "steroids",
+      "drug interaction",
+      "tuberculosis",
+      "pharmacokinetics"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-018",
+    "question": "Tell me why the Danda sign in anterior uveitis points to psoriatic arthritis",
+    "answer": "Dactylitis (sausage digit or 'danda' — Hindi for stick) in a patient with anterior uveitis is a powerful clue to psoriatic arthritis as the underlying systemic association. Even without skin psoriasis, dactylitis indicates enthesitis and periostitis of the digit, characteristic of PsA, which is an HLA-B27-associated spondyloarthropathy causing recurrent non-granulomatous anterior uveitis.",
+    "mechanism": "Psoriatic arthritis involves inflammation at entheses (tendon-bone junctions) driven by IL-17/IL-23 axis. Dactylitis results from flexor tenosynovitis, enthesitis, and adjacent soft tissue inflammation of the entire digit. The same IL-17/IL-23 pathway drives anterior uveitis through uveal tract inflammation. HLA-B27 is present in 20-50% of PsA patients with uveitis. Examining the hands during slit-lamp examination — noticing a swollen 'sausage digit' — can clinch the diagnosis and direct appropriate systemic therapy (anti-TNF, anti-IL-17) rather than empiric steroid taper alone.",
+    "condition": "Psoriatic Arthritis-Associated Anterior Uveitis",
+    "subspecialty": "Uvea",
+    "category": "autoimmune",
+    "citation": {
+      "authors": "Pile K",
+      "title": "Is a fat thumb another sign of psoriatic arthritis?",
+      "journal": "Int J Rheum Dis",
+      "year": 2021,
+      "doi": "10.1111/1756-185X.14237"
+    },
+    "bloomsLevel": 3,
+    "tags": [
+      "danda",
+      "dactylitis",
+      "psoriatic arthritis",
+      "HLA-B27",
+      "anterior uveitis",
+      "spondyloarthropathy"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-019",
+    "question": "Tell me why the fern pattern on FFA indicates active retinal vasculitis",
+    "answer": "The fern-leaf pattern of fluorescein leakage on FFA represents active breakdown of the blood-retinal barrier (BRB) at the level of retinal vessel walls. Dye leaks through damaged endothelial tight junctions, tracking along the perivascular space in a branching, fern-like pattern. Its presence indicates active vasculitis requiring immunosuppressive escalation.",
+    "mechanism": "Normal retinal vessels have tight junctions (ZO-1, occludin, claudin-5) that prevent fluorescein leakage. In active vasculitis, inflammatory cytokines (TNF-alpha, IL-1-beta) and matrix metalloproteinases (MMP-2, MMP-9) degrade tight junction proteins. Fluorescein (376 Da) escapes through compromised endothelium, initially tracking along the vessel wall (early staining) then diffusing into perivascular retina in a branching pattern that resembles fern fronds. The fern pattern indicates transmural inflammation (not just intraluminal) and correlates with risk of progression to occlusion. Resolution of fern pattern on serial FFA confirms treatment response.",
+    "condition": "Retinal Vasculitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "inflammation",
+    "citation": {
+      "authors": "Rana V, Dangi M, Kumar P, Markan A, Kaushik J, Goenka R, Rana A, Gupta A, Tripathi AN",
+      "title": "Fern-Like Pattern on Ultra-Widefield Fluorescein Angiography Across Various Uveitic Conditions",
+      "journal": "Romanian Journal of Ophthalmology",
+      "year": 2025,
+      "doi": ""
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "FFA",
+      "fern pattern",
+      "vasculitis",
+      "BRB",
+      "tight junctions",
+      "fluorescein"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-020",
+    "question": "Tell me why resolution of post-fever vasculitis shows color change from yellow to grey with perivascular clearing",
+    "answer": "Active vasculitis shows yellow perivascular exudates (lipid and protein-rich inflammatory transudate). As inflammation resolves, exudates are reabsorbed by macrophages and RPE phagocytosis, leaving grey atrophic sheaths. Perivascular clearing indicates cessation of active BRB breakdown. This color transition is a clinical marker that treatment is working and escalation is not needed.",
+    "mechanism": "Yellow exudates contain fibrin, albumin, lipoproteins, and inflammatory cells (neutrophils, macrophages) that leaked through inflamed vessel walls. During resolution: (1) Macrophages phagocytose lipid-rich exudates, (2) fibrin undergoes plasmin-mediated lysis, (3) edema fluid is reabsorbed via RPE pump function and retinal Muller cell water channels (AQP4). The residual grey sheathing represents perivenular fibrosis and gliosis — the healed scar of prior vasculitis. Complete perivascular clearing with grey sheathing indicates the inflammatory phase is over. Persistent yellow exudates or new exudation would indicate ongoing activity requiring continued treatment.",
+    "condition": "Post-Fever Retinal Vasculitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "inflammation",
+    "citation": {
+      "authors": "Khairallah M, Ben Yahia S, Ladjimi A, Messaoud R, Zaouali S, Attia S, Jenzeri S, Jelliti B",
+      "title": "Chorioretinal involvement in patients with West Nile virus infection",
+      "journal": "Ophthalmology",
+      "year": 2004,
+      "doi": "10.1016/j.ophtha.2003.09.030"
+    },
+    "bloomsLevel": 3,
+    "tags": [
+      "post-fever",
+      "vasculitis",
+      "resolution",
+      "exudates",
+      "perivascular",
+      "healing"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-021",
+    "question": "Tell me why posterior extension of ARN raises the risk of devastating outcomes",
+    "answer": "Posterior extension of ARN toward the optic disc and macula indicates high viral load and aggressive disease. It dramatically increases the risk of optic neuropathy (via direct viral spread to the optic nerve), macular involvement, and extensive retinal detachment. This mandates escalation to intravenous antivirals and consideration of early vitrectomy.",
+    "mechanism": "ARN typically starts peripherally and advances posteriorly. Posterior extension occurs when viral replication overwhelms the immune response, indicating high viral load. The advancing necrosis front reaches the vascular arcades and optic disc, threatening: (1) Direct optic nerve invasion via NFL axonal transport causing optic neuropathy, (2) macular necrosis or edema causing irreversible central vision loss, (3) posterior retinal breaks with higher PVR risk due to proximity to macula. Posterior extension correlates with VZV etiology, delayed diagnosis, and inadequate antiviral dosing. Switch from oral valacyclovir to IV acyclovir (10-15 mg/kg q8h) and consider intravitreal foscarnet.",
+    "condition": "Acute Retinal Necrosis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Fukui C, Takeda A, Hasegawa E, Asahara K, Shirane M, Tsutsui H, Yoshitomi K, Ito T, Akiyama M, Notomi S, Ishikawa K, Murakami Y, Hisatomi T, Yawata N, Sonoda KH",
+      "title": "Factors at the initial visit associated with poor visual outcomes in patients with acute retinal necrosis",
+      "journal": "Eye (Lond)",
+      "year": 2024,
+      "doi": ""
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "ARN",
+      "posterior extension",
+      "optic neuropathy",
+      "viral load",
+      "IV acyclovir"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-022",
+    "question": "Tell me why a blood-stained hypopyon in a CML patient suggests blast crisis with CNS involvement",
+    "answer": "A hemorrhagic (blood-stained) hypopyon in chronic myeloid leukemia is not typical inflammatory hypopyon. It represents infiltration of the anterior chamber by leukemic blast cells with concurrent coagulopathy. This finding indicates blast crisis (accelerated phase of CML) with likely CNS and ocular involvement, mandating urgent hematology referral and CNS evaluation.",
+    "mechanism": "During blast crisis, immature myeloid/lymphoid blast cells proliferate uncontrollably and infiltrate extramedullary sites including the uveal tract and anterior chamber. The blood-stained appearance results from: (1) Blast cell infiltration of the iris and ciliary body vasculature causing hemorrhage, (2) thrombocytopenia and DIC from marrow failure, (3) blast cells themselves forming a pseudohypopyon. The anterior chamber acts as a 'sanctuary site' similar to CNS, where blast cells are shielded from systemic chemotherapy by the blood-aqueous barrier. Ocular involvement strongly correlates with CNS leukemia. Anterior chamber paracentesis showing blast cells on cytology confirms the diagnosis.",
+    "condition": "CML - Blast Crisis",
+    "subspecialty": "Uvea & Oncology",
+    "category": "neoplastic",
+    "citation": {
+      "authors": "Tyagi M, Govindhari V, Pappuru RR, Ambiya V",
+      "title": "Bilateral Hypopyon Uveitis in Chronic Myeloid Leukemia",
+      "journal": "Ocul Oncol Pathol",
+      "year": 2017,
+      "doi": ""
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "CML",
+      "blast crisis",
+      "hypopyon",
+      "hemorrhagic",
+      "CNS",
+      "leukemia"
+    ],
+    "difficulty": "advanced",
+    "topic": "oncology"
+  },
+  {
+    "id": "pearl-023",
+    "question": "Tell me why sudden vision drop in treated serpiginous choroiditis suggests reactivation or inflammatory CNVM",
+    "answer": "In serpiginous choroiditis under treatment, sudden vision loss has two main causes: (1) Reactivation — new active choroiditis extending from the healed scar margin toward the fovea, or (2) inflammatory choroidal neovascular membrane (CNVM) — arising from the disrupted Bruch membrane at the scar edge. OCT and FFA/ICGA are mandatory to differentiate them, as management differs fundamentally.",
+    "mechanism": "Serpiginous choroiditis involves progressive, centrifugal destruction of the choriocapillaris and RPE. At healed scar margins, Bruch membrane is disrupted and the RPE-choriocapillaris complex is abnormal. Reactivation: Fresh grey-yellow lesions appear at scar edges with choroidal inflammation on ICGA (hypocyanescent lesions). Treatment requires immunosuppression escalation (mycophenolate, cyclosporine, or biologics). Inflammatory CNVM: Disrupted Bruch membrane allows choroidal neovascular ingrowth driven by VEGF from the inflammatory milieu. FFA shows classic/occult CNV pattern with subretinal fluid on OCT. Treatment requires anti-VEGF injections (not more immunosuppression). Misdiagnosis leads to inappropriate treatment and irreversible macular damage.",
+    "condition": "Serpiginous Choroiditis",
+    "subspecialty": "Uvea & Retina",
+    "category": "autoimmune",
+    "citation": {
+      "authors": "Sood G, Samantha R, Kumawat D, Nishant P",
+      "title": "Simultaneous bilateral inflammatory choroidal neovascularization in a case of healed SLC",
+      "journal": "GMS Ophthal Cases",
+      "year": 2022,
+      "doi": ""
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "serpiginous",
+      "choroiditis",
+      "CNVM",
+      "reactivation",
+      "Bruch membrane",
+      "VEGF"
+    ],
+    "difficulty": "advanced",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-024",
+    "question": "Tell me why preretinal exudates in resolving endophthalmitis do not require further intervention",
+    "answer": "Preretinal (subhyaloid) exudates in the resolution phase of treated endophthalmitis represent organized inflammatory debris being sequestered by the posterior hyaloid. They are a sign of healing, not ongoing active infection. Further intravitreal injections or vitrectomy are not needed if the clinical trajectory shows improving vitritis, decreasing pain, and stable or improving vision.",
+    "mechanism": "During active endophthalmitis, neutrophils, fibrin, bacterial debris, and macrophages fill the vitreous. As treatment succeeds: (1) Viable organisms are eliminated by intravitreal antibiotics, (2) macrophages phagocytose bacterial remnants and dead neutrophils, (3) inflammatory debris gravitates and adheres to the posterior hyaloid face, forming organized preretinal plaques. These yellowish-white subhyaloid collections are essentially 'inflammatory sediment' — sterile aggregates of fibrin, dead cells, and macrophages. They gradually reabsorb over weeks to months. Attempting vitrectomy to remove them risks iatrogenic retinal breaks in an already inflamed eye. Serial B-scan showing decreasing vitreous echogenicity confirms resolution.",
+    "condition": "Bacterial Endophthalmitis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Suhan D, Kolacali RR, Kelgaonkar A",
+      "title": "Sieve-like exudates in Stenotrophomonas maltophilia endogenous endophthalmitis",
+      "journal": "BMJ Case Rep",
+      "year": 2021,
+      "doi": ""
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "endophthalmitis",
+      "preretinal exudates",
+      "resolution",
+      "healing",
+      "subhyaloid"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-025",
+    "question": "Tell me why the RPE hump sign indicates toxoplasma choroiditis beneath retinitis",
+    "answer": "An elevated RPE hump on OCT beneath an active toxoplasma retinitis lesion indicates that the infection has extended through the full thickness of the retina to involve the choroid (choroiditis component). The RPE is pushed anteriorly by underlying choroidal granulomatous inflammation, forming a dome-shaped elevation. This confirms retinochoroiditis rather than isolated retinitis and implies deeper tissue involvement.",
+    "mechanism": "Toxoplasma gondii initially infects the inner retina but can extend through all retinal layers to reach the RPE and choroid. The choroidal inflammatory response (granulomatous infiltrate with epithelioid cells, lymphocytes, and tachyzoite-containing macrophages) creates a focal choroidal thickening that pushes the RPE anteriorly. On OCT, this appears as a dome-shaped RPE elevation (hump) with underlying choroidal hyperreflectivity and thickening. Above the hump, the retina shows full-thickness hyperreflective disorganization (necrosis). The RPE hump distinguishes toxoplasma retinochoroiditis from conditions that cause isolated retinitis (CMV, ARN) where the choroid and RPE remain flat.",
+    "condition": "Toxoplasma Retinochoroiditis",
+    "subspecialty": "Uvea & Retina",
+    "category": "infection",
+    "citation": {
+      "authors": "Butler NJ, Furtado JM, Winthrop KL, Smith JR",
+      "title": "Ocular toxoplasmosis II: clinical features, pathology and management",
+      "journal": "Clin Exp Ophthalmol",
+      "year": 2013,
+      "doi": ""
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "toxoplasmosis",
+      "RPE hump",
+      "OCT",
+      "choroiditis",
+      "retinochoroiditis"
+    ],
+    "difficulty": "intermediate",
+    "topic": "uvea"
+  },
+  {
+    "id": "pearl-026",
+    "question": "Tell me why an acute PVD can precipitate a macular hole, not just a retinal tear",
+    "answer": "Anomalous vitreomacular traction during PVD can exert centripetal tangential force on the fovea, leading to dehiscence of foveal photoreceptors. Unlike a peripheral tear (caused by dynamic traction at vitreous base), macular holes result from persistent anteroposterior traction on the fovea until it gives way at its thinnest point (the foveola). This is why patients describe a gradual central blur followed by a sudden scotoma.",
+    "mechanism": "During PVD, the cortical vitreous detaches from the retina posteriorly. If there is abnormal adhesion at the fovea (vitreomacular adhesion), the detaching vitreous tugs anteriorly on the foveola. Because the foveola is only ~150 microns thick (no inner retinal layers), it cannot withstand sustained traction and splits. OCT shows progression from vitreomacular traction → foveal cyst → lamellar hole → full-thickness macular hole. The Gass staging system (1-4) describes this progression.",
+    "condition": "Full-Thickness Macular Hole",
+    "subspecialty": "Retina",
+    "category": "mechanical",
+    "citation": {
+      "authors": "Gass JD",
+      "title": "Reappraisal of biomicroscopic classification of stages of development of a macular hole",
+      "journal": "Am J Ophthalmol",
+      "year": 1995,
+      "doi": "10.1016/s0002-9394(14)72779-5"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "macular hole",
+      "PVD",
+      "vitreomacular traction",
+      "OCT",
+      "Gass staging"
+    ],
+    "difficulty": "intermediate",
+    "topic": "retina"
+  },
+  {
+    "id": "pearl-027",
+    "question": "Tell me why intravitreal anti-VEGF alone can worsen tractional retinal detachment in PDR",
+    "answer": "In fibrovascular proliferation with an established tractional component, rapid VEGF blockade causes regression of the neovascular buds but leaves the fibrous scaffold intact. The fibrous component then contracts (crunch phenomenon), and without the compliance of the vascular element, traction on the retina increases. This can tip a stable tractional detachment into a progressive or combined tractional-rhegmatogenous detachment within days. This is why surgical planning matters: anti-VEGF is given 3–7 days before vitrectomy, not weeks in advance.",
+    "mechanism": "Diabetic fibrovascular proliferation consists of neovascular vessels in a fibrous matrix adherent to the posterior hyaloid. Anti-VEGF collapses the endothelial lumen and causes vascular regression within 24–72 hours. The fibrous tissue then undergoes unopposed contraction (the 'crunch'), transmitting force through vitreoretinal adhesions. If adhesions are tight, the retina lifts; if the retina tears under traction, fluid enters the subretinal space and a combined detachment forms. The therapeutic window for pre-op anti-VEGF is 3–7 days: long enough to induce vessel regression (reducing intraop bleeding) but short enough to avoid crunch-induced progression.",
+    "condition": "Proliferative Diabetic Retinopathy with Tractional RD",
+    "subspecialty": "Retina",
+    "category": "vascular",
+    "citation": {
+      "authors": "Arevalo JF, Maia M, Flynn HW, et al.",
+      "title": "Tractional retinal detachment following intravitreal bevacizumab in patients with severe proliferative diabetic retinopathy",
+      "journal": "Br J Ophthalmol",
+      "year": 2008,
+      "doi": "10.1136/bjo.2007.127142"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "PDR",
+      "anti-VEGF",
+      "tractional detachment",
+      "crunch phenomenon",
+      "vitrectomy"
+    ],
+    "difficulty": "advanced",
+    "topic": "retina"
+  },
+  {
+    "id": "pearl-028",
+    "question": "Tell me why CRAO demands cherry-red spot interpretation in context, not in isolation",
+    "answer": "A cherry-red spot is a nonspecific sign of inner retinal opacification with preserved choroidal perfusion visible at the thin fovea. It occurs in CRAO, but also in Tay-Sachs disease, Niemann-Pick, commotio retinae, quinine toxicity, and macular hole. In CRAO, the context is sudden painless monocular vision loss with an RAPD, arterial attenuation, and segmented blood flow. Without that context, a cherry-red spot alone can mislead. Always think: is this vascular (unilateral, sudden, RAPD) or storage (bilateral, systemic signs, child)?",
+    "mechanism": "The fovea has no inner retinal layers — only photoreceptors supplied by the choroid. When inner retinal ischemia (CRAO) or lysosomal lipid accumulation (storage disease) opacifies the inner retina, the surrounding area looks pale/white. The thin foveola still transmits the red-orange choroidal color, creating contrast — the 'cherry-red spot.' The sign is therefore about contrast, not about a specific disease. Vascular causes are unilateral and acute; storage diseases are bilateral and chronic with systemic signs.",
+    "condition": "Central Retinal Artery Occlusion",
+    "subspecialty": "Retina",
+    "category": "vascular",
+    "citation": {
+      "authors": "Hayreh SS, Zimmerman MB",
+      "title": "Central retinal artery occlusion: visual outcome",
+      "journal": "Am J Ophthalmol",
+      "year": 2005,
+      "doi": "10.1016/j.ajo.2005.03.038"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "CRAO",
+      "cherry-red spot",
+      "differential",
+      "storage disease",
+      "RAPD"
+    ],
+    "difficulty": "intermediate",
+    "topic": "retina"
+  },
+  {
+    "id": "pearl-029",
+    "question": "Tell me why ROP Zone 1 disease is managed more aggressively than Zone 2 with the same stage",
+    "answer": "Zone 1 disease is within 2 disc diameters of the fovea (or a 30-degree circle around the disc). Any plus disease in Zone 1, even at Stage 1, is classified as Type 1 ROP and warrants treatment within 48–72 hours. This is because Zone 1 implies a very immature retinal vasculature, aggressive VEGF drive, and a short window before tractional detachment involves the macula. In Zone 2, the vasculature is further developed and the risk calculus allows watching Stage 2 without plus disease. AP-ROP (aggressive posterior ROP) is a Zone 1 variant that can progress to Stage 5 in days.",
+    "mechanism": "ROP progression is driven by VEGF released from avascular retina. The more avascular retina there is (smaller zone number), the higher the VEGF load and the steeper the disease trajectory. Zone 1 = posterior, large avascular area, high VEGF. Plus disease (dilated/tortuous posterior pole vessels) reflects systemic VEGF spill-over and predicts rapid progression. The ETROP trial (2003) redefined treatment thresholds: Type 1 ROP (treat) includes Zone 1 any stage with plus, Zone 1 Stage 3 without plus, Zone 2 Stage 2 or 3 with plus. Type 2 (observe closely) includes Zone 1 Stage 1/2 without plus and Zone 2 Stage 3 without plus.",
+    "condition": "Retinopathy of Prematurity",
+    "subspecialty": "Retina",
+    "category": "developmental",
+    "citation": {
+      "authors": "Early Treatment for Retinopathy of Prematurity Cooperative Group",
+      "title": "Revised indications for the treatment of retinopathy of prematurity: results of the early treatment for retinopathy of prematurity randomized trial",
+      "journal": "Arch Ophthalmol",
+      "year": 2003,
+      "doi": "10.1001/archopht.121.12.1684"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "ROP",
+      "Zone 1",
+      "plus disease",
+      "ETROP",
+      "pediatric"
+    ],
+    "difficulty": "advanced",
+    "topic": "retina"
+  },
+  {
+    "id": "pearl-030",
+    "question": "Tell me why pneumatic retinopexy fails more often in pseudophakic eyes with inferior breaks",
+    "answer": "Pneumatic retinopexy relies on a gas bubble to tamponade the break and reattach the retina. The patient positions so the bubble contacts the break. For superior breaks (8–4 o'clock zone), this is achievable with upright or head-tilt positioning. For inferior breaks (4–8 o'clock), the patient would need to be prone for extended periods — biomechanically hard and poorly tolerated. Pseudophakia adds two risks: small peripheral tears are often missed because of altered red reflex and IOL edge glare, and PVR develops more frequently in pseudophakes after failed pneumatic. Hence guidelines restrict pneumatic to phakic eyes with a single superior break.",
+    "mechanism": "Gas (SF6 or C3F8) exploits buoyancy: it rises to the top of the vitreous cavity. The break must be at the bubble's apex to seal it. Inferior breaks sit at the bottom, where the bubble cannot reach without inverting the patient's head — which is mechanically untenable. In pseudophakic eyes, the IOL-capsular bag complex can occlude anterior migration paths for fluid and gas, and subtle peripheral tears in the vitreous base (common in pseudophakes due to PVD) are easy to miss on exam. PVR (proliferative vitreoretinopathy) develops as RPE cells migrate through the tear and proliferate on the retinal surface — more common after repeated procedures, which is why a failed pneumatic has worse outcomes than primary vitrectomy in selected eyes.",
+    "condition": "Rhegmatogenous Retinal Detachment",
+    "subspecialty": "Retina",
+    "category": "surgical",
+    "citation": {
+      "authors": "Hillier RJ, Felfeli T, Berger AR, et al.",
+      "title": "The Pneumatic Retinopexy versus Vitrectomy for the Management of Primary Rhegmatogenous Retinal Detachment Outcomes Randomized Trial (PIVOT)",
+      "journal": "Ophthalmology",
+      "year": 2019,
+      "doi": "10.1016/j.ophtha.2018.09.014"
+    },
+    "bloomsLevel": 5,
+    "tags": [
+      "pneumatic retinopexy",
+      "PIVOT",
+      "PVR",
+      "pseudophakia",
+      "inferior break"
+    ],
+    "difficulty": "advanced",
+    "topic": "retina"
+  },
+  {
+    "id": "pearl-031",
+    "question": "Tell me why ellipsoid zone integrity on OCT predicts visual recovery after macular surgery",
+    "answer": "The ellipsoid zone (EZ) is the hyperreflective OCT band corresponding to the inner segment / outer segment junction of photoreceptors — specifically the dense mitochondrial packing in the ellipsoid portion of the inner segment. It is a direct marker of photoreceptor integrity. After macular hole repair or epiretinal membrane peel, EZ restoration on post-op OCT correlates with BCVA recovery more tightly than anatomical closure alone. A closed hole with disrupted EZ often leaves the patient at 20/80; a closed hole with restored EZ routinely reaches 20/30 or better. This has changed how we counsel patients pre-op.",
+    "mechanism": "Photoreceptor outer segments are renewed continuously; the ellipsoid (inner segment) houses the mitochondria that fuel phototransduction. On SD-OCT, the EZ band (sometimes called IS/OS line) is the second hyperreflective band above the RPE. Chronic traction or edema damages outer segments and disrupts this band. Post-surgery, if the photoreceptors are still viable, outer segments regenerate and the EZ band reappears over weeks to months. If photoreceptors have died, the band remains absent — and vision plateaus regardless of anatomical closure. This is why the surgeon's question to the OCT pre-op is: is the EZ intact outside the hole? And post-op: is the EZ reforming under the closed hole?",
+    "condition": "Post-surgical Macular Recovery",
+    "subspecialty": "Retina",
+    "category": "imaging",
+    "citation": {
+      "authors": "Wakabayashi T, Fujiwara M, Sakaguchi H, Kusaka S, Oshima Y",
+      "title": "Foveal microstructure and visual acuity in surgically closed macular holes: spectral-domain optical coherence tomographic analysis",
+      "journal": "Ophthalmology",
+      "year": 2010,
+      "doi": "10.1016/j.ophtha.2010.02.005"
+    },
+    "bloomsLevel": 4,
+    "tags": [
+      "ellipsoid zone",
+      "OCT",
+      "macular hole",
+      "photoreceptor",
+      "prognosis"
+    ],
+    "difficulty": "intermediate",
+    "topic": "retina"
+  }
+]

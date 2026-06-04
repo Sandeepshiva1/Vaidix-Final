@@ -1,0 +1,147 @@
+[
+  {
+    "id": "user-001",
+    "name": "Dr. Gullapalli N. Rao",
+    "email": "gnrao@lvpei.org",
+    "role": "program_director",
+    "specialization": "Cornea & Refractive Surgery",
+    "designation": "Founder & Chair",
+    "department": "Cornea & Anterior Segment"
+  },
+  {
+    "id": "user-002",
+    "name": "Dr. Avinash Pathengay",
+    "email": "avinash.pathengay@lvpei.org",
+    "role": "faculty",
+    "specialization": "Vitreoretinal Surgery & Uveitis",
+    "designation": "Head of Department",
+    "department": "Vitreoretinal Surgery"
+  },
+  {
+    "id": "user-003",
+    "name": "Dr. Subhadra Jalali",
+    "email": "subhadra.jalali@lvpei.org",
+    "role": "faculty",
+    "specialization": "Retina & ROP",
+    "designation": "Senior Consultant",
+    "department": "Vitreoretinal Surgery"
+  },
+  {
+    "id": "user-004",
+    "name": "Dr. Prashant Garg",
+    "email": "prashant.garg@lvpei.org",
+    "role": "faculty",
+    "specialization": "Cornea & Infectious Keratitis",
+    "designation": "Distinguished Professor",
+    "department": "Cornea & Anterior Segment"
+  },
+  {
+    "id": "user-005",
+    "name": "Rajesh Kumar",
+    "email": "rajesh.kumar@lvpei.org",
+    "role": "admin",
+    "specialization": "Administration",
+    "designation": "Academic Coordinator",
+    "department": "Administration"
+  },
+  {
+    "id": "user-006",
+    "name": "Dr. Ananya Sharma",
+    "email": "ananya.sharma@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Junior Student",
+    "department": "Vitreoretinal Surgery",
+    "yearOfTraining": "PGY-1"
+  },
+  {
+    "id": "user-007",
+    "name": "Dr. Vikram Reddy",
+    "email": "vikram.reddy@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Junior Student",
+    "department": "Cornea & Anterior Segment",
+    "yearOfTraining": "PGY-1"
+  },
+  {
+    "id": "user-008",
+    "name": "Dr. Sneha Kulkarni",
+    "email": "sneha.kulkarni@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Junior Student",
+    "department": "Glaucoma",
+    "yearOfTraining": "PGY-1"
+  },
+  {
+    "id": "user-009",
+    "name": "Dr. Rohan Mehta",
+    "email": "rohan.mehta@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Senior Student",
+    "department": "Vitreoretinal Surgery",
+    "yearOfTraining": "PGY-2"
+  },
+  {
+    "id": "user-010",
+    "name": "Dr. Deepika Nair",
+    "email": "deepika.nair@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Senior Student",
+    "department": "Neuro-ophthalmology",
+    "yearOfTraining": "PGY-2"
+  },
+  {
+    "id": "user-011",
+    "name": "Dr. Arjun Krishnamurthy",
+    "email": "arjun.krishnamurthy@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Senior Student",
+    "department": "Pediatric Ophthalmology",
+    "yearOfTraining": "PGY-2"
+  },
+  {
+    "id": "user-012",
+    "name": "Dr. Kavya Desai",
+    "email": "kavya.desai@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Chief Student",
+    "department": "Cornea & Anterior Segment",
+    "yearOfTraining": "PGY-3"
+  },
+  {
+    "id": "user-013",
+    "name": "Dr. Siddharth Joshi",
+    "email": "siddharth.joshi@lvpei.org",
+    "role": "resident",
+    "specialization": "Ophthalmology",
+    "designation": "Chief Student",
+    "department": "Oculoplastics",
+    "yearOfTraining": "PGY-3"
+  },
+  {
+    "id": "user-014",
+    "name": "Dr. Meghana Rao",
+    "email": "meghana.rao@lvpei.org",
+    "role": "resident",
+    "specialization": "Vitreoretinal Surgery",
+    "designation": "Fellow",
+    "department": "Vitreoretinal Surgery",
+    "yearOfTraining": "Fellow"
+  },
+  {
+    "id": "user-015",
+    "name": "Dr. Pranav Iyer",
+    "email": "pranav.iyer@lvpei.org",
+    "role": "resident",
+    "specialization": "Glaucoma",
+    "designation": "Fellow",
+    "department": "Glaucoma",
+    "yearOfTraining": "Fellow"
+  }
+]

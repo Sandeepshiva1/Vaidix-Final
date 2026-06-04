@@ -1,0 +1,370 @@
+[
+  {
+    "id": "kn-amd-001",
+    "topic": "retina",
+    "subTopic": "Wet AMD",
+    "difficulty": 0.5,
+    "fact": "anti-VEGF therapy works by binding free VEGF-A and reducing CNV leakage",
+    "context": "wet AMD treatment",
+    "mechanism": "VEGF-A binds VEGFR-2 on choroidal endothelial cells, driving angiogenesis and vascular permeability. Anti-VEGF agents (ranibizumab, aflibercept, bevacizumab, faricimab) sequester free VEGF-A so it cannot signal, leading to CNV regression and resolution of subretinal fluid.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["VEGF", "binding", "CNV", "leakage", "endothelial", "permeability"],
+      "poor": ["just names drug", "no mechanism"]
+    },
+    "source": "DRCR.net Protocol T; Heier et al. VIEW 1/2"
+  },
+  {
+    "id": "kn-amd-002",
+    "topic": "retina",
+    "subTopic": "Wet AMD",
+    "difficulty": 0.65,
+    "fact": "treatment-resistant wet AMD in Indian patients should prompt ICGA to rule out polypoidal choroidal vasculopathy",
+    "context": "non-responder evaluation",
+    "mechanism": "PCV is far more prevalent in Asian eyes (up to 50% of presumed wet AMD in Indian series). It is characterised by polyps and a branching vascular network on ICGA, often with large PEDs that respond poorly to anti-VEGF monotherapy. Combined PDT or aflibercept loading produces better polyp regression.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["ICGA", "polyps", "branching vascular", "PCV", "PDT", "aflibercept"],
+      "poor": ["treats as AMD only", "no ICGA"]
+    },
+    "source": "EVEREST II, PLANET trials"
+  },
+  {
+    "id": "kn-amd-003",
+    "topic": "retina",
+    "subTopic": "Dry AMD",
+    "difficulty": 0.45,
+    "fact": "AREDS2 supplements reduce progression to advanced AMD by approximately 25% in patients with intermediate disease",
+    "context": "dry AMD counselling",
+    "mechanism": "The AREDS2 formulation (vitamin C, E, lutein, zeaxanthin, zinc, copper) addresses oxidative stress at the RPE-photoreceptor interface and reduces drusen progression. Beta-carotene was removed from the original AREDS due to lung cancer risk in smokers.",
+    "audienceMatch": ["patient_family", "peer"],
+    "axesScored": ["knowledge", "communication"],
+    "rubric": {
+      "good": ["AREDS2", "lutein", "zeaxanthin", "25%", "supplements", "smokers"],
+      "poor": ["beta-carotene only", "no progression data"]
+    },
+    "source": "AREDS2 Research Group, JAMA 2013"
+  },
+  {
+    "id": "kn-dr-001",
+    "topic": "retina",
+    "subTopic": "Diabetic Macular Edema",
+    "difficulty": 0.55,
+    "fact": "anti-VEGF is first-line for centre-involving DME with vision below 6/9, while focal laser remains useful for non-centre involving CSME",
+    "context": "DME treatment selection",
+    "mechanism": "DRCR.net Protocol I and Protocol T showed superior visual outcomes with anti-VEGF over laser monotherapy for centre-involving DME. Aflibercept outperforms bevacizumab and ranibizumab when starting vision is worse than 6/12. Focal laser still has a role for extrafoveal microaneurysms causing localised oedema.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["Protocol T", "centre-involving", "aflibercept", "vision threshold", "focal laser"],
+      "poor": ["just laser", "no protocol reference"]
+    },
+    "source": "DRCR.net Protocol T, Wells et al. NEJM 2015"
+  },
+  {
+    "id": "kn-dr-002",
+    "topic": "retina",
+    "subTopic": "PDR",
+    "difficulty": 0.7,
+    "fact": "DRCR Protocol S showed anti-VEGF non-inferior to PRP for PDR over 5 years, but PRP remains preferred when follow-up cannot be guaranteed",
+    "context": "PDR management decision",
+    "mechanism": "Protocol S demonstrated comparable visual outcomes between ranibizumab and PRP at 2 and 5 years, with anti-VEGF preserving more peripheral visual field. However, anti-VEGF requires reliable follow-up — patients lost to follow-up after anti-VEGF do worse than those after PRP because regression is reversible. In Indian practice with imperfect compliance, PRP often combined with anti-VEGF is the safer destination.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["Protocol S", "non-inferior", "compliance", "PRP destination", "rebound"],
+      "poor": ["one option only", "ignores compliance"]
+    },
+    "source": "Gross JG, DRCR.net Protocol S, JAMA 2015 / 2018"
+  },
+  {
+    "id": "kn-dr-003",
+    "topic": "retina",
+    "subTopic": "Diabetic Retinopathy",
+    "difficulty": 0.5,
+    "fact": "tight glycaemic control (HbA1c < 7%) reduces the risk of progression of diabetic retinopathy by approximately 60% over 10 years",
+    "context": "primary prevention",
+    "mechanism": "DCCT and UKPDS established that intensive glycaemic control delays onset and slows progression of diabetic microvascular complications. The retinal benefit is mediated by reduced advanced glycation end-products, reduced oxidative stress, and improved retinal vessel autoregulation. Rapid sudden glycaemic correction can paradoxically worsen retinopathy in the short term.",
+    "audienceMatch": ["patient_family", "peer"],
+    "axesScored": ["knowledge", "communication"],
+    "rubric": {
+      "good": ["DCCT", "UKPDS", "HbA1c 7", "60%", "AGE", "early worsening"],
+      "poor": ["no trial reference", "no nuance"]
+    },
+    "source": "DCCT 1993, UKPDS 1998"
+  },
+  {
+    "id": "kn-rvo-001",
+    "topic": "retina",
+    "subTopic": "CRVO",
+    "difficulty": 0.65,
+    "fact": "ischaemic CRVO is defined as more than 10 disc areas of capillary non-perfusion on FFA and carries a 60% risk of neovascular glaucoma at around 100 days",
+    "context": "CRVO classification",
+    "mechanism": "The CVOS (Central Vein Occlusion Study) defined the 10-disc-area threshold based on the bifurcation in NVI risk. Ischaemic CRVO has marked RAPD, severe vision loss, prominent cotton wool spots, and the classic 100-day risk of NVG due to anterior segment neovascularisation driven by VEGF spillover.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["CVOS", "10 disc areas", "100 day", "NVG", "RAPD", "anti-VEGF + PRP"],
+      "poor": ["no criteria", "treats both same"]
+    },
+    "source": "Central Vein Occlusion Study Group, Arch Ophthalmol 1997"
+  },
+  {
+    "id": "kn-crao-001",
+    "topic": "retina",
+    "subTopic": "CRAO",
+    "difficulty": 0.7,
+    "fact": "CRAO is a stroke equivalent and patients should be referred to the acute stroke pathway within the first 4-6 hours",
+    "context": "CRAO emergency management",
+    "mechanism": "The European Stroke Organisation and American Heart Association now classify CRAO as a stroke equivalent — up to 25% of patients have concurrent silent brain infarcts and a high risk of subsequent ischaemic stroke. Ocular massage, anterior chamber paracentesis, and IOP-lowering have weak evidence. The strongest evidence is for systemic stroke pathway evaluation including carotid Doppler, ECG, and echocardiogram.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "safety"],
+    "rubric": {
+      "good": ["stroke equivalent", "carotid Doppler", "ESO", "AHA", "GCA exclusion"],
+      "poor": ["just observe", "no stroke pathway"]
+    },
+    "source": "AHA/ASA Statement 2021; Mac Grory B et al. Stroke 2021"
+  },
+  {
+    "id": "kn-rd-001",
+    "topic": "retina",
+    "subTopic": "Rhegmatogenous RD",
+    "difficulty": 0.55,
+    "fact": "macula-off rhegmatogenous retinal detachment within the first 7 days has different urgency than macula-off detachment older than 7 days",
+    "context": "RD surgical timing",
+    "mechanism": "Macula-on RD is a true emergency (within 24-48h) because the photoreceptors are still attached and viable. Macula-off RD within 7 days has the best chance of meaningful visual recovery if surgery is performed promptly (1-7 day window). Beyond 7 days, photoreceptor outer segment damage is largely irreversible and the visual recovery curve flattens — surgery is still indicated to save remaining vision and prevent PVR but the urgency is more relative than absolute.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["macula on emergency", "7 day window", "photoreceptor outer segments", "PVR prevention"],
+      "poor": ["all the same urgency"]
+    },
+    "source": "Diederen RM et al. Ophthalmology 2007; Hassan TS et al. Retina 2002"
+  },
+  {
+    "id": "kn-rop-001",
+    "topic": "retina",
+    "subTopic": "ROP",
+    "difficulty": 0.6,
+    "fact": "anti-VEGF (bevacizumab) is preferred over laser for type 1 zone I and posterior zone II ROP because it preserves peripheral retina and visual field",
+    "context": "ROP treatment selection",
+    "mechanism": "BEAT-ROP demonstrated that intravitreal bevacizumab achieved better outcomes than laser for stage 3+ zone I disease, with reduced rate of recurrence and preserved peripheral retinal vasculature. Laser ablates the avascular periphery permanently, sacrificing peripheral field. The trade-off with anti-VEGF is the risk of late reactivation requiring weeks of follow-up and potential systemic VEGF suppression effects on developing organs.",
+    "audienceMatch": ["peer", "patient_family"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["BEAT-ROP", "zone I", "preserves periphery", "reactivation risk", "systemic concerns"],
+      "poor": ["just anti-VEGF", "no trade-off"]
+    },
+    "source": "Mintz-Hittner HA et al. NEJM 2011 (BEAT-ROP)"
+  },
+  {
+    "id": "kn-cscr-001",
+    "topic": "retina",
+    "subTopic": "CSCR",
+    "difficulty": 0.5,
+    "fact": "central serous chorioretinopathy is most often triggered by exogenous corticosteroids, even topical or inhaled forms",
+    "context": "CSCR aetiology",
+    "mechanism": "Corticosteroids alter choroidal vascular permeability through mineralocorticoid receptor activation in choroidal vasculature. The clinical implication is that any history of steroid use — including topical skin creams, inhalers, joint injections, or short oral courses — must be elicited and the offending steroid stopped or substituted before treatment. CSCR can also be triggered by stress (cortisol-mediated), pregnancy, and PDE-5 inhibitors.",
+    "audienceMatch": ["peer", "patient_family"],
+    "axesScored": ["knowledge", "communication"],
+    "rubric": {
+      "good": ["mineralocorticoid", "topical", "inhaled", "stress", "stop steroid"],
+      "poor": ["only oral steroids", "no mechanism"]
+    },
+    "source": "Daruich A et al. Prog Retin Eye Res 2015"
+  },
+  {
+    "id": "kn-mh-001",
+    "topic": "retina",
+    "subTopic": "Macular Hole",
+    "difficulty": 0.6,
+    "fact": "vitrectomy with internal limiting membrane peeling and gas tamponade closes more than 90% of stage 2-3 idiopathic macular holes",
+    "context": "macular hole surgery",
+    "mechanism": "Tangential vitreous traction creates and propagates the hole. PPV releases the traction, ILM peeling removes residual contractile force at the hole edge, and intraocular gas (SF6 or C3F8) tamponades the hole closed while gliosis bridges the defect. Posturing face-down for 5-7 days improves closure rates, especially for larger holes (> 400 microns). Inverted ILM flap technique has further improved closure rates for chronic and large holes.",
+    "audienceMatch": ["peer", "patient_family"],
+    "axesScored": ["knowledge", "communication"],
+    "rubric": {
+      "good": ["ILM peel", "gas tamponade", "posturing", "inverted flap", "90%"],
+      "poor": ["no posturing mention", "promises 6/6"]
+    },
+    "source": "Michalewska Z et al. Ophthalmology 2010 (inverted ILM)"
+  },
+  {
+    "id": "kn-rb-001",
+    "topic": "retina",
+    "subTopic": "Retinoblastoma",
+    "difficulty": 0.6,
+    "fact": "leukocoria in flash photographs is the most common presenting sign of retinoblastoma and warrants urgent ophthalmic referral",
+    "context": "early detection",
+    "mechanism": "Leukocoria (white pupillary reflex) replaces the normal red reflex when light is reflected off the white tumour rather than the choroid. Smartphone cameras with flash now capture this commonly. Early detection at IIRC group A-C disease offers eye salvage rates above 90% with focal therapy and intra-arterial chemotherapy. Group D-E disease may still allow life salvage but eye preservation becomes less likely.",
+    "audienceMatch": ["patient_family", "peer"],
+    "axesScored": ["knowledge", "communication", "empathy"],
+    "rubric": {
+      "good": ["leukocoria", "validates parent instinct", "IIRC grouping", "life > eye > vision", "urgent EUA"],
+      "poor": ["false reassurance", "delays referral"]
+    },
+    "source": "Shields CL et al. Ophthalmology 2018 (smartphone leukocoria detection)"
+  },
+  {
+    "id": "kn-endoph-001",
+    "topic": "retina",
+    "subTopic": "Acute Post-Op Endophthalmitis",
+    "difficulty": 0.7,
+    "fact": "the EVS criteria for vitrectomy in acute post-cataract endophthalmitis apply only when presenting vision is light perception or worse",
+    "context": "EVS protocol",
+    "mechanism": "The Endophthalmitis Vitrectomy Study (1995) randomised acute post-cataract endophthalmitis to vitrectomy vs tap-and-inject and found benefit of vitrectomy only at the LP threshold. For HM or better, tap-and-inject was non-inferior. The protocol does not directly apply to bleb-related, post-injection, post-traumatic, or endogenous endophthalmitis where organism profiles and natural history differ significantly.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["EVS", "LP threshold", "post-cataract only", "different for BRE and endogenous"],
+      "poor": ["EVS for all", "no nuance"]
+    },
+    "source": "Endophthalmitis Vitrectomy Study Group, Arch Ophthalmol 1995"
+  },
+  {
+    "id": "kn-endoph-002",
+    "topic": "retina",
+    "subTopic": "Post-Injection Endophthalmitis",
+    "difficulty": 0.65,
+    "fact": "post-intravitreal injection endophthalmitis is dominated by streptococcal organisms from the oropharyngeal flora, supporting the no-talking and surgical mask protocol",
+    "context": "injection clinic safety",
+    "mechanism": "Streptococcal isolates account for 30-50% of post-injection endophthalmitis cases compared to ~9% of post-cataract cases. The leading hypothesis is aerosolised oropharyngeal droplets from the injecting team or patient contaminating the injection site. Studies after surgical mask and no-talking protocols showed reduction in streptococcal endophthalmitis rates.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["streptococcus", "oropharyngeal", "mask", "no talking", "30-50%"],
+      "poor": ["no organism profile", "no prevention"]
+    },
+    "source": "Wen JC et al. Retina 2011; Garg SJ et al. Ophthalmology 2018"
+  },
+  {
+    "id": "kn-endoph-003",
+    "topic": "retina",
+    "subTopic": "Endogenous Endophthalmitis",
+    "difficulty": 0.8,
+    "fact": "Klebsiella pneumoniae invasive liver abscess syndrome is a leading cause of endogenous endophthalmitis in Asian diabetic patients",
+    "context": "endogenous endophthalmitis Indian context",
+    "mechanism": "Hypervirulent K. pneumoniae serotypes (K1, K2) carry magA and rmpA genes and have a striking predilection for metastatic infection — endophthalmitis (5-10% of bacteraemic cases), meningitis, and necrotising fasciitis. Diabetes is the strongest host risk factor. Bilateral chorioretinal foci with concurrent fever and right hypochondrial pain in a diabetic should trigger emergency abdominal imaging and blood cultures.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "safety"],
+    "rubric": {
+      "good": ["K1 K2", "magA rmpA", "liver abscess", "bilateral foci", "diabetes risk"],
+      "poor": ["no Asian context", "no liver source"]
+    },
+    "source": "Lin YT et al. Eur J Clin Microbiol Infect Dis 2010; Pathengay A et al."
+  },
+  {
+    "id": "kn-pvr-001",
+    "topic": "retina",
+    "subTopic": "PVR",
+    "difficulty": 0.75,
+    "fact": "grade C proliferative vitreoretinopathy with star folds and fixed retinal folds requires vitrectomy with membrane peeling and often relaxing retinotomy with long-acting tamponade",
+    "context": "PVR re-operation",
+    "mechanism": "RPE cells escape into the vitreous through the original break, undergo epithelial-mesenchymal transition, and form contractile fibrocellular membranes. Brilliant blue G stains these membranes for safer peeling. When the retina cannot be flattened despite peeling, a relaxing retinotomy is required. Silicone oil tamponade is preferred over gas because it provides prolonged support during the gliosis and adhesion phase.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["grade C", "EMT", "BBG staining", "retinotomy", "silicone oil"],
+      "poor": ["just re-operates", "no membrane biology"]
+    },
+    "source": "Charles S, Vitreous Microsurgery 5e; Updated Retina Society PVR classification"
+  },
+  {
+    "id": "kn-eales-001",
+    "topic": "retina",
+    "subTopic": "Eales Disease",
+    "difficulty": 0.7,
+    "fact": "Eales disease is an idiopathic peripheral retinal periphlebitis seen mostly in young Indian men with a presumed hypersensitivity to TB protein",
+    "context": "young Indian male with vasculitis",
+    "mechanism": "First described by Henry Eales in 1880, the condition is bilateral, asymmetric, and predominantly affects 20-40 year old Indian males. The peripheral periphlebitis causes capillary non-perfusion, neovascularisation, and recurrent vitreous hemorrhage. Mantoux is often positive and PCR for M. tuberculosis from vitreous biopsy is positive in some series. Sectoral PRP for ischaemic areas is the mainstay; systemic ATT is used selectively.",
+    "audienceMatch": ["peer"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["Indian young male", "periphlebitis", "TB hypersensitivity", "sectoral PRP", "vitreous hemorrhage"],
+      "poor": ["misses Indian context", "no PRP"]
+    },
+    "source": "Biswas J et al. Ocul Immunol Inflamm 2002; Ishaq M et al. Eye 2008"
+  },
+  {
+    "id": "kn-rp-001",
+    "topic": "retina",
+    "subTopic": "Retinitis Pigmentosa",
+    "difficulty": 0.6,
+    "fact": "retinitis pigmentosa has multiple inheritance patterns with markedly different prognoses and pre-marital genetic counselling implications",
+    "context": "RP genetic counselling",
+    "mechanism": "RP is genetically heterogeneous: autosomal dominant (~30%, milder), autosomal recessive (~20%, intermediate), X-linked (~15%, most severe in males), and simplex (~30%). Identifying the inheritance pattern through family pedigree is the foundation of counselling. Consanguineous marriage in some Indian communities markedly raises AR risk. Voretigene neparvovec (gene therapy) is approved for RPE65-mediated disease.",
+    "audienceMatch": ["peer", "patient_family"],
+    "axesScored": ["knowledge", "communication"],
+    "rubric": {
+      "good": ["AD AR XL", "consanguinity", "RPE65", "gene therapy", "pedigree"],
+      "poor": ["no inheritance pattern", "no counselling"]
+    },
+    "source": "Daiger SP et al. RetNet database; Russell S et al. Lancet 2017 (voretigene)"
+  },
+  {
+    "id": "kn-vh-001",
+    "topic": "retina",
+    "subTopic": "Vitreous Hemorrhage",
+    "difficulty": 0.5,
+    "fact": "B-scan ultrasonography is the essential investigation when the fundus view is obscured by dense vitreous hemorrhage",
+    "context": "VH evaluation",
+    "mechanism": "B-scan can detect retinal detachment, retinal tears, posterior vitreous detachment, choroidal detachment, intraocular foreign body, and intraocular tumour through dense media. In a known diabetic with VH, the most important question is whether there is an underlying TRD or RD. A dynamic B-scan with eye movement helps distinguish mobile vitreous opacities from tethered membranes. Repeat scans 48-72 hours apart improve sensitivity for subtle detachment.",
+    "audienceMatch": ["peer", "senior"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["B-scan", "RD vs membrane", "dynamic scan", "repeat", "TRD"],
+      "poor": ["no B-scan rationale"]
+    },
+    "source": "Ryan's Retina 6e; Kaiser PK Practical Vitreoretinal Surgery"
+  },
+  {
+    "id": "kn-irvan-001",
+    "topic": "retina",
+    "subTopic": "IRVAN Syndrome",
+    "difficulty": 0.85,
+    "fact": "IRVAN syndrome (Idiopathic Retinal Vasculitis Aneurysms and Neuroretinitis) presents with multiple arterial macroaneurysms, vasculitis, and capillary non-perfusion",
+    "context": "rare retinal vasculitis",
+    "mechanism": "IRVAN is a rare bilateral idiopathic retinal vasculopathy of young adults characterised by arterial macroaneurysms at vessel bifurcations, peripheral capillary non-perfusion, and neuroretinitis. The natural history is progressive ischaemia leading to neovascular complications. FFA shows the macroaneurysms with leakage. Treatment is sectoral PRP for ischaemic areas and anti-VEGF for any neovascular complications. Systemic vasculitis is conspicuously absent.",
+    "audienceMatch": ["peer"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["macroaneurysms", "neuroretinitis", "bilateral", "PRP", "no systemic vasculitis"],
+      "poor": ["confused with HBP", "no PRP"]
+    },
+    "source": "Chang TS et al. Surv Ophthalmol 1995"
+  },
+  {
+    "id": "kn-mh-002",
+    "topic": "retina",
+    "subTopic": "Vitreomacular Traction",
+    "difficulty": 0.55,
+    "fact": "vitreomacular traction can be released pharmacologically with intravitreal ocriplasmin in selected patients with focal adhesion under 1500 microns",
+    "context": "VMT non-surgical option",
+    "mechanism": "Ocriplasmin is a recombinant truncated plasmin that cleaves fibronectin and laminin at the vitreoretinal interface, releasing focal adhesions. The MIVI-TRUST trial showed 26% release rates compared to 10% with sham. Best candidates: focal VMT under 1500 microns, no ERM, no large macular hole. Side effects include floaters, dyschromatopsia, transient ERG changes.",
+    "audienceMatch": ["peer"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["ocriplasmin", "MIVI-TRUST", "focal adhesion", "1500 microns", "patient selection"],
+      "poor": ["no patient selection", "ignores side effects"]
+    },
+    "source": "Stalmans P et al. NEJM 2012 (MIVI-TRUST)"
+  },
+  {
+    "id": "kn-cnv-myopia-001",
+    "topic": "retina",
+    "subTopic": "Myopic CNV",
+    "difficulty": 0.65,
+    "fact": "myopic choroidal neovascularisation in high myopia responds well to anti-VEGF therapy, often with fewer total injections than wet AMD",
+    "context": "myopic CNV",
+    "mechanism": "Pathological myopia (axial length > 26.5 mm) causes mechanical stretch of the choroid, lacquer cracks in Bruch membrane, and secondary CNV. Unlike wet AMD, myopic CNV typically regresses with 1-3 anti-VEGF injections (RADIANCE trial), and chronic dosing is rarely needed. The CNV is typically subfoveal but small and surrounded by atrophy, so visual outcomes are limited by underlying myopic maculopathy.",
+    "audienceMatch": ["peer"],
+    "axesScored": ["knowledge", "reasoning"],
+    "rubric": {
+      "good": ["RADIANCE", "1-3 injections", "lacquer cracks", "myopic maculopathy", "axial length"],
+      "poor": ["treats as wet AMD", "monthly chronic"]
+    },
+    "source": "Wolf S et al. Ophthalmology 2014 (RADIANCE)"
+  }
+]

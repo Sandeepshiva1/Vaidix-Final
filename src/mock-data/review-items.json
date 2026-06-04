@@ -1,0 +1,2943 @@
+[
+  {
+    "id": "rev-001",
+    "topic": "uvea",
+    "subTopic": "ARN",
+    "difficulty": 0.4,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "My daughter Priya is sixteen, doctor. Last week she said the chickenpox marks healed, but now she keeps saying everything looks foggy in her right eye. Last night she cried because she could see my face but it was like looking through dirty water. I'm a single father, sir, please tell me what's happening to my child.",
+    "clinicalNote": "16F, OD vision drop over 3 days post varicella, dense vitritis with arcuate areas of full-thickness retinal whitening peripherally, PCR aqueous tap positive for VZV.",
+    "prompt": "Explain to her father what's happening and what you'll do — without medical jargon.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "uses analogy",
+        "acknowledges fear",
+        "names urgency",
+        "avoids latin terms"
+      ],
+      "poor": [
+        "uses 'necrosis'",
+        "uses 'arteritis'",
+        "uses 'PCR'",
+        "ignores emotion"
+      ]
+    },
+    "modelAnswer": "I can hear how scared you are, and you have every reason to be — but please know we caught this in time. The same chickenpox virus that gave Priya those marks has travelled to the back of her right eye and is causing damage. The 'dirty water' she's seeing is the swelling and inflammation. We need to start strong antiviral medicine right now — first through a drip today, then tablets at home. I'll explain every step to you both. You're not alone in this."
+  },
+  {
+    "id": "rev-002",
+    "topic": "uvea",
+    "subTopic": "ARN",
+    "difficulty": 0.7,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Same patient as before. Your PGY-1 colleague asks why you're starting IV acyclovir over oral valacyclovir.",
+    "prompt": "Explain the mechanism and your reasoning in 2-3 sentences.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "mentions vitreous penetration",
+        "viral load argument",
+        "VZV-specific risk"
+      ],
+      "poor": [
+        "just names the drug",
+        "no mechanism",
+        "skips PK reasoning"
+      ]
+    },
+    "modelAnswer": "VZV-ARN carries roughly 2.5× higher RD risk than HSV-ARN due to more aggressive arteritis and confluent necrosis. IV acyclovir 10-15 mg/kg q8h achieves much higher vitreous concentrations during the first 5–7 days when the viral load peaks. We'd transition to oral valacyclovir once the front stabilises clinically — usually around day 7."
+  },
+  {
+    "id": "rev-003",
+    "topic": "uvea",
+    "subTopic": "ARN",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "senior",
+    "scenario": "You're presenting to Dr. Pathengay on rounds. He has 30 seconds before the next case.",
+    "prompt": "30-second handover. Patient, dx, current management, what concerns you.",
+    "axesScored": [
+      "relevance",
+      "safety",
+      "communication"
+    ],
+    "rubric": {
+      "good": [
+        "compressed",
+        "names red flag",
+        "states current Tx",
+        "asks for guidance"
+      ],
+      "poor": [
+        "rambling",
+        "buries the lede",
+        "no question for senior"
+      ]
+    },
+    "modelAnswer": "Sir — 16F, VZV-ARN confirmed by aqueous PCR, ~50% retinal involvement extending posteriorly toward macula. Started IV acyclovir 6 hours ago. Concern: posterior extension and rapid vision decline. Plan: add intravitreal foscarnet today and barricade laser at the necrotic margin. Your thoughts on early vitrectomy?"
+  },
+  {
+    "id": "rev-004",
+    "topic": "uvea",
+    "subTopic": "TB Uveitis",
+    "difficulty": 0.55,
+    "type": "history-audit",
+    "patientVoice": "Doctor, I've had floaters in the right eye for about three weeks. It's like cobwebs swimming around. The vision in that eye feels misty too — not blurry exactly, more like there's a curtain in the way. I work as a school teacher in Hyderabad. My husband keeps telling me to come earlier but I thought it would settle on its own.",
+    "clinicalNote": "52F, OD floaters and decreased vision ×3 weeks. OD vision moderately reduced. Slit lamp: 2+ AC cells, granulomatous mutton-fat KPs. Fundus: yellowish choroidal lesion at the margin of an old chorioretinal scar.",
+    "task": "Take a focused history before deciding on investigations. What additional questions would you ask?",
+    "axesScored": [
+      "safety",
+      "relevance",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "weight_loss",
+        "category": "constitutional",
+        "criticality": "high",
+        "label": "Unintentional weight loss",
+        "keywords": [
+          "weight",
+          "lost weight",
+          "thin",
+          "appetite",
+          "eating"
+        ],
+        "whyMatters": "Weight loss + granulomatous uveitis → systemic TB or sarcoidosis until proven otherwise."
+      },
+      {
+        "id": "fever",
+        "category": "constitutional",
+        "criticality": "high",
+        "label": "Fever / night sweats",
+        "keywords": [
+          "fever",
+          "temperature",
+          "night sweats",
+          "chills"
+        ],
+        "whyMatters": "Evening fever pattern is classic for TB; mandatory in granulomatous uveitis workup."
+      },
+      {
+        "id": "tb_contact",
+        "category": "exposure",
+        "criticality": "high",
+        "label": "TB contact / past TB",
+        "keywords": [
+          "TB",
+          "tuberculosis",
+          "contact",
+          "household",
+          "cough"
+        ],
+        "whyMatters": "Endemic India — household TB contact dramatically raises pre-test probability."
+      },
+      {
+        "id": "cough",
+        "category": "constitutional",
+        "criticality": "medium",
+        "label": "Chronic cough",
+        "keywords": [
+          "cough",
+          "phlegm",
+          "sputum"
+        ],
+        "whyMatters": "Pulmonary TB symptoms support intraocular TB diagnosis without ocular biopsy."
+      },
+      {
+        "id": "pregnancy",
+        "category": "obstetric",
+        "criticality": "high",
+        "label": "Pregnancy / LMP",
+        "keywords": [
+          "pregnant",
+          "pregnancy",
+          "LMP",
+          "period",
+          "menstrual"
+        ],
+        "whyMatters": "ATT regimens have specific dosing in pregnancy; rifampicin interacts with OCPs."
+      },
+      {
+        "id": "hiv_status",
+        "category": "immune",
+        "criticality": "medium",
+        "label": "HIV / immune status",
+        "keywords": [
+          "HIV",
+          "AIDS",
+          "immune",
+          "blood test"
+        ],
+        "whyMatters": "TB-HIV co-infection changes drug regimen and prognosis dramatically."
+      },
+      {
+        "id": "prior_steroids",
+        "category": "medications",
+        "criticality": "medium",
+        "label": "Prior steroid use",
+        "keywords": [
+          "steroid",
+          "prednisolone",
+          "cortisone",
+          "injection",
+          "tablets"
+        ],
+        "whyMatters": "Empirical steroids without ATT cover can reactivate latent TB — critical to know."
+      }
+    ]
+  },
+  {
+    "id": "rev-005",
+    "topic": "uvea",
+    "subTopic": "TB Uveitis",
+    "difficulty": 0.65,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Same patient. Mantoux is 18 mm, IGRA positive, CXR shows an old healed apical lesion.",
+    "prompt": "Why does this NOT confirm ocular TB? Explain in one paragraph.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "distinguishes exposure from disease",
+        "high sens low spec",
+        "endemic baseline",
+        "needs phenotype correlation"
+      ],
+      "poor": [
+        "claims confirmed",
+        "ignores PPV"
+      ]
+    },
+    "modelAnswer": "Mantoux and IGRA confirm TB exposure or latent infection — not active intraocular disease. In endemic populations, baseline positivity is 30–40% so PPV for ocular TB is poor despite high sensitivity. Diagnosis still requires compatible clinical phenotype (mutton-fat KPs, choroiditis pattern, scar reactivation) plus exclusion of other granulomatous causes. ATT trial response over 4–6 weeks is the strongest practical confirmation."
+  },
+  {
+    "id": "rev-006",
+    "topic": "uvea",
+    "subTopic": "Toxoplasma",
+    "difficulty": 0.5,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, I'm seven months pregnant and the right eye has been blurry for almost two weeks. There's a kind of dark spot that moves when I look around. I'm so scared — will the medicine harm my baby? My mother had something similar after I was born and she lost vision in one eye. I haven't told my husband how scared I am because I don't want him to worry.",
+    "clinicalNote": "28F, G2P1, 28-week gestation, OS focal yellowish retinochoroiditis lesion adjacent to old scar, vitritis 1+, classic 'headlight in fog' appearance.",
+    "prompt": "Reassure her about the treatment plan and the baby — honestly, without lying.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "validates fear",
+        "plain language",
+        "honest about risks",
+        "names safer option"
+      ],
+      "poor": [
+        "dismisses fear",
+        "uses Latin",
+        "promises zero risk"
+      ]
+    },
+    "modelAnswer": "I can see how frightened you are, and that's completely understandable. The good news: the parasite causing your eye infection rarely crosses to the baby this late in pregnancy. We have to treat your eye to protect your sight — but we'll choose medicine that's safer for the baby. Spiramycin is our first choice in pregnancy. We'll work closely with your obstetrician at every step, and your husband is welcome here — you don't have to carry this alone."
+  },
+  {
+    "id": "rev-007",
+    "topic": "uvea",
+    "subTopic": "CMV",
+    "difficulty": 0.55,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "HIV+ patient, CD4 = 30, fundus shows the 'brushfire' appearance.",
+    "prompt": "Explain what causes the brushfire pattern and why we see so little vitritis.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "NFL spread mechanism",
+        "immune compromise = low vitritis",
+        "advance rate"
+      ],
+      "poor": [
+        "just names CMV",
+        "no mechanism"
+      ]
+    },
+    "modelAnswer": "CMV spreads contiguously cell-to-cell through gap junctions in the nerve fiber layer, creating an advancing white-yellow front (the 'brushfire') with atrophic retina behind it. Because the host is immunocompromised (CD4 <50), there's minimal inflammatory response, so the vitreous stays clear and you can see the brushfire pattern uninterrupted. Untreated, the front advances ~250 microns per week."
+  },
+  {
+    "id": "rev-008",
+    "topic": "retina",
+    "subTopic": "Diabetic Retinopathy",
+    "difficulty": 0.6,
+    "type": "history-audit",
+    "patientVoice": "Sir, I've been seeing these dark threads floating in my left eye for the last four days. Sometimes there's a flash of light at the corner, like a camera flash. I'm sixty-two. I have sugar for many years — my sugar levels go up and down. Yesterday I couldn't see my grandson's face clearly when he came home. My wife said I should come immediately. I drove the auto-rickshaw here.",
+    "clinicalNote": "62M, OD floaters and photopsiae ×4 days, mild central vision drop. Fundus: dense vitreous hemorrhage obscuring view. Limited B-scan suggests no obvious retinal detachment.",
+    "task": "Take a focused history before planning investigations and management. What must you ask?",
+    "axesScored": [
+      "safety",
+      "relevance",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "diabetes_control",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Glycemic control / last HbA1c",
+        "keywords": [
+          "sugar",
+          "HbA1c",
+          "control",
+          "fasting",
+          "diabetes"
+        ],
+        "whyMatters": "Poorly controlled DM = far higher PDR + bleeding risk. Drives urgency of PRP."
+      },
+      {
+        "id": "blood_pressure",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Blood pressure / hypertension",
+        "keywords": [
+          "BP",
+          "blood pressure",
+          "hypertension",
+          "high BP"
+        ],
+        "whyMatters": "Uncontrolled HTN compounds vitreous hemorrhage and retinopathy progression."
+      },
+      {
+        "id": "anticoagulants",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Anticoagulants / antiplatelets",
+        "keywords": [
+          "aspirin",
+          "blood thinner",
+          "warfarin",
+          "clopidogrel",
+          "ecosprin"
+        ],
+        "whyMatters": "Anticoagulants worsen vitreous bleed and complicate any planned vitrectomy."
+      },
+      {
+        "id": "renal_status",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Kidney disease / dialysis",
+        "keywords": [
+          "kidney",
+          "creatinine",
+          "dialysis",
+          "renal"
+        ],
+        "whyMatters": "Diabetic nephropathy correlates with worse retinopathy and changes anti-VEGF safety profile."
+      },
+      {
+        "id": "trauma",
+        "category": "history",
+        "criticality": "high",
+        "label": "Recent eye trauma / strain",
+        "keywords": [
+          "injury",
+          "trauma",
+          "hit",
+          "fell",
+          "lifted",
+          "strain"
+        ],
+        "whyMatters": "Must rule out traumatic vitreous hemorrhage — changes management completely."
+      },
+      {
+        "id": "previous_treatment",
+        "category": "ocular_history",
+        "criticality": "medium",
+        "label": "Previous eye treatment / laser",
+        "keywords": [
+          "laser",
+          "injection",
+          "treatment",
+          "previous",
+          "earlier"
+        ],
+        "whyMatters": "Prior PRP or anti-VEGF history changes risk profile and next treatment step."
+      },
+      {
+        "id": "smoking",
+        "category": "lifestyle",
+        "criticality": "low",
+        "label": "Smoking / tobacco",
+        "keywords": [
+          "smoke",
+          "tobacco",
+          "cigarette",
+          "beedi",
+          "gutka"
+        ],
+        "whyMatters": "Smoking accelerates microvascular disease; relevant for counseling."
+      }
+    ]
+  },
+  {
+    "id": "rev-009",
+    "topic": "uvea",
+    "subTopic": "Endophthalmitis",
+    "difficulty": 0.6,
+    "type": "noise-filter",
+    "patientVoice": "Doctor my father had cataract surgery in this eye three days ago. Yesterday night the eye started paining badly, much worse than the first day. This morning he says he can only see my hand moving — not even my fingers. He has been a diabetic for many years. He drives an auto-rickshaw and lives with us. He took the eye drops exactly as you told him, my mother put them in herself.",
+    "clinicalNote": "68M, post-operative day 3 cataract surgery, increasing pain past 18 hours, vision dropped from 6/9 to hand movements. Slit lamp shows 2 mm hypopyon, dense vitritis on B-scan.",
+    "history": [
+      {
+        "text": "Pain started 18 hours ago and has been getting worse",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Vision dropped from being able to see well to only hand movements",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Father is diabetic for many years, sugar control unknown",
+        "tag": "relevant"
+      },
+      {
+        "text": "Lives with his daughter and her family",
+        "tag": "noise"
+      },
+      {
+        "text": "Hypopyon 2mm visible on slit lamp examination",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Drives an auto-rickshaw for living",
+        "tag": "noise"
+      },
+      {
+        "text": "Dense vitritis on B-scan",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Likes filter coffee in the morning",
+        "tag": "noise"
+      },
+      {
+        "text": "Daughter confirms eye drops were taken as prescribed",
+        "tag": "relevant"
+      }
+    ],
+    "prompt": "Tag each statement as Relevant, Noise, or Red Flag.",
+    "axesScored": [
+      "relevance",
+      "safety"
+    ],
+    "rubric": {
+      "minRelevant": 2,
+      "minRedFlag": 4
+    }
+  },
+  {
+    "id": "rev-010",
+    "topic": "uvea",
+    "subTopic": "Endophthalmitis",
+    "difficulty": 0.75,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, what has happened? My father's eye was fine yesterday. Why is this happening so suddenly? Was there a mistake in the surgery? He saved for two years for this operation. Can you save his vision? Please tell me honestly — I need to know what to tell my mother.",
+    "clinicalNote": "Same patient. You've just confirmed acute post-op endophthalmitis on B-scan. Need to consent for emergency tap-and-inject within the hour.",
+    "prompt": "Tell her what's happening, what you need to do urgently, and why — calmly but honestly.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "acknowledges shock",
+        "honest about urgency",
+        "names tap-and-inject",
+        "explains 'why now'"
+      ],
+      "poor": [
+        "medical terms",
+        "false reassurance",
+        "blames patient"
+      ]
+    },
+    "modelAnswer": "I can see this is the last thing you wanted to hear, and I'm so sorry. Your father has developed a serious infection inside the eye — it's rare, but it can happen even when everything in surgery is done correctly. This is no one's fault. We need to act today: I'll take a tiny sample from inside the eye and inject strong antibiotics directly into it within the next hour. This gives him the best chance to save his vision. The next 48 hours are critical, and we will be with him every step of the way."
+  },
+  {
+    "id": "rev-011",
+    "topic": "uvea",
+    "subTopic": "Vasculitis",
+    "difficulty": 0.65,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Patient with dengue 3 weeks ago, now has retinal vasculitis on FFA showing fern pattern.",
+    "prompt": "Explain why this presents 3 weeks after the fever, not during.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "Type III HSR",
+        "immune complex deposit",
+        "lag for Ab formation",
+        "complement"
+      ],
+      "poor": [
+        "claims direct viral",
+        "no mechanism"
+      ]
+    },
+    "modelAnswer": "It's an immune-mediated Type III hypersensitivity, not direct viral infection. During acute viremia the body forms antibodies; by weeks 2–4 antigen-antibody immune complexes form in antigen excess and deposit in retinal vessel walls in an Arthus-like reaction. Complement activates, neutrophils get recruited, and you get the vasculitis with the fern leakage pattern on FFA. The lag is the time the immune response needs to build."
+  },
+  {
+    "id": "rev-012",
+    "topic": "glaucoma",
+    "subTopic": "POAG",
+    "difficulty": 0.55,
+    "type": "history-audit",
+    "patientVoice": "Sir, I came for a routine check-up because I am turning fifty next month. I don't have any complaints really. Sometimes my eyes feel a bit tired in the evening but I think that's because of all the screen work. I didn't even want to come, my daughter forced me. She is studying medicine and she keeps reading things on the internet.",
+    "clinicalNote": "49M, asymptomatic, routine screen. IOP OD 24, OS 26 mmHg. CDR OD 0.7, OS 0.75 with thin inferotemporal rim OS. Visual fields pending.",
+    "task": "Before you decide treatment, what history must you take? What questions can you NOT skip?",
+    "axesScored": [
+      "safety",
+      "knowledge",
+      "relevance"
+    ],
+    "requiredHistory": [
+      {
+        "id": "family_glaucoma",
+        "category": "family_history",
+        "criticality": "high",
+        "label": "Family history of glaucoma",
+        "keywords": [
+          "family",
+          "father",
+          "mother",
+          "brother",
+          "sister",
+          "parents",
+          "siblings"
+        ],
+        "whyMatters": "First-degree relatives have 4–9× lifetime risk — strongest single POAG risk factor."
+      },
+      {
+        "id": "ethnicity",
+        "category": "demographics",
+        "criticality": "medium",
+        "label": "Ethnicity / origin",
+        "keywords": [
+          "from",
+          "background",
+          "origin",
+          "African",
+          "south Indian"
+        ],
+        "whyMatters": "African ancestry = higher POAG prevalence and earlier onset."
+      },
+      {
+        "id": "steroid_use",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Steroid use (any form)",
+        "keywords": [
+          "steroid",
+          "asthma inhaler",
+          "skin cream",
+          "joint injection",
+          "eye drops"
+        ],
+        "whyMatters": "Steroid responders develop secondary glaucoma; differentiates from primary POAG."
+      },
+      {
+        "id": "trauma",
+        "category": "history",
+        "criticality": "high",
+        "label": "Past eye trauma",
+        "keywords": [
+          "injury",
+          "trauma",
+          "hit",
+          "accident",
+          "blunt"
+        ],
+        "whyMatters": "Angle recession glaucoma can present years after blunt trauma."
+      },
+      {
+        "id": "vascular_history",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Migraine / vasospasm / Raynaud",
+        "keywords": [
+          "migraine",
+          "headache",
+          "cold hands",
+          "Raynaud"
+        ],
+        "whyMatters": "Vasospastic disease increases normal-tension glaucoma risk."
+      },
+      {
+        "id": "cardiovascular",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "BP / cardiovascular",
+        "keywords": [
+          "BP",
+          "blood pressure",
+          "heart",
+          "hypertension"
+        ],
+        "whyMatters": "Both hypotension at night and hypertension affect optic nerve perfusion — changes target IOP."
+      },
+      {
+        "id": "sleep_apnea",
+        "category": "systemic",
+        "criticality": "low",
+        "label": "Snoring / sleep apnea",
+        "keywords": [
+          "snore",
+          "sleep",
+          "apnea",
+          "tired"
+        ],
+        "whyMatters": "OSA is independently associated with NTG."
+      },
+      {
+        "id": "asthma",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Asthma / COPD",
+        "keywords": [
+          "asthma",
+          "wheez",
+          "COPD",
+          "breath",
+          "inhaler"
+        ],
+        "whyMatters": "Beta-blocker drops contraindicated — must know before prescribing timolol."
+      }
+    ]
+  },
+  {
+    "id": "rev-013",
+    "topic": "retina",
+    "subTopic": "Acute Post-Op Endophthalmitis",
+    "difficulty": 0.55,
+    "type": "history-audit",
+    "patientVoice": "Doctor sir, the operation was three days ago. Yesterday I came back to the camp because the eye was paining a little, they gave me drops. Today morning the pain is like a hot stone is sitting inside. Yesterday I could see your hand, today even that I can't see. There is also water coming from the eye. My son brought me here on the bus.",
+    "clinicalNote": "68F, T2DM, OD POD 3 phaco at peripheral camp. Vision HM. Hypopyon 2.5mm with fibrin, no fundal glow, B-scan dense vitritis, attached retina. RBS 312 mg/dL.",
+    "task": "Take a focused history before deciding management. What questions must you ask?",
+    "axesScored": [
+      "safety",
+      "relevance",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "hba1c",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Glycaemic control / HbA1c",
+        "keywords": [
+          "sugar",
+          "HbA1c",
+          "glycemic",
+          "control",
+          "diabetes",
+          "diabetic"
+        ],
+        "whyMatters": "Diabetes is an independent predictor of worse endophthalmitis outcome and influences urgency."
+      },
+      {
+        "id": "antibiotic_allergy",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Antibiotic allergies (esp. beta-lactam)",
+        "keywords": [
+          "allergy",
+          "allergic",
+          "penicillin",
+          "beta-lactam",
+          "cefta",
+          "vancomycin"
+        ],
+        "whyMatters": "Cefazolin / ceftazidime cross-reactivity; vancomycin red-man with rapid IV."
+      },
+      {
+        "id": "surg_complication",
+        "category": "ocular_history",
+        "criticality": "high",
+        "label": "Original surgery complications (PCR, vit loss)",
+        "keywords": [
+          "complication",
+          "vitreous loss",
+          "rupture",
+          "PCR",
+          "difficult"
+        ],
+        "whyMatters": "PCR triples endophthalmitis risk and changes drug penetration."
+      },
+      {
+        "id": "drop_compliance",
+        "category": "ocular_history",
+        "criticality": "high",
+        "label": "Post-op drop compliance",
+        "keywords": [
+          "drops",
+          "instilled",
+          "missed",
+          "compliance",
+          "instructions"
+        ],
+        "whyMatters": "Skipped drops in camp settings affect organism profile and counselling."
+      },
+      {
+        "id": "fever",
+        "category": "constitutional",
+        "criticality": "medium",
+        "label": "Fever / systemic infection",
+        "keywords": [
+          "fever",
+          "chills",
+          "temperature"
+        ],
+        "whyMatters": "Distinguishes from endogenous source."
+      },
+      {
+        "id": "pond_water",
+        "category": "exposure",
+        "criticality": "medium",
+        "label": "Pond / well water exposure",
+        "keywords": [
+          "water",
+          "pond",
+          "bath",
+          "swim",
+          "well"
+        ],
+        "whyMatters": "Pseudomonas / atypical mycobacteria in rural India."
+      },
+      {
+        "id": "fellow_eye",
+        "category": "ocular_history",
+        "criticality": "low",
+        "label": "Fellow eye status",
+        "keywords": [
+          "other eye",
+          "right eye",
+          "left eye",
+          "fellow"
+        ],
+        "whyMatters": "Prognostication and consent counselling."
+      }
+    ]
+  },
+  {
+    "id": "rev-014",
+    "topic": "retina",
+    "subTopic": "Acute Post-Op Endophthalmitis",
+    "difficulty": 0.7,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor sir, the operation was three days ago and now this eye is paining badly and the vision is gone. They told me at the camp it was just normal swelling. Now you say I need an injection inside the eye urgently? My son is here. Please tell us what is happening, plain and simple.",
+    "clinicalNote": "Same patient. About to consent for vitreous tap and intravitreal antibiotics within the hour.",
+    "prompt": "Explain to her and her son what is happening, what you must do today, and why — without medical jargon.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "acknowledges fear",
+        "honest urgency",
+        "plain language",
+        "no false reassurance",
+        "involves son"
+      ],
+      "poor": [
+        "uses 'endophthalmitis'",
+        "uses 'EVS protocol'",
+        "uses 'vitreous'",
+        "blames camp surgeon",
+        "false reassurance"
+      ]
+    },
+    "modelAnswer": "Amma, I am so sorry this is happening to you. The eye has developed a serious infection inside — it can sometimes happen even when the surgery is done correctly, and it is no one's fault. We must act today. I will take a tiny sample from inside the eye and put strong medicine directly into it, in the next one hour. This gives the best chance to save the vision. The next two days are very important and we will be here with you. Your son is welcome to be with you the whole time."
+  },
+  {
+    "id": "rev-015",
+    "topic": "uvea",
+    "subTopic": "Endogenous Endophthalmitis",
+    "difficulty": 0.75,
+    "type": "history-audit",
+    "patientVoice": "Doctor, last week I had high fever with chills, especially in the evenings. The local doctor admitted me to a small nursing home and gave me drips for three days. The fever came down. But two days back my left eye started becoming red and now it is paining and the vision has gone almost completely. There is also some pain on the right side of my stomach when I press it.",
+    "clinicalNote": "52M, diabetic, OS hypopyon 1mm, dense vitritis. OD: small bilateral chorioretinal foci on indirect ophthalmoscopy. Mild RUQ tenderness.",
+    "task": "Take the history that will lead you to the source. What systemic questions are mandatory?",
+    "axesScored": [
+      "safety",
+      "knowledge",
+      "relevance"
+    ],
+    "requiredHistory": [
+      {
+        "id": "fever_pattern",
+        "category": "constitutional",
+        "criticality": "high",
+        "label": "Fever pattern, chills, response to antibiotics",
+        "keywords": [
+          "fever",
+          "chills",
+          "rigor",
+          "evening",
+          "temperature",
+          "drips"
+        ],
+        "whyMatters": "Establishes preceding bacteraemia and seeding window."
+      },
+      {
+        "id": "abdominal",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Abdominal pain, jaundice, RUQ tenderness",
+        "keywords": [
+          "abdomen",
+          "stomach",
+          "abdominal",
+          "liver",
+          "RUQ",
+          "right side",
+          "pain"
+        ],
+        "whyMatters": "Liver abscess is the single most likely source in this demographic."
+      },
+      {
+        "id": "iv_dental",
+        "category": "exposure",
+        "criticality": "high",
+        "label": "IV catheter, IV drug use, recent dental work",
+        "keywords": [
+          "IV",
+          "catheter",
+          "injection",
+          "dental",
+          "tooth",
+          "drug",
+          "needle"
+        ],
+        "whyMatters": "Alternate sources of bacteraemia (Staph aureus, viridans strep)."
+      },
+      {
+        "id": "dm_control",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Diabetes control, HbA1c",
+        "keywords": [
+          "sugar",
+          "diabetes",
+          "HbA1c",
+          "control"
+        ],
+        "whyMatters": "Diabetes is the major risk factor for K. pneumoniae invasive syndrome."
+      },
+      {
+        "id": "hiv",
+        "category": "immune",
+        "criticality": "high",
+        "label": "HIV / immune status",
+        "keywords": [
+          "HIV",
+          "AIDS",
+          "immune"
+        ],
+        "whyMatters": "Changes the differential to include candida and opportunists."
+      },
+      {
+        "id": "alcohol",
+        "category": "lifestyle",
+        "criticality": "medium",
+        "label": "Alcohol use, cirrhosis",
+        "keywords": [
+          "alcohol",
+          "drink",
+          "liver",
+          "cirrhosis"
+        ],
+        "whyMatters": "Cirrhotic patients have higher pyogenic liver abscess rates."
+      },
+      {
+        "id": "skin_infection",
+        "category": "exposure",
+        "criticality": "medium",
+        "label": "Skin infection, boils, pyoderma",
+        "keywords": [
+          "boil",
+          "skin",
+          "pus",
+          "infection",
+          "wound"
+        ],
+        "whyMatters": "Alternative bacteraemic source (Staph aureus)."
+      }
+    ]
+  },
+  {
+    "id": "rev-016",
+    "topic": "uvea",
+    "subTopic": "Endogenous Endophthalmitis",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "senior",
+    "scenario": "You are presenting to Dr. Pathengay on rounds. 52M diabetic, fever last week, RUQ pain today, OS endophthalmitis with bilateral OD chorioretinal foci appearing. He has 30 seconds.",
+    "prompt": "30-second handover. Diagnosis, source, your immediate plan, the question you need from him.",
+    "axesScored": [
+      "relevance",
+      "safety",
+      "communication"
+    ],
+    "rubric": {
+      "good": [
+        "compressed",
+        "names endogenous",
+        "names hepatic source",
+        "states tap and inject plan",
+        "asks for guidance",
+        "mentions OD"
+      ],
+      "poor": [
+        "rambling",
+        "buries the lede",
+        "no question",
+        "ignores fellow eye"
+      ]
+    },
+    "modelAnswer": "Sir — 52M diabetic, OS endogenous endophthalmitis with OD developing chorioretinal foci, suspecting K. pneumoniae from a hepatic source given the fever-then-RUQ-pain story. I have sent blood cultures and urgent USG abdomen, and I am taking a vitreous tap and intravitreal vancomycin-ceftazidime in OS now. I have flagged medicine for the abscess. Should I tap OD prophylactically given the bilateral foci, or watch with topical and systemic alone?"
+  },
+  {
+    "id": "rev-017",
+    "topic": "retina",
+    "subTopic": "Post-Injection Endophthalmitis",
+    "difficulty": 0.6,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, you yourself gave me the injection day before yesterday. That night the eye watered more than usual but I thought it's normal. Yesterday morning the eye was a little uncomfortable. Today morning when I woke up, the vision in this eye has gone misty — like there is a fog inside. The eye is paining slowly. I have had so many injections, this never happened. Did something go wrong?",
+    "clinicalNote": "72F, monthly anti-VEGF for wet AMD x 18 months. OS vision 6/36 (was 6/18), 2+ AC cells, 2+ vitreous cells, no hypopyon, view of disc and macula CNV scar.",
+    "prompt": "Explain to her honestly what is happening and what you need to do — without using technical terms or being defensive.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "validates her trust",
+        "no defensiveness",
+        "honest urgency",
+        "frames continued treatment",
+        "names risk soberly"
+      ],
+      "poor": [
+        "defensive",
+        "minimises",
+        "uses 'streptococcal'",
+        "blames patient"
+      ]
+    },
+    "modelAnswer": "Amma, I hear you and you are right to come to me immediately. The signs we see suggest the eye has developed an infection from the injection — this is a rare complication, but a serious one. It can happen even when everything is done sterilely, and it is something we always watch for. We need to take a small sample from the eye and put strong antibiotics inside it today, within the next hour. After we control this, we will talk about how to safely continue protecting your other eye. You did not do anything wrong in coming so quickly — that is exactly the right thing."
+  },
+  {
+    "id": "rev-018",
+    "topic": "glaucoma",
+    "subTopic": "Bleb-Related Endophthalmitis",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Your PGY-1 colleague asks: 'Why are we taking this patient straight to vitrectomy when his vision is light perception? The EVS said we only vitrectomise when it's LP for acute post-op endophthalmitis.'",
+    "prompt": "Explain in 2-3 sentences why the EVS protocol does not directly apply to bleb-related endophthalmitis.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "EVS was post-cataract",
+        "different organism profile",
+        "Streptococcus virulence",
+        "poor natural history",
+        "deviation justified"
+      ],
+      "poor": [
+        "just cites EVS",
+        "no organism reasoning",
+        "no outcome reasoning"
+      ]
+    },
+    "modelAnswer": "EVS data was derived entirely from acute post-cataract endophthalmitis where coagulase-negative staph dominates. Bleb-related endophthalmitis is dominated by Streptococcus and H. influenzae — far more virulent organisms with a notoriously poor natural history. Even at LP or better, most large series support early vitrectomy because the disease declares itself rapidly and visual outcomes deteriorate without aggressive intervention."
+  },
+  {
+    "id": "rev-019",
+    "topic": "uvea",
+    "subTopic": "ARN VZV Posterior Extension",
+    "difficulty": 0.8,
+    "type": "history-audit",
+    "patientVoice": "Doctor, the right eye started becoming a little blurry five days ago. I thought it was eye strain from teaching. Then I started seeing floaters — lots of small dark things moving when I turn my head. Yesterday a part of my vision became dark, like there is a curtain at the side. The eye is also slightly painful and red. I had chickenpox when I was eight years old — could that be related?",
+    "clinicalNote": "32F immunocompetent. OD vision 6/24 declining. AC 1+, vitritis 2+. Confluent peripheral retinal whitening 270 degrees with arteritis, posterior progression toward equator. HIV non-reactive on rapid test.",
+    "task": "Take the history that confirms your suspicion and rules out the dangerous mimics. What must you ask?",
+    "axesScored": [
+      "safety",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "varicella",
+        "category": "infection_history",
+        "criticality": "high",
+        "label": "Past varicella, zoster, shingles",
+        "keywords": [
+          "chicken",
+          "varicella",
+          "zoster",
+          "shingles",
+          "rash"
+        ],
+        "whyMatters": "Latent virus is the source; confirms reactivation hypothesis."
+      },
+      {
+        "id": "hiv_immune",
+        "category": "immune",
+        "criticality": "high",
+        "label": "HIV / immunosuppression",
+        "keywords": [
+          "HIV",
+          "immune",
+          "blood test",
+          "AIDS"
+        ],
+        "whyMatters": "Distinguishes ARN from PORN; changes prognosis dramatically."
+      },
+      {
+        "id": "pregnancy",
+        "category": "obstetric",
+        "criticality": "high",
+        "label": "Pregnancy / LMP",
+        "keywords": [
+          "pregnant",
+          "pregnancy",
+          "period",
+          "LMP",
+          "menstrual"
+        ],
+        "whyMatters": "Acyclovir dose-adjustment and obstetric coordination needed."
+      },
+      {
+        "id": "steroid_use",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Recent steroid use (any form)",
+        "keywords": [
+          "steroid",
+          "prednisolone",
+          "cortisone",
+          "inhaler",
+          "cream"
+        ],
+        "whyMatters": "Steroids without antivirals can rapidly worsen viral retinitis."
+      },
+      {
+        "id": "rash_dermatomal",
+        "category": "infection_history",
+        "criticality": "medium",
+        "label": "Skin rash, dermatomal pain (zoster)",
+        "keywords": [
+          "rash",
+          "blister",
+          "shingle",
+          "pain",
+          "skin"
+        ],
+        "whyMatters": "Recent zoster supports VZV; check for HZO."
+      },
+      {
+        "id": "renal",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Renal function",
+        "keywords": [
+          "kidney",
+          "creatinine",
+          "urine"
+        ],
+        "whyMatters": "IV acyclovir nephrotoxicity; dose adjustment needed."
+      },
+      {
+        "id": "headache_meningism",
+        "category": "neuro",
+        "criticality": "medium",
+        "label": "Headache / meningism",
+        "keywords": [
+          "headache",
+          "neck",
+          "meningism",
+          "fever"
+        ],
+        "whyMatters": "VZV CNS disease may need LP and CNS-directed therapy."
+      }
+    ]
+  },
+  {
+    "id": "rev-020",
+    "topic": "uvea",
+    "subTopic": "ARN VZV",
+    "difficulty": 0.75,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Same patient. Your colleague asks why you started IV acyclovir and not oral valacyclovir given that valacyclovir achieves good plasma levels.",
+    "prompt": "Explain in 2-3 sentences the rationale for IV over oral, with mechanism.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "VZV vs HSV RD risk",
+        "vitreous concentration",
+        "viral load peak",
+        "transition oral later"
+      ],
+      "poor": [
+        "just names IV",
+        "no mechanism"
+      ]
+    },
+    "modelAnswer": "VZV-ARN carries roughly 2.5x higher RD risk than HSV-ARN due to more aggressive arteritis and confluent necrosis. IV acyclovir 10-15 mg/kg q8h achieves much higher vitreous concentrations during the first 5-7 days when viral load is peaking — this is when tissue penetration matters most. We transition to oral valacyclovir once the necrotic front stabilises, typically around day 7."
+  },
+  {
+    "id": "rev-021",
+    "topic": "uvea",
+    "subTopic": "TB-SLC",
+    "difficulty": 0.75,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Patient with multifocal placoid choroiditis at scar margins, granulomatous KPs, evening fever and weight loss. Mantoux 18mm, IGRA positive, CXR shows old apical scar. Your junior colleague says 'so we have confirmed ocular TB.'",
+    "prompt": "Correct her in 2-3 sentences. What do these tests actually mean and how do you confirm the diagnosis in our setting?",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "exposure not disease",
+        "endemic baseline 30-40%",
+        "PPV poor",
+        "phenotype required",
+        "ATT trial response"
+      ],
+      "poor": [
+        "agrees with junior",
+        "ignores PPV problem"
+      ]
+    },
+    "modelAnswer": "Mantoux and IGRA only confirm exposure or latent infection — not active intraocular disease. In endemic India, 30-40% of the population is positive at baseline, so the positive predictive value for ocular TB is poor despite the high sensitivity. Our diagnosis remains presumptive based on the compatible phenotype — multifocal placoid lesions at scar margins, granulomatous KPs — and the strongest practical confirmation is response to a 4-6 week ATT trial."
+  },
+  {
+    "id": "rev-022",
+    "topic": "uvea",
+    "subTopic": "TB-SLC",
+    "difficulty": 0.8,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, I came because of my eye but now you are saying I need to take medicine for six months and tablets every day? My husband is worried — he says there are side effects. We are simple people and I have to work. What if you are not sure it is TB? Are these medicines safe?",
+    "clinicalNote": "Same patient. You have decided to start ATT + steroid cover. You are now consenting and counselling.",
+    "prompt": "Explain the trade-off honestly — why we treat with uncertainty, what the side effects are, and what we will monitor — without scaring them or being dismissive.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "honest about uncertainty",
+        "names side effects in plain words",
+        "addresses husband",
+        "frames stakes",
+        "monitoring plan"
+      ],
+      "poor": [
+        "uses 'paradoxical worsening'",
+        "uses 'CYP3A4'",
+        "dismisses husband",
+        "promises zero side effect"
+      ]
+    },
+    "modelAnswer": "I understand and your husband is right to ask. Here is the truth: in India we cannot always wait for absolute proof of TB because the cost of waiting is permanent vision loss. Your tests, your symptoms, and the pattern in your eye fit very well — strong enough that treatment is the safer choice. The medicines have side effects: orange urine, occasional tingling in hands and feet (which a small vitamin tablet prevents), and rare liver upset which we will check with blood tests every month. We will see you regularly and we will adjust if anything is wrong. You are not alone in this — your husband can come with you for every visit."
+  },
+  {
+    "id": "rev-023",
+    "topic": "neuro",
+    "subTopic": "NAION",
+    "difficulty": 0.55,
+    "type": "history-audit",
+    "patientVoice": "Doctor, I went to sleep last night and everything was fine. This morning when I woke up and tried to read the newspaper, the upper part of my vision in the right eye is missing — it is like a black band across the top. There is no pain. I tried washing my face and rubbing the eye but it has not improved. I have BP and sugar for many years. I am also told I snore very loudly.",
+    "clinicalNote": "58M, BP 158/96, RBS 198. OD vision 6/18 with inferior altitudinal field defect. RAPD 1+ OD. OD disc swollen with segmental hyperaemia. OS disc crowded with CDR 0.1. No headache, no scalp tenderness, no jaw claudication.",
+    "task": "Take the focused history. What are the questions you absolutely cannot skip?",
+    "axesScored": [
+      "safety",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "pain_eom",
+        "category": "symptoms",
+        "criticality": "high",
+        "label": "Pain on eye movement",
+        "keywords": [
+          "pain",
+          "movement",
+          "moving",
+          "hurt"
+        ],
+        "whyMatters": "Distinguishes painless NAION from painful optic neuritis."
+      },
+      {
+        "id": "headache_jaw",
+        "category": "vasculitic",
+        "criticality": "high",
+        "label": "Headache, scalp tenderness, jaw claudication",
+        "keywords": [
+          "headache",
+          "scalp",
+          "temple",
+          "jaw",
+          "chewing",
+          "tender"
+        ],
+        "whyMatters": "Critical to rule out giant cell arteritis — missed = catastrophic fellow eye involvement."
+      },
+      {
+        "id": "pde5",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Sildenafil / tadalafil / PDE-5 inhibitor use",
+        "keywords": [
+          "sildenafil",
+          "viagra",
+          "tadalafil",
+          "tablet",
+          "wife",
+          "intimate"
+        ],
+        "whyMatters": "Linked to NAION via altered optic nerve perfusion; counsel for fellow eye."
+      },
+      {
+        "id": "osa",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Snoring / sleep apnea",
+        "keywords": [
+          "snore",
+          "sleep",
+          "apnea",
+          "tired",
+          "breathing",
+          "stop"
+        ],
+        "whyMatters": "Independent NAION risk factor; CPAP referral key for fellow eye protection."
+      },
+      {
+        "id": "antihypertensive_timing",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Antihypertensive timing (esp. evening)",
+        "keywords": [
+          "BP medicine",
+          "blood pressure",
+          "tablet",
+          "evening",
+          "night",
+          "morning"
+        ],
+        "whyMatters": "Nocturnal hypotension hypothesised to trigger NAION on waking."
+      },
+      {
+        "id": "ms_symptoms",
+        "category": "neuro",
+        "criticality": "medium",
+        "label": "MS symptoms or prior demyelinating events",
+        "keywords": [
+          "weakness",
+          "numbness",
+          "tingling",
+          "MS",
+          "previous"
+        ],
+        "whyMatters": "Optic neuritis stays on differential if atypical features."
+      },
+      {
+        "id": "blood_loss",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Recent blood loss / hypotensive episode",
+        "keywords": [
+          "bleeding",
+          "blood loss",
+          "fainted",
+          "pressure"
+        ],
+        "whyMatters": "Posterior ischaemic optic neuropathy on differential."
+      }
+    ]
+  },
+  {
+    "id": "rev-024",
+    "topic": "neuro",
+    "subTopic": "NAION",
+    "difficulty": 0.6,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, you are saying there is no medicine to bring back my vision? I have been working as an accountant for thirty years, my whole life depends on reading. So I should just accept this and go home? What is the point of being in the best eye hospital then?",
+    "clinicalNote": "Same patient. You have confirmed NAION, ESR/CRP normal, ruled out arteritic AION. Now consenting to no acute treatment but emphasising fellow-eye protection.",
+    "prompt": "Tell him there is no proven treatment for the right eye — but do it in a way that gives him agency and protects his hope and his other eye.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "honest no-treatment",
+        "reframes from cure to protection",
+        "names actionable fellow eye steps",
+        "validates loss",
+        "no false hope"
+      ],
+      "poor": [
+        "promises cure",
+        "vague reassurance",
+        "dismisses fellow eye"
+      ]
+    },
+    "modelAnswer": "Sir, I will be honest with you because you deserve honesty. The bad news is that for the kind of optic nerve injury you have, no medicine has been proven to bring back the vision in this eye. The good news — and there is good news — is that the same processes that caused this eye are present in the other eye, and we have many things we can do to protect that eye. We will get your blood pressure and sugar tightly controlled. We will check whether you have sleep apnea, because treating that protects the other eye. We will adjust your tablet timings. Today is not the end of your reading life — today is the day we start protecting it. Will you let me help you do that?"
+  },
+  {
+    "id": "rev-025",
+    "topic": "retina",
+    "subTopic": "PDR with VH",
+    "difficulty": 0.7,
+    "type": "history-audit",
+    "patientVoice": "Sir, I have sugar for almost twenty years and my sugar is up and down because the work is irregular. Two days back I was driving in the afternoon and suddenly I started seeing red and black floaters in my left eye, lots of them, like rain. Then a corner of the vision became dark and I had to stop the auto. I had some laser two years ago in this same eye but I did not go for follow-up because the work was good and the eye was fine. I cannot afford to stop driving for long.",
+    "clinicalNote": "62M, OS vision 6/60 with dense vitreous haemorrhage, no posterior view. B-scan suggests tongue-like membrane at disc with possible posterior pole traction. OD: PDR with NVD/NVE and DME. CKD stage 3 known, BP 156/92.",
+    "task": "Take the focused history before planning surgery. What must you ask?",
+    "axesScored": [
+      "safety",
+      "relevance",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "hba1c",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Glycaemic control / HbA1c",
+        "keywords": [
+          "sugar",
+          "HbA1c",
+          "control",
+          "fasting"
+        ],
+        "whyMatters": "Predicts surgical risk and post-op rebleed; determines optimisation."
+      },
+      {
+        "id": "bp",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Blood pressure control",
+        "keywords": [
+          "BP",
+          "blood pressure",
+          "hypertension"
+        ],
+        "whyMatters": "Uncontrolled HTN compounds vitreous bleeding."
+      },
+      {
+        "id": "anticoag",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Anticoagulants / antiplatelets",
+        "keywords": [
+          "aspirin",
+          "blood thinner",
+          "warfarin",
+          "clopidogrel",
+          "ecosprin"
+        ],
+        "whyMatters": "Worsen bleed; complicate surgery; coordinated stop/bridge."
+      },
+      {
+        "id": "renal",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Kidney function / dialysis",
+        "keywords": [
+          "kidney",
+          "creatinine",
+          "dialysis",
+          "renal"
+        ],
+        "whyMatters": "CKD changes anti-VEGF safety, anaesthesia plan, drug clearance."
+      },
+      {
+        "id": "trauma",
+        "category": "history",
+        "criticality": "high",
+        "label": "Recent eye trauma or strain",
+        "keywords": [
+          "injury",
+          "trauma",
+          "hit",
+          "lifting",
+          "strain"
+        ],
+        "whyMatters": "Must rule out traumatic VH or PVD-related break."
+      },
+      {
+        "id": "prior_treatment",
+        "category": "ocular_history",
+        "criticality": "medium",
+        "label": "Prior laser, injection, surgery",
+        "keywords": [
+          "laser",
+          "injection",
+          "surgery",
+          "previous",
+          "PRP"
+        ],
+        "whyMatters": "Past PRP changes the disease state and surgical plan."
+      },
+      {
+        "id": "smoking",
+        "category": "lifestyle",
+        "criticality": "low",
+        "label": "Smoking, tobacco",
+        "keywords": [
+          "smoke",
+          "tobacco",
+          "cigarette",
+          "beedi"
+        ],
+        "whyMatters": "Modifiable risk factor for counselling."
+      }
+    ]
+  },
+  {
+    "id": "rev-026",
+    "topic": "retina",
+    "subTopic": "PDR with VH",
+    "difficulty": 0.8,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Your senior colleague asks: 'You are giving anti-VEGF before vitrectomy in this PDR with possible TRD — what are the risks of doing that?'",
+    "prompt": "Explain the rationale and the specific risk of pre-op anti-VEGF in a TRD case in 2-3 sentences.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "reduces NV activity",
+        "decreases intraop bleed",
+        "crunch syndrome",
+        "timing 3-7 days",
+        "patient selection"
+      ],
+      "poor": [
+        "just gives anti-VEGF",
+        "no crunch awareness"
+      ]
+    },
+    "modelAnswer": "Pre-op anti-VEGF (typically bevacizumab 3-7 days before surgery) reduces fibrovascular activity, decreases intra-operative bleeding, and makes membrane peeling safer. The key risk is the 'crunch syndrome' — rapid involution of new vessels can worsen the tractional component and tip a stable TRD into an advanced detachment. We mitigate this with a shorter window and careful patient selection — avoid in cases where the traction is already macula-threatening unless surgery follows promptly."
+  },
+  {
+    "id": "rev-027",
+    "topic": "uvea",
+    "subTopic": "Endophthalmitis Triage",
+    "difficulty": 0.5,
+    "type": "noise-filter",
+    "patientVoice": "Doctor my wife had cataract surgery three days back. Yesterday her eye was a little watery, today she is in severe pain and cannot see your hand at all. We came directly from Karimnagar by the morning bus. She is also diabetic and her sugar is uncontrolled. She had eaten her favourite biriyani at her sister's place yesterday. The doctor at the camp told her to use drops but we lost the prescription paper. Her grandson is getting married next month and she was excited about going.",
+    "clinicalNote": "Acute presentation. Need rapid triage of what matters.",
+    "history": [
+      {
+        "text": "Vision now hand movements, was reading vision yesterday",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Severe eye pain since this morning",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Came from Karimnagar by morning bus",
+        "tag": "noise"
+      },
+      {
+        "text": "Diabetic, uncontrolled sugar",
+        "tag": "relevant"
+      },
+      {
+        "text": "Cataract surgery 3 days ago",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Ate biriyani at her sister's place",
+        "tag": "noise"
+      },
+      {
+        "text": "Lost the prescription paper from the camp",
+        "tag": "relevant"
+      },
+      {
+        "text": "Grandson getting married next month",
+        "tag": "noise"
+      },
+      {
+        "text": "Drops were started after surgery",
+        "tag": "relevant"
+      }
+    ],
+    "prompt": "Tag each statement as Relevant, Noise, or Red Flag.",
+    "axesScored": [
+      "relevance",
+      "safety"
+    ],
+    "rubric": {
+      "minRelevant": 3,
+      "minRedFlag": 3
+    }
+  },
+  {
+    "id": "rev-028",
+    "topic": "retina",
+    "subTopic": "Wet AMD",
+    "difficulty": 0.5,
+    "type": "history-audit",
+    "patientVoice": "Doctor, my mother had this same problem. She lost vision in both eyes by 70 and used to bump into furniture. I am 64 and for the last three weeks the words on my newspaper are wavy and there is a small dark patch right where I want to look. My right eye seems fine. Will I also become like my mother?",
+    "clinicalNote": "64F, OD metamorphopsia and central scotoma x 3 weeks, vision 6/24. OCT: subfoveal fluid with PED. FFA: classic CNV early hyperfluorescence with late leakage. OD also shows soft drusen.",
+    "task": "Take a focused history before deciding the treatment plan. What questions must you ask?",
+    "axesScored": [
+      "safety",
+      "knowledge",
+      "relevance"
+    ],
+    "requiredHistory": [
+      {
+        "id": "family_amd",
+        "category": "family",
+        "criticality": "high",
+        "label": "Family history of AMD / blindness",
+        "keywords": [
+          "family",
+          "mother",
+          "father",
+          "sister",
+          "blind",
+          "AMD"
+        ],
+        "whyMatters": "Strong genetic component (CFH, ARMS2). Risk increases 4x with first-degree relative."
+      },
+      {
+        "id": "smoking",
+        "category": "lifestyle",
+        "criticality": "high",
+        "label": "Smoking history",
+        "keywords": [
+          "smoke",
+          "tobacco",
+          "cigarette",
+          "beedi"
+        ],
+        "whyMatters": "Smoking is the strongest modifiable risk factor for AMD progression — 2-4x risk."
+      },
+      {
+        "id": "anticoag",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Anticoagulants / antiplatelets",
+        "keywords": [
+          "aspirin",
+          "blood thinner",
+          "warfarin",
+          "ecosprin",
+          "clopidogrel"
+        ],
+        "whyMatters": "Increase the risk of submacular hemorrhage from CNV."
+      },
+      {
+        "id": "fellow_eye_symptoms",
+        "category": "ocular",
+        "criticality": "high",
+        "label": "Fellow eye symptoms",
+        "keywords": [
+          "other eye",
+          "right eye",
+          "left eye",
+          "both eyes"
+        ],
+        "whyMatters": "Bilateral wet AMD changes prognosis and need for monitoring intensity."
+      },
+      {
+        "id": "cv_disease",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Cardiovascular disease / stroke",
+        "keywords": [
+          "heart",
+          "stroke",
+          "BP",
+          "cardiac"
+        ],
+        "whyMatters": "Theoretical anti-VEGF systemic risks (though debated); informs counselling."
+      },
+      {
+        "id": "diet_lutein",
+        "category": "lifestyle",
+        "criticality": "medium",
+        "label": "Diet, leafy greens, AREDS supplements",
+        "keywords": [
+          "diet",
+          "vegetables",
+          "supplements",
+          "AREDS",
+          "vitamins"
+        ],
+        "whyMatters": "AREDS2 supplements reduce progression by 25% in intermediate AMD."
+      },
+      {
+        "id": "uv_sun",
+        "category": "lifestyle",
+        "criticality": "low",
+        "label": "Sun exposure / UV protection",
+        "keywords": [
+          "sun",
+          "outdoor",
+          "sunglasses",
+          "UV"
+        ],
+        "whyMatters": "Cumulative UV exposure is a modifiable risk factor."
+      }
+    ]
+  },
+  {
+    "id": "rev-029",
+    "topic": "retina",
+    "subTopic": "Wet AMD",
+    "difficulty": 0.7,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Same patient. After 3 monthly anti-VEGF injections she shows persistent subretinal fluid and no vision improvement. Your colleague asks: 'is this treatment failure?'",
+    "prompt": "Explain in 2-3 sentences how you would distinguish a non-responder from a refractory case, and what your next step would be.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "non-responder vs persistent fluid",
+        "switch agent",
+        "interval",
+        "PCV consideration",
+        "OCT-A"
+      ],
+      "poor": [
+        "just continue",
+        "no troubleshooting"
+      ]
+    },
+    "modelAnswer": "True treatment failure means anatomical and functional non-response after a full loading dose. Persistent fluid alone after 3 loadings is common — switch the agent (bevacizumab to ranibizumab to aflibercept to faricimab) before declaring failure. Also rule out PCV with ICGA, especially in our Indian population — PCV often masquerades as treatment-resistant wet AMD and responds better to combined PDT or aflibercept loading."
+  },
+  {
+    "id": "rev-030",
+    "topic": "retina",
+    "subTopic": "PCV",
+    "difficulty": 0.8,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "55M Indian patient referred as treatment-resistant wet AMD. OCT shows large PEDs and notched RPE, sub-RPE fluid persists despite 6 anti-VEGF injections. You suspect polypoidal choroidal vasculopathy.",
+    "prompt": "Explain why ICGA is essential here and how PCV management differs from typical wet AMD.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "ICGA shows polyps",
+        "branching vascular network",
+        "Asian population",
+        "PDT or anti-VEGF combination",
+        "EVEREST"
+      ],
+      "poor": [
+        "treats as AMD",
+        "no ICGA"
+      ]
+    },
+    "modelAnswer": "PCV is far more common in Asian eyes (up to 50% of presumed wet AMD in Indian patients) and is often missed without ICGA, which is the gold standard for showing the polyps and branching vascular network. Management differs: PDT monotherapy or combined PDT + anti-VEGF (PLANET/EVEREST trials) often achieves better polyp regression than anti-VEGF alone, especially for large pigment epithelial detachments. Aflibercept tends to outperform other anti-VEGF agents in pure PCV."
+  },
+  {
+    "id": "rev-031",
+    "topic": "retina",
+    "subTopic": "Diabetic Macular Edema",
+    "difficulty": 0.55,
+    "type": "history-audit",
+    "patientVoice": "Sir, I have diabetes for fifteen years. The vision in both eyes has been slowly going down for the last six months. The doctor at my diabetes clinic told me to see an eye doctor a year ago but I did not go because I felt fine. Now even with my reading glasses I cannot see the small numbers on my BP machine. My HbA1c is around 9. I work as a security guard at a school.",
+    "clinicalNote": "58M, T2DM 15 yrs, OD 6/18, OS 6/24. OCT both eyes: cystic intraretinal fluid involving the fovea with central thickness 480 microns OD, 520 OS. Fundus: scattered dot blots, hard exudates in a circinate pattern, no NV.",
+    "task": "Take the focused history before planning anti-VEGF or laser. What must you ask?",
+    "axesScored": [
+      "safety",
+      "knowledge",
+      "relevance"
+    ],
+    "requiredHistory": [
+      {
+        "id": "hba1c",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Glycaemic control / recent HbA1c",
+        "keywords": [
+          "sugar",
+          "HbA1c",
+          "control",
+          "fasting"
+        ],
+        "whyMatters": "Edema is harder to control with poor systemic control. Drives urgency of medical optimisation."
+      },
+      {
+        "id": "bp",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Blood pressure",
+        "keywords": [
+          "BP",
+          "blood pressure",
+          "hypertension"
+        ],
+        "whyMatters": "Uncontrolled HTN worsens DME and reduces anti-VEGF efficacy."
+      },
+      {
+        "id": "renal",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Kidney function / proteinuria",
+        "keywords": [
+          "kidney",
+          "creatinine",
+          "protein",
+          "urine",
+          "dialysis"
+        ],
+        "whyMatters": "Diabetic nephropathy correlates strongly with DME severity. Anti-VEGF safety concerns."
+      },
+      {
+        "id": "lipids",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Cholesterol / lipid control",
+        "keywords": [
+          "cholesterol",
+          "lipid",
+          "statin",
+          "fat"
+        ],
+        "whyMatters": "Hard exudates correlate with serum lipids; statins help DME outcomes."
+      },
+      {
+        "id": "anemia",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Anaemia",
+        "keywords": [
+          "anemia",
+          "anaemia",
+          "hemoglobin",
+          "tired"
+        ],
+        "whyMatters": "Anaemia worsens retinal hypoxia and edema."
+      },
+      {
+        "id": "pregnancy",
+        "category": "obstetric",
+        "criticality": "high",
+        "label": "Pregnancy planning (women)",
+        "keywords": [
+          "pregnancy",
+          "pregnant",
+          "planning"
+        ],
+        "whyMatters": "DR can rapidly worsen in pregnancy; anti-VEGF contraindicated."
+      },
+      {
+        "id": "sleep_apnea",
+        "category": "systemic",
+        "criticality": "low",
+        "label": "Sleep apnea",
+        "keywords": [
+          "snore",
+          "sleep",
+          "apnea",
+          "tired"
+        ],
+        "whyMatters": "OSA is associated with worse DME outcomes."
+      }
+    ]
+  },
+  {
+    "id": "rev-032",
+    "topic": "retina",
+    "subTopic": "PDR",
+    "difficulty": 0.75,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "PDR patient with high-risk characteristics (NVD > 1/4 disc area, vitreous hemorrhage). Your junior asks why you are doing PRP rather than just anti-VEGF.",
+    "prompt": "Explain the rationale and the key Protocol S finding in 3 sentences.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "DRCR Protocol S",
+        "anti-VEGF non-inferior",
+        "compliance issue",
+        "PRP for non-compliers",
+        "rebound risk"
+      ],
+      "poor": [
+        "just PRP",
+        "ignores anti-VEGF option"
+      ]
+    },
+    "modelAnswer": "DRCR Protocol S showed anti-VEGF was non-inferior to PRP for PDR over 5 years, with better visual acuity and less peripheral field loss. But anti-VEGF requires reliable follow-up — rebound regression of NV is common if injections are missed, and patients lost to follow-up after anti-VEGF do worse than those after PRP. In Indian practice, where compliance is often imperfect, PRP remains a safer destination treatment, often combined with anti-VEGF for any associated DME."
+  },
+  {
+    "id": "rev-033",
+    "topic": "retina",
+    "subTopic": "CRVO",
+    "difficulty": 0.6,
+    "type": "history-audit",
+    "patientVoice": "Doctor, three days back I woke up and my left eye vision was foggy. I thought I had not slept well. By evening it was much worse — like there is a brown haze covering everything. There is no pain. I am 55, I have BP and sometimes my hands and feet swell. My GP said it might be a stroke but my arms and legs are fine.",
+    "clinicalNote": "55M, OS sudden painless vision drop x 3 days, vision 6/36, RAPD trace. Fundus OS: 4 quadrant intraretinal hemorrhages, dilated tortuous veins, mild disc edema, cotton wool spots. OCT: macular edema 480 microns. Ischaemic vs non-ischaemic uncertain.",
+    "task": "Take the focused history. What systemic and ocular questions must you ask?",
+    "axesScored": [
+      "safety",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "bp",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Blood pressure control",
+        "keywords": [
+          "BP",
+          "blood pressure",
+          "hypertension"
+        ],
+        "whyMatters": "Hypertension is the strongest modifiable CRVO risk factor."
+      },
+      {
+        "id": "diabetes",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Diabetes / glucose control",
+        "keywords": [
+          "diabetes",
+          "sugar",
+          "glucose"
+        ],
+        "whyMatters": "Diabetes is the second strongest risk factor."
+      },
+      {
+        "id": "glaucoma",
+        "category": "ocular",
+        "criticality": "high",
+        "label": "Glaucoma history (any eye)",
+        "keywords": [
+          "glaucoma",
+          "pressure",
+          "drops",
+          "IOP"
+        ],
+        "whyMatters": "Open-angle glaucoma is independently associated with CRVO."
+      },
+      {
+        "id": "thrombophilia",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Thrombosis history (DVT, miscarriages)",
+        "keywords": [
+          "DVT",
+          "clot",
+          "thrombosis",
+          "miscarriage",
+          "blood clot"
+        ],
+        "whyMatters": "Hypercoagulable state workup is critical, especially in patients < 50."
+      },
+      {
+        "id": "smoking",
+        "category": "lifestyle",
+        "criticality": "medium",
+        "label": "Smoking",
+        "keywords": [
+          "smoke",
+          "tobacco",
+          "cigarette"
+        ],
+        "whyMatters": "Independent risk factor."
+      },
+      {
+        "id": "ocp",
+        "category": "medications",
+        "criticality": "medium",
+        "label": "OCP / hormone therapy",
+        "keywords": [
+          "OCP",
+          "contraceptive",
+          "hormone",
+          "pill"
+        ],
+        "whyMatters": "Procoagulant; relevant in young women with CRVO."
+      },
+      {
+        "id": "fellow_eye",
+        "category": "ocular",
+        "criticality": "medium",
+        "label": "Fellow eye history (TIA-like episodes)",
+        "keywords": [
+          "other eye",
+          "transient",
+          "amaurosis"
+        ],
+        "whyMatters": "Fellow eye risk and need for systemic workup."
+      }
+    ]
+  },
+  {
+    "id": "rev-034",
+    "topic": "retina",
+    "subTopic": "CRVO",
+    "difficulty": 0.7,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Same patient. You need to decide whether this is ischaemic CRVO or non-ischaemic. Your colleague asks why the distinction matters.",
+    "prompt": "Explain the distinction, the criteria you use, and why it changes management.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "RAPD",
+        "10 disc areas CNP",
+        "NVI risk",
+        "anti-VEGF + PRP for ischaemic",
+        "100-day glaucoma"
+      ],
+      "poor": [
+        "no criteria",
+        "treats both same"
+      ]
+    },
+    "modelAnswer": "Ischaemic CRVO is defined by ≥10 disc areas of capillary non-perfusion on FFA, often with marked RAPD, severe vision loss, and prominent cotton wool spots. The reason it matters: ischaemic CRVO carries a 60% risk of neovascular glaucoma at around 100 days post-event. Non-ischaemic cases mainly need anti-VEGF for macular edema, while ischaemic cases need close monitoring for NVI and prompt PRP at the first sign of anterior segment neovascularisation."
+  },
+  {
+    "id": "rev-035",
+    "topic": "retina",
+    "subTopic": "CRAO",
+    "difficulty": 0.65,
+    "type": "history-audit",
+    "patientVoice": "Sir, two hours ago I was reading the newspaper at home when suddenly the vision in my right eye went completely. Like a curtain dropped. There is no pain. I am 68, I have BP and cholesterol. My wife noticed I was holding the paper very close. I came as fast as I could because my brother had a stroke last year.",
+    "clinicalNote": "68M, OD acute painless vision loss 2 hours ago, currently HM. RAPD 3+ OD. Fundus: white retinal edema, cherry red spot, attenuated arteries, no emboli visible. OS: arcus senilis only.",
+    "task": "This is a potential ophthalmic emergency. What must you ask in the next 5 minutes?",
+    "axesScored": [
+      "safety",
+      "relevance",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "exact_time",
+        "category": "history",
+        "criticality": "high",
+        "label": "Exact time of onset (window for thrombolysis?)",
+        "keywords": [
+          "when",
+          "time",
+          "started",
+          "ago",
+          "hours"
+        ],
+        "whyMatters": "CRAO has a narrow rescue window (4-6 hours); time-stamps matter for stroke pathway referral."
+      },
+      {
+        "id": "stroke_symptoms",
+        "category": "neuro",
+        "criticality": "high",
+        "label": "Stroke symptoms — facial droop, weakness, speech",
+        "keywords": [
+          "weakness",
+          "speech",
+          "face",
+          "arm",
+          "leg",
+          "stroke",
+          "FAST"
+        ],
+        "whyMatters": "CRAO is a stroke equivalent; up to 25% have concurrent silent brain infarcts."
+      },
+      {
+        "id": "gca_symptoms",
+        "category": "vasculitic",
+        "criticality": "high",
+        "label": "GCA — temporal headache, jaw claudication, scalp tenderness",
+        "keywords": [
+          "headache",
+          "temple",
+          "scalp",
+          "jaw",
+          "chewing"
+        ],
+        "whyMatters": "Arteritic CRAO from GCA can affect the fellow eye within hours; ESR/CRP STAT and IV steroids."
+      },
+      {
+        "id": "carotid_symptoms",
+        "category": "vascular",
+        "criticality": "high",
+        "label": "Carotid disease — TIAs, amaurosis fugax",
+        "keywords": [
+          "transient",
+          "fugax",
+          "blurred",
+          "TIA"
+        ],
+        "whyMatters": "Carotid stenosis is the most common cause; carotid Doppler urgent."
+      },
+      {
+        "id": "afib",
+        "category": "cardiac",
+        "criticality": "high",
+        "label": "Atrial fibrillation, palpitations",
+        "keywords": [
+          "AFib",
+          "palpitation",
+          "irregular",
+          "heart"
+        ],
+        "whyMatters": "Cardioembolic source; anticoagulation decision."
+      },
+      {
+        "id": "anticoag",
+        "category": "medications",
+        "criticality": "medium",
+        "label": "Anticoagulants",
+        "keywords": [
+          "blood thinner",
+          "warfarin",
+          "aspirin",
+          "DOAC"
+        ],
+        "whyMatters": "Informs both etiology and immediate management."
+      },
+      {
+        "id": "fasting",
+        "category": "history",
+        "criticality": "low",
+        "label": "Fasting / dehydration",
+        "keywords": [
+          "food",
+          "fasting",
+          "water",
+          "dehydrated"
+        ],
+        "whyMatters": "Hyperviscosity contribution."
+      }
+    ]
+  },
+  {
+    "id": "rev-036",
+    "topic": "retina",
+    "subTopic": "CRAO",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "senior",
+    "scenario": "You are presenting to Dr. Pathengay on rounds. 68M, CRAO 2 hours ago, HM vision, you have ruled out GCA on bedside (no symptoms, normal temporal arteries) and ESR/CRP are pending. He has 30 seconds.",
+    "prompt": "30-second handover. Diagnosis, what you have done, what you need from him.",
+    "axesScored": [
+      "relevance",
+      "safety",
+      "communication"
+    ],
+    "rubric": {
+      "good": [
+        "compressed",
+        "stroke pathway",
+        "carotid Doppler",
+        "GCA excluded",
+        "asks for guidance"
+      ],
+      "poor": [
+        "rambling",
+        "no escalation plan"
+      ]
+    },
+    "modelAnswer": "Sir — 68M, OD non-arteritic CRAO confirmed clinically 2 hours ago, HM vision. GCA clinically excluded but ESR/CRP pending. I have alerted neurology for the stroke pathway, asked for emergency carotid Doppler and ECG, and started ocular massage and AC paracentesis. He is on aspirin already. Should I push for IV thrombolysis given we are still inside the 4.5-hour window, or is observation more appropriate here?"
+  },
+  {
+    "id": "rev-037",
+    "topic": "retina",
+    "subTopic": "Rhegmatogenous RD",
+    "difficulty": 0.6,
+    "type": "history-audit",
+    "patientVoice": "Doctor, yesterday I was lifting a heavy gas cylinder and suddenly I started seeing flashes of light in my right eye, like camera flashes at the corner. Then a black curtain started coming down from the top, and now half the vision is gone. I am 58, slightly short-sighted since college. I lost my vision yesterday but the camera shop work continued so I came only today.",
+    "clinicalNote": "58M, high myope (-7 OD), acute photopsiae and progressive curtain x 24 hours. OD vision 6/60. Fundus: superotemporal bullous RD extending to the macula, single horseshoe tear at 11 o'clock with operculum. OS: lattice degeneration in the periphery.",
+    "task": "Take the focused history before planning surgery. What must you ask?",
+    "axesScored": [
+      "safety",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "exact_onset",
+        "category": "history",
+        "criticality": "high",
+        "label": "Exact onset of curtain (macula on or off?)",
+        "keywords": [
+          "when",
+          "started",
+          "curtain",
+          "macula",
+          "central",
+          "yesterday"
+        ],
+        "whyMatters": "Macula-on within 24-48h is a true emergency; macula-off changes urgency window."
+      },
+      {
+        "id": "myopia",
+        "category": "ocular",
+        "criticality": "high",
+        "label": "Refractive history (myopia, axial length)",
+        "keywords": [
+          "short sight",
+          "myopia",
+          "minus",
+          "glasses",
+          "spectacles"
+        ],
+        "whyMatters": "High myopia = thinner peripheral retina, lattice, higher RD recurrence risk."
+      },
+      {
+        "id": "trauma",
+        "category": "history",
+        "criticality": "high",
+        "label": "Recent trauma / heavy lifting",
+        "keywords": [
+          "injury",
+          "trauma",
+          "lift",
+          "weight",
+          "fall",
+          "hit"
+        ],
+        "whyMatters": "Mechanical PVD trigger; also rules out scleral rupture."
+      },
+      {
+        "id": "fellow_eye_lattice",
+        "category": "ocular",
+        "criticality": "high",
+        "label": "Fellow eye symptoms / known lattice",
+        "keywords": [
+          "other eye",
+          "left eye",
+          "right eye",
+          "lattice"
+        ],
+        "whyMatters": "10-20% develop fellow eye RD; prophylactic laser may be needed."
+      },
+      {
+        "id": "previous_surgery",
+        "category": "ocular",
+        "criticality": "high",
+        "label": "Past cataract / refractive / vitreoretinal surgery",
+        "keywords": [
+          "surgery",
+          "operation",
+          "cataract",
+          "LASIK",
+          "previous"
+        ],
+        "whyMatters": "Pseudophakic RDs have different break patterns and surgical considerations."
+      },
+      {
+        "id": "family_rd",
+        "category": "family",
+        "criticality": "medium",
+        "label": "Family history of RD",
+        "keywords": [
+          "family",
+          "father",
+          "mother",
+          "brother",
+          "sister",
+          "detachment"
+        ],
+        "whyMatters": "Heritable component; informs fellow eye monitoring."
+      },
+      {
+        "id": "anticoag",
+        "category": "medications",
+        "criticality": "medium",
+        "label": "Anticoagulants",
+        "keywords": [
+          "blood thinner",
+          "aspirin",
+          "warfarin"
+        ],
+        "whyMatters": "Risk during surgery, especially scleral buckle."
+      }
+    ]
+  },
+  {
+    "id": "rev-038",
+    "topic": "retina",
+    "subTopic": "ROP Plus Disease",
+    "difficulty": 0.75,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Sir, our baby was born 2 months early at 28 weeks. He weighed only 1.1 kg. He has been in NICU and now they have called us because the eye doctor says he needs an injection in his eye. We are so scared. He is so small, doctor — is this safe? Will he be able to see when he grows up?",
+    "clinicalNote": "Ex-28-week preterm, BW 1100g, post-menstrual age 36 weeks. Stage 3+ ROP zone II with plus disease in both eyes (engorged tortuous posterior pole vessels, NV at the avascular junction). Anti-VEGF injection planned today.",
+    "prompt": "Explain to the parents what is happening, why we are injecting, and what to expect — without using medical jargon, but without minimising the risk.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "acknowledges fear",
+        "honest urgency",
+        "explains plus disease in plain words",
+        "names the goal saving sight",
+        "follow-up plan"
+      ],
+      "poor": [
+        "uses 'plus disease'",
+        "uses 'neovascularisation'",
+        "promises perfect vision",
+        "blames prematurity"
+      ]
+    },
+    "modelAnswer": "I can see how worried you are, and you have every right to be. Your baby's eyes are growing, but the blood vessels at the back of his eye are growing in the wrong way — too fast and in the wrong direction — because he was born early and has been on oxygen. If we don't stop this, those vessels can pull on the retina and cause blindness. The injection we are giving today gently slows down those bad vessels and gives the normal ones time to catch up. He may need a few more injections and we will see him every week. Your baby is in good hands and we are going to fight for his sight together."
+  },
+  {
+    "id": "rev-039",
+    "topic": "retina",
+    "subTopic": "CSCR",
+    "difficulty": 0.55,
+    "type": "history-audit",
+    "patientVoice": "Doctor, I am 38, I work in a software company. For the last six weeks I have been seeing a small dark spot in my right eye, and the colours look slightly faded. Things look smaller in that eye too. I have been very stressed at work — we are deploying a new system and I am sleeping only 4 hours. My GP gave me some tablets a year ago for back pain, I think they were steroids.",
+    "clinicalNote": "38M, OD central scotoma and micropsia x 6 weeks, vision 6/9 (was 6/6). OCT: classic neurosensory detachment over a focal RPE bump, no PED, no choroidal thickening graded.",
+    "task": "Take the focused history. What questions must you ask?",
+    "axesScored": [
+      "safety",
+      "knowledge"
+    ],
+    "requiredHistory": [
+      {
+        "id": "steroids",
+        "category": "medications",
+        "criticality": "high",
+        "label": "Steroid use — any form",
+        "keywords": [
+          "steroid",
+          "prednisolone",
+          "cream",
+          "inhaler",
+          "joint",
+          "skin",
+          "tablets"
+        ],
+        "whyMatters": "Steroids are the single most important reversible CSCR trigger — even topical or inhaled."
+      },
+      {
+        "id": "stress_sleep",
+        "category": "lifestyle",
+        "criticality": "high",
+        "label": "Psychological stress, sleep deprivation",
+        "keywords": [
+          "stress",
+          "sleep",
+          "anxiety",
+          "work",
+          "worry"
+        ],
+        "whyMatters": "Type A personality and stress are classic CSCR risk factors via cortisol pathway."
+      },
+      {
+        "id": "h_pylori",
+        "category": "infection",
+        "criticality": "medium",
+        "label": "Helicobacter pylori symptoms / gastritis",
+        "keywords": [
+          "gastritis",
+          "ulcer",
+          "acidity",
+          "heartburn"
+        ],
+        "whyMatters": "Reported association; treatment of H. pylori may reduce CSCR recurrence."
+      },
+      {
+        "id": "sleep_apnea",
+        "category": "systemic",
+        "criticality": "medium",
+        "label": "Sleep apnea / snoring",
+        "keywords": [
+          "snore",
+          "sleep",
+          "apnea",
+          "breathing"
+        ],
+        "whyMatters": "Independently associated with CSCR."
+      },
+      {
+        "id": "sildenafil",
+        "category": "medications",
+        "criticality": "medium",
+        "label": "PDE-5 inhibitors",
+        "keywords": [
+          "sildenafil",
+          "viagra",
+          "tadalafil"
+        ],
+        "whyMatters": "Reported as a trigger; counsel for cessation."
+      },
+      {
+        "id": "pregnancy",
+        "category": "obstetric",
+        "criticality": "medium",
+        "label": "Pregnancy (women)",
+        "keywords": [
+          "pregnancy",
+          "pregnant"
+        ],
+        "whyMatters": "CSCR can occur in third trimester."
+      },
+      {
+        "id": "recent_illness",
+        "category": "history",
+        "criticality": "low",
+        "label": "Recent illness, vaccination",
+        "keywords": [
+          "illness",
+          "vaccine",
+          "fever"
+        ],
+        "whyMatters": "Reported triggers; relevant to history-taking completeness."
+      }
+    ]
+  },
+  {
+    "id": "rev-040",
+    "topic": "retina",
+    "subTopic": "Macular Hole",
+    "difficulty": 0.65,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, for 2 months I have a small black dot exactly where I want to look. If I close one eye and look at your face, your nose disappears. The OCT report says there is a hole in the center of my eye. How can there be a hole? Did something break inside? Can it be fixed? I am 64, I am a tailor and I cannot work like this.",
+    "clinicalNote": "64F, OD full-thickness macular hole stage 3, base diameter 480 microns, vision 6/24. Considering vitrectomy + ILM peel + gas tamponade with face-down posturing.",
+    "prompt": "Explain what a macular hole is, how it formed, what surgery involves, and what posturing means — in plain language she can act on.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "analogy for hole",
+        "no jargon",
+        "explains gas bubble",
+        "honest about posturing burden",
+        "realistic vision recovery"
+      ],
+      "poor": [
+        "uses 'ILM' or 'tamponade'",
+        "promises perfect vision",
+        "minimises posturing"
+      ]
+    },
+    "modelAnswer": "Think of the back of your eye as a thin sheet of paper that catches the picture. Over time, the jelly inside the eye pulls on it, and a tiny round hole has formed right in the middle of where your sharpest vision lives. That's why your nose 'disappears' when you look at me. We can fix this with a small surgery — we remove the jelly, peel a very thin layer to relax the tension, and put a gas bubble inside that gently presses on the hole. The catch is, you must keep your face looking down for about a week so the bubble stays on the right spot. Most patients get better vision back, but it takes weeks to months, and we don't promise perfect 6/6. Your work as a tailor will likely be possible again — but the recovery takes patience."
+  },
+  {
+    "id": "rev-041",
+    "topic": "retina",
+    "subTopic": "Acute Post-Op Endophthalmitis",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "senior",
+    "scenario": "Acute post-op endophthalmitis day 4. Vision is HM. You have done your tap and inject. 24 hours later, vision dropped to LP and the hypopyon is increasing. Presenting to Dr. Pathengay who has 30 seconds.",
+    "prompt": "30-second update. State, change, plan, what you need from him.",
+    "axesScored": [
+      "relevance",
+      "safety",
+      "communication"
+    ],
+    "rubric": {
+      "good": [
+        "compressed",
+        "names deterioration",
+        "PPV consideration",
+        "asks for guidance"
+      ],
+      "poor": [
+        "rambling",
+        "no escalation"
+      ]
+    },
+    "modelAnswer": "Sir — POD 4 cataract endophthalmitis, after tap-and-inject yesterday she has dropped from HM to LP with increasing hypopyon and worsening vitritis on B-scan. Cultures pending, gram stain showed gram-positive cocci. By EVS criteria she now meets the LP threshold. I want to take her for early vitrectomy today and re-inject — should I add intravitreal dexamethasone given the worsening, or hold steroids until the organism is confirmed?"
+  },
+  {
+    "id": "rev-042",
+    "topic": "retina",
+    "subTopic": "Dry AMD / GA",
+    "difficulty": 0.55,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, I am 72. I came because my reading vision has been slowly going down for the last two years. The optician told me the spectacle prescription is fine but the reading is still difficult. He said I have age-related macular degeneration and there is nothing to do. Is that true? My friend got injections in her eye for the same problem.",
+    "clinicalNote": "72F, bilateral large soft drusen with central GA OD reaching 1 disc area, OS large drusen without GA. Vision OD 6/36, OS 6/12. No subretinal fluid, no CNV.",
+    "prompt": "Explain her condition honestly — what is dry vs wet AMD, what can be done, what she should watch for. No false hope, no dismissiveness.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "knowledge"
+    ],
+    "rubric": {
+      "good": [
+        "distinguishes wet vs dry plain words",
+        "names AREDS2",
+        "Amsler grid for self-monitoring",
+        "low vision aids",
+        "conversion warning"
+      ],
+      "poor": [
+        "dismisses as untreatable",
+        "uses 'geographic atrophy'",
+        "false hope of injections"
+      ]
+    },
+    "modelAnswer": "Your friend's case sounds like the 'wet' form, where abnormal blood vessels grow and leak. Yours is the 'dry' form, which is much more common — the cells in the centre of the retina slowly age and die, leaving small empty patches. Right now there is no injection that reverses dry AMD, but new treatments are being studied (like complement inhibitors) and we will let you know when they reach India. What you can do today: take a special vitamin combination called AREDS2 to slow the worsening by about 25%, eat dark leafy vegetables, stop smoking if you do, and wear sunglasses. Most importantly — if you ever notice straight lines becoming wavy or a sudden new dark spot, come immediately. That can mean the dry form has converted to wet, and the wet form CAN be treated with injections."
+  },
+  {
+    "id": "rev-043",
+    "topic": "retina",
+    "subTopic": "Submacular Hemorrhage",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "70F with known wet AMD, last anti-VEGF 6 weeks ago, on aspirin for IHD. Sudden vision drop to HM. Fundus shows a thick subretinal hemorrhage covering the entire macula and extending into the temporal arcades.",
+    "prompt": "Explain the management options and the time-sensitive trade-offs in 3-4 sentences.",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "pneumatic displacement",
+        "tPA timing",
+        "subretinal vs intravitreal tPA",
+        "anti-VEGF combo",
+        "vitrectomy if extensive"
+      ],
+      "poor": [
+        "just observe",
+        "no time pressure"
+      ]
+    },
+    "modelAnswer": "Time matters — large submacular hemorrhage causes permanent photoreceptor damage within 1-2 weeks. Options range from intravitreal tPA + gas + anti-VEGF (pneumatic displacement) for moderate bleeds, to pars plana vitrectomy with subretinal tPA and gas for thick or extensive bleeds. We'd ideally intervene within 7-10 days of symptom onset for best results. Aspirin should be reviewed but rarely stopped. Postoperative anti-VEGF must continue to address the underlying CNV that caused this in the first place."
+  },
+  {
+    "id": "rev-044",
+    "topic": "retina",
+    "subTopic": "Retinoschisis vs RD",
+    "difficulty": 0.7,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "Routine exam in a 55F finds an asymptomatic dome-shaped retinal elevation in the inferotemporal periphery, smooth, transparent, with vessels visible coursing over its surface. No tear seen. Your colleague says 'that's a small RD, send to retina.'",
+    "prompt": "Why is this likely retinoschisis, not RD? How do you distinguish, and does it need treatment?",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "smooth dome",
+        "absolute scotoma vs relative",
+        "lacunar hole",
+        "asymptomatic",
+        "observation usually"
+      ],
+      "poor": [
+        "operates immediately",
+        "no distinction"
+      ]
+    },
+    "modelAnswer": "Retinoschisis is typically smooth, dome-shaped, transparent (you see vessels on its surface), and sits in the temporal periphery — and it produces an absolute scotoma on perimetry, not the relative scotoma of RD. RD is corrugated, opaque, and shifts with eye movements. Retinoschisis is usually congenital or senile and rarely progresses. Most cases need only observation and patient education about flashes and floaters. Treat only if there are symptomatic outer-layer breaks, posterior progression toward the macula, or bullous bullous schisis with risk of true RD."
+  },
+  {
+    "id": "rev-045",
+    "topic": "retina",
+    "subTopic": "Triage",
+    "difficulty": 0.55,
+    "type": "noise-filter",
+    "patientVoice": "Doctor my mother is 70 years old. Three days ago after coming back from her grandson's wedding she felt the right eye is misty. Now she cannot see your hand. She has BP and sugar for many years, and last week she fell down at home and got a small bump on her head. She has been taking ecosprin since her stent was put two years ago. Yesterday she ate a heavy lunch and slept long. Her servant told us we should bring her quickly so we came.",
+    "clinicalNote": "70F, OD HM vision, dense vitreous hemorrhage, B-scan suggests possible retinal detachment with traction.",
+    "history": [
+      {
+        "text": "Vision dropped from normal to hand movements in 3 days",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Returned from grandson's wedding 3 days ago",
+        "tag": "noise"
+      },
+      {
+        "text": "Hypertensive and diabetic for many years",
+        "tag": "relevant"
+      },
+      {
+        "text": "Fell down last week with a head bump",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Ate heavy lunch and slept long yesterday",
+        "tag": "noise"
+      },
+      {
+        "text": "Taking ecosprin since cardiac stent 2 years ago",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Servant suggested coming quickly",
+        "tag": "noise"
+      },
+      {
+        "text": "B-scan shows possible RD with traction",
+        "tag": "red_flag"
+      },
+      {
+        "text": "Dense vitreous hemorrhage on examination",
+        "tag": "relevant"
+      }
+    ],
+    "prompt": "Tag each statement as Relevant, Noise, or Red Flag.",
+    "axesScored": [
+      "relevance",
+      "safety"
+    ],
+    "rubric": {
+      "minRelevant": 2,
+      "minRedFlag": 4
+    }
+  },
+  {
+    "id": "rev-046",
+    "topic": "retina",
+    "subTopic": "PVR",
+    "difficulty": 0.85,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "RD repaired with vitrectomy 6 weeks ago. Today the macula has re-detached. Slit lamp shows star folds and fixed retinal folds posteriorly.",
+    "prompt": "What grade of PVR is this, what is the underlying biology, and how does it change your re-operation plan?",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "grade C PVR",
+        "RPE migration EMT",
+        "membrane peeling",
+        "retinotomy",
+        "long-acting tamponade"
+      ],
+      "poor": [
+        "just re-operates",
+        "no biology"
+      ]
+    },
+    "modelAnswer": "Star folds + fixed folds = grade C PVR. The biology is RPE cells that escape into the vitreous cavity through the original break, undergo epithelial-mesenchymal transition, and form contractile fibrocellular membranes that pull the retina off. Re-operation must include thorough membrane peeling (often with brilliant blue G stain), relaxing retinotomy if the retina cannot be flattened, scleral buckle reinforcement for inferior breaks, and long-acting tamponade with silicone oil. The prognosis is more guarded, and the patient must understand silicone oil may stay for months."
+  },
+  {
+    "id": "rev-047",
+    "topic": "retina",
+    "subTopic": "Eales Disease",
+    "difficulty": 0.7,
+    "type": "explain-to",
+    "audience": "peer",
+    "scenario": "28M, otherwise healthy, presents with sudden floaters and mild vision drop. Fundus shows peripheral periphlebitis, sheathed veins, scattered retinal hemorrhages, and one patch of CNP on FFA. No anterior chamber reaction.",
+    "prompt": "What entity are you considering and how does the workup differ from a typical uveitis case?",
+    "axesScored": [
+      "knowledge",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "Eales disease",
+        "Indian young male",
+        "TB association presumptive",
+        "FFA guides PRP",
+        "ATT controversial"
+      ],
+      "poor": [
+        "names sarcoid only",
+        "ignores Indian context"
+      ]
+    },
+    "modelAnswer": "This is the classical presentation of Eales disease — bilateral idiopathic peripheral retinal periphlebitis seen mostly in young Indian men. While the etiology is debated, there is a strong association with hypersensitivity to TB protein, and many ophthalmologists in India give a trial of ATT in select cases despite mixed evidence. The workup focuses on FFA for capillary non-perfusion and neovascularisation rather than the systemic uveitis screen, and we use sectoral PRP early to prevent vitreous hemorrhage. Anti-VEGF helps if NV bleeds. Vitrectomy is reserved for non-clearing hemorrhage."
+  },
+  {
+    "id": "rev-048",
+    "topic": "retina",
+    "subTopic": "Retinoblastoma Detection",
+    "difficulty": 0.65,
+    "type": "explain-to",
+    "audience": "patient_family",
+    "patientVoice": "Doctor, my baby is 14 months old. Last week I took some flash photos and noticed her right eye looks like a cat's eye in the photo — white instead of red. My mother-in-law says it's nothing. But I am worried, doctor. The pediatrician sent me here. Is it serious?",
+    "clinicalNote": "14-month-old infant, leukocoria OD on parental flash photos. Examination under anaesthesia: large endophytic mass occupying inferior 2/3 of OD with seeds in vitreous, IIRC group D. OS normal. No family history.",
+    "prompt": "Tell the mother what you have found, why it matters, and what comes next — without crushing her, but without minimising.",
+    "axesScored": [
+      "communication",
+      "empathy",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "validates her instinct",
+        "honest about diagnosis",
+        "names ocular oncology",
+        "frames goal life first then eye then vision",
+        "involves both parents"
+      ],
+      "poor": [
+        "uses 'retinoblastoma' before explaining",
+        "false reassurance",
+        "blames mother-in-law"
+      ]
+    },
+    "modelAnswer": "First, you did exactly the right thing by trusting your instinct and bringing her here — that white reflection in the photo is the most important early sign of a serious eye tumour called retinoblastoma. I am so sorry to tell you this. The good news is that we have caught it, and India has world-class treatment for this in dedicated children's eye cancer centres. The first goal is to save your baby's life — which we usually can. The second goal is to save the eye if possible. The third is to save vision. Treatment may involve chemotherapy, focal therapy, and sometimes removal of the eye if the tumour is very large. I want both you and your husband to come together to the next appointment so we can plan this as a family. You are not alone."
+  },
+  {
+    "id": "rev-049",
+    "topic": "retina",
+    "subTopic": "RP / Inherited Retinal Disease",
+    "difficulty": 0.6,
+    "type": "history-audit",
+    "patientVoice": "Doctor, I am 24, I am getting married next month and I came for a routine check-up. For the last few years I have been having a lot of trouble seeing at night, especially when entering a dark cinema hall, and I bump into things in dim light. My uncle had something similar — he became blind by 50. Can I have what he had? Will my children get it?",
+    "clinicalNote": "24F, nyctalopia and progressive peripheral field constriction. Fundus: bone-spicule pigmentation in mid-periphery, attenuated arterioles, waxy disc pallor. ERG markedly reduced rod responses. Diagnosis: retinitis pigmentosa.",
+    "task": "Take the focused history that informs both diagnosis confirmation and pre-marital genetic counselling.",
+    "axesScored": [
+      "knowledge",
+      "relevance",
+      "safety"
+    ],
+    "requiredHistory": [
+      {
+        "id": "family_pattern",
+        "category": "family",
+        "criticality": "high",
+        "label": "Detailed family pedigree (3 generations)",
+        "keywords": [
+          "family",
+          "uncle",
+          "aunt",
+          "father",
+          "mother",
+          "siblings",
+          "cousins",
+          "children"
+        ],
+        "whyMatters": "Inheritance pattern (AD/AR/X-linked) drives genetic counselling and partner risk assessment."
+      },
+      {
+        "id": "consanguinity",
+        "category": "family",
+        "criticality": "high",
+        "label": "Consanguinity in parents or planned marriage",
+        "keywords": [
+          "consanguinity",
+          "related",
+          "cousin",
+          "marriage"
+        ],
+        "whyMatters": "Common in some Indian communities; AR conditions much more likely."
+      },
+      {
+        "id": "associated_systemic",
+        "category": "systemic",
+        "criticality": "high",
+        "label": "Hearing loss / kidney / other systemic features",
+        "keywords": [
+          "hearing",
+          "deaf",
+          "kidney",
+          "balance",
+          "obesity",
+          "polydactyly"
+        ],
+        "whyMatters": "Usher (RP + deaf), Bardet-Biedl, Refsum — syndromic forms change management and counselling."
+      },
+      {
+        "id": "pregnancy_plans",
+        "category": "obstetric",
+        "criticality": "high",
+        "label": "Pregnancy / family planning",
+        "keywords": [
+          "pregnancy",
+          "planning",
+          "children",
+          "marriage",
+          "fiance"
+        ],
+        "whyMatters": "Inheritance counselling is the central reason this 24-year-old came."
+      },
+      {
+        "id": "vit_a",
+        "category": "diet",
+        "criticality": "medium",
+        "label": "Diet / vitamin A status",
+        "keywords": [
+          "diet",
+          "vegetables",
+          "vitamin",
+          "supplements"
+        ],
+        "whyMatters": "Vitamin A palmitate may slow some forms of RP."
+      },
+      {
+        "id": "occupation",
+        "category": "lifestyle",
+        "criticality": "medium",
+        "label": "Occupation / driving / safety",
+        "keywords": [
+          "work",
+          "job",
+          "drive",
+          "safety"
+        ],
+        "whyMatters": "Practical implications of progressive field loss."
+      },
+      {
+        "id": "mood",
+        "category": "psychosocial",
+        "criticality": "medium",
+        "label": "Emotional state about diagnosis",
+        "keywords": [
+          "worry",
+          "scared",
+          "anxious",
+          "depressed"
+        ],
+        "whyMatters": "Genetic diagnosis at 24 around marriage is a major life event needing support."
+      }
+    ]
+  },
+  {
+    "id": "rev-050",
+    "topic": "retina",
+    "subTopic": "Diabetic Retinopathy",
+    "difficulty": 0.6,
+    "type": "image-interpret",
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Diabetic_retinopathy.jpg",
+    "imageAlt": "Fundus photo showing diabetic retinopathy",
+    "imageCaption": "Color fundus photograph showing diabetic retinopathy",
+    "imageSource": "Wikimedia Commons",
+    "patientVoice": "Doctor, my sugar has been high for many years and lately my vision has been getting blurry, especially at night. Sometimes I see small dark spots floating.",
+    "clinicalNote": "55M, T2DM 14 years, OD vision 6/12, OS 6/9. RBS 220 mg/dL today.",
+    "prompt": "Describe what you see in the fundus image, give your staging, and outline the next 2-3 steps in management.",
+    "axesScored": [
+      "knowledge",
+      "reasoning",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "dot blot hemorrhages",
+        "hard exudates",
+        "microaneurysms",
+        "NPDR",
+        "PRP",
+        "anti-VEGF",
+        "DME assessment"
+      ],
+      "poor": [
+        "just names DR",
+        "no staging",
+        "no plan"
+      ]
+    },
+    "modelAnswer": "I see scattered dot-and-blot hemorrhages and hard exudates in a circinate pattern around the macula, consistent with moderate-to-severe NPDR with possible CSME. I would order an OCT macula to confirm DME and a 7-field FFA to assess CNP. Plan: tight glycemic and BP control, anti-VEGF if centre-involving DME on OCT, and PRP if I find CNP or NV on FFA."
+  },
+  {
+    "id": "rev-051",
+    "topic": "retina",
+    "subTopic": "Wet AMD",
+    "difficulty": 0.7,
+    "type": "image-interpret",
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/2/25/MacularDegenerationFundus.jpg",
+    "imageAlt": "Fundus photo with AMD changes",
+    "imageCaption": "Color fundus photograph showing macular degeneration",
+    "imageSource": "Wikimedia Commons",
+    "patientVoice": "Doctor, for two weeks the words on the newspaper look wavy in my right eye, and there is a small dark patch right where I want to look. I am 70 years old.",
+    "clinicalNote": "70F, OD vision 6/24, OS 6/12. Amsler grid: distortion OD.",
+    "prompt": "Describe what you see, distinguish dry vs wet, and give your immediate plan.",
+    "axesScored": [
+      "knowledge",
+      "reasoning",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "soft drusen",
+        "RPE changes",
+        "subretinal fluid",
+        "OCT",
+        "FFA",
+        "anti-VEGF",
+        "wet AMD"
+      ],
+      "poor": [
+        "misses wet conversion",
+        "no OCT",
+        "no urgency"
+      ]
+    },
+    "modelAnswer": "I see large confluent soft drusen with central RPE mottling and a subtle area of greyish elevation. The patient's symptoms (metamorphopsia, central scotoma, sudden onset) strongly suggest conversion from dry to wet AMD. I would get an OCT macula immediately to look for subretinal fluid and PED, and an FFA to characterise any CNV. If wet AMD is confirmed, start anti-VEGF loading dose today and counsel about monthly injections."
+  },
+  {
+    "id": "rev-052",
+    "topic": "retina",
+    "subTopic": "CRAO",
+    "difficulty": 0.7,
+    "type": "image-interpret",
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/0/07/Cherry_red_spot_in_patient_with_central_retinal_artery_occlusion_%28CRAO%29.jpg",
+    "imageAlt": "Fundus showing cherry red spot in CRAO",
+    "imageCaption": "Cherry red spot in central retinal artery occlusion",
+    "imageSource": "Wikimedia Commons",
+    "patientVoice": "Doctor, two hours ago I was reading the newspaper and suddenly the right eye went dark. There is no pain. I have BP and cholesterol.",
+    "clinicalNote": "68M, OD HM, RAPD 3+, no pain. Two hours from onset.",
+    "prompt": "Describe what you see, give your one-line diagnosis, and state the most important non-ocular action you must take in the next hour.",
+    "axesScored": [
+      "knowledge",
+      "safety",
+      "relevance"
+    ],
+    "rubric": {
+      "good": [
+        "cherry red spot",
+        "retinal whitening",
+        "CRAO",
+        "stroke pathway",
+        "carotid Doppler",
+        "GCA exclusion"
+      ],
+      "poor": [
+        "just names finding",
+        "no stroke pathway",
+        "no urgency"
+      ]
+    },
+    "modelAnswer": "Cherry red spot at the macula with diffuse retinal whitening and attenuated arterioles — non-arteritic CRAO. The most important non-ocular action is to refer this patient to the stroke pathway immediately: CRAO is a stroke equivalent, up to 25% have concurrent silent brain infarcts, and we are still inside the 4.5-hour thrombolysis window. I will also send urgent ESR/CRP to exclude GCA and call neurology."
+  },
+  {
+    "id": "rev-053",
+    "topic": "retina",
+    "subTopic": "Rhegmatogenous RD",
+    "difficulty": 0.65,
+    "type": "image-interpret",
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/5/5a/Rhegmatogene_amotio_retinae.jpg",
+    "imageAlt": "Fundus showing rhegmatogenous retinal detachment",
+    "imageCaption": "Rhegmatogenous retinal detachment, fundus photograph",
+    "imageSource": "Wikimedia Commons",
+    "patientVoice": "Doctor, yesterday I was lifting a heavy box and I started seeing flashes in my right eye, and now there is a curtain coming down from the top.",
+    "clinicalNote": "58M, high myope, vision 6/60. Flashes and curtain x 24 hours.",
+    "prompt": "Describe what you see, identify the break if visible, and state the urgency level + plan.",
+    "axesScored": [
+      "knowledge",
+      "safety",
+      "reasoning"
+    ],
+    "rubric": {
+      "good": [
+        "bullous detachment",
+        "horseshoe tear",
+        "macula on or off",
+        "vitrectomy",
+        "buckle",
+        "urgent"
+      ],
+      "poor": [
+        "misses urgency",
+        "no break",
+        "no plan"
+      ]
+    },
+    "modelAnswer": "Bullous superotemporal retinal detachment with what appears to be a horseshoe tear at the posterior margin. I cannot confirm macula status from this single view but the patient's central vision suggests macula-on or recent macula-off. This is an emergency: macula-on RDs need surgery within 24-48 hours. Plan: confirm break and macula status under indirect ophthalmoscopy with scleral indentation, mark the breaks, and arrange same-day vitrectomy with gas tamponade or scleral buckle depending on the break configuration."
+  },
+  {
+    "id": "rev-054",
+    "topic": "retina",
+    "subTopic": "CRVO",
+    "difficulty": 0.6,
+    "type": "image-interpret",
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/7/78/Branch_retinal_vein_occlusion.jpg",
+    "imageAlt": "Fundus showing retinal vein occlusion",
+    "imageCaption": "Retinal vein occlusion, fundus photograph",
+    "imageSource": "Wikimedia Commons",
+    "patientVoice": "Doctor, three days ago I woke up and the vision in my left eye was foggy. By evening it was worse. There is no pain. I have high BP for many years.",
+    "clinicalNote": "55M, OS vision 6/36, OD 6/9. Hypertensive on irregular treatment.",
+    "prompt": "Describe what you see, classify the CRVO, and state the next 2 actions in priority order.",
+    "axesScored": [
+      "knowledge",
+      "reasoning",
+      "safety"
+    ],
+    "rubric": {
+      "good": [
+        "four quadrant hemorrhages",
+        "tortuous veins",
+        "disc edema",
+        "ischaemic vs non-ischaemic",
+        "anti-VEGF",
+        "RAPD check",
+        "100 day glaucoma watch"
+      ],
+      "poor": [
+        "misses ischaemic classification",
+        "no NVG awareness"
+      ]
+    },
+    "modelAnswer": "Diffuse intraretinal hemorrhages in all four quadrants with dilated tortuous veins, mild disc edema, and cotton wool spots — classic CRVO appearance. I need to check for RAPD and consider FFA to classify ischaemic vs non-ischaemic since ischaemic CRVO carries a 60% risk of NVG at around 100 days. Plan: anti-VEGF for the macular edema today, BP optimisation with the GP, and close monitoring with gonioscopy and slit lamp every 2 weeks for early NVI signs."
+  }
+]

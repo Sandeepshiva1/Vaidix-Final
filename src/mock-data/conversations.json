@@ -1,0 +1,172 @@
+[
+  {
+    "id": "conv-001",
+    "caseId": "case-001",
+    "learnerId": "usr-001",
+    "status": "completed",
+    "currentStage": 5,
+    "startedAt": "2026-03-28T09:00:00Z",
+    "completedAt": "2026-03-28T09:25:00Z",
+    "messages": [
+      {
+        "id": "msg-001",
+        "role": "patient",
+        "content": "I'm Mrs. Lakshmi Reddy, 62 years old. Doctor, I'm very worried. Since two weeks the words in my newspaper look wavy, like they're underwater. Straight lines on the door frame appear bent. My mother went completely blind at my age from some eye disease. I live alone and I do all my own cooking and puja. Am I going blind, doctor?",
+        "timestamp": "2026-03-28T09:00:00Z",
+        "stage": 1
+      },
+      {
+        "id": "msg-002",
+        "role": "learner",
+        "content": "Mrs. Reddy, I understand how frightening this must be, especially with your family history. Thank you for coming in. Can you tell me — is this happening in one eye or both? And have you noticed any dark spots or blank areas in the center of your vision?",
+        "timestamp": "2026-03-28T09:01:30Z",
+        "stage": 1
+      },
+      {
+        "id": "msg-003",
+        "role": "patient",
+        "content": "It's mainly my right eye, doctor. When I close my left eye and look at the clock on the wall, the numbers in the center look smudged and dark. With my left eye it's mostly fine. No pain at all. I thought it was just my glasses needing changing, but the optician said I should see a specialist urgently.",
+        "timestamp": "2026-03-28T09:02:30Z",
+        "stage": 1
+      },
+      {
+        "id": "msg-004",
+        "role": "mentor",
+        "content": "Good — you acknowledged her fear and asked focused questions. You've identified key features: acute onset, metamorphopsia, central scotoma, unilateral, painless, and a positive family history. Now let's move to observation. Here is the fundus photograph of her right eye. What do you observe?",
+        "timestamp": "2026-03-28T09:03:30Z",
+        "stage": 2,
+        "attachments": [
+          {
+            "type": "clinical-image",
+            "title": "Fundus Photograph — Right Eye",
+            "data": {
+              "description": "Color fundus photo showing a grayish-green subretinal lesion at the fovea with surrounding subretinal fluid, hard exudates in a circinate pattern, and a small subretinal hemorrhage nasal to the fovea. The optic disc and peripheral retina appear normal.",
+              "findings": ["Subfoveal grayish-green lesion (CNV membrane)", "Subretinal hemorrhage nasal to fovea", "Surrounding subretinal fluid with retinal thickening", "Circinate hard exudates", "Drusen in the macular region"]
+            }
+          }
+        ]
+      },
+      {
+        "id": "msg-005",
+        "role": "learner",
+        "content": "I can see a grayish-green elevated lesion beneath the retina at the fovea, which looks like a choroidal neovascular membrane. There is a small subretinal hemorrhage just nasal to the fovea. I also notice surrounding subretinal fluid causing retinal thickening, hard exudates in a circinate pattern, and scattered drusen across the macula. The disc appears healthy and the peripheral retina seems normal.",
+        "timestamp": "2026-03-28T09:05:00Z",
+        "stage": 2
+      },
+      {
+        "id": "msg-006",
+        "role": "mentor",
+        "content": "Excellent systematic description. You correctly identified the CNV membrane, subretinal hemorrhage, fluid, exudates, and background drusen. Now let's build your differential. Given a 62-year-old woman with metamorphopsia, central scotoma, subfoveal CNV, and drusen — what is your differential diagnosis, and why do you rank them as you do?",
+        "timestamp": "2026-03-28T09:06:00Z",
+        "stage": 3
+      },
+      {
+        "id": "msg-007",
+        "role": "learner",
+        "content": "My primary diagnosis is wet (neovascular) age-related macular degeneration, based on: her age over 55, presence of drusen indicating pre-existing dry AMD, subfoveal CNV membrane, family history of vision loss, and acute painless central vision loss. My differentials would be: (1) Polypoidal choroidal vasculopathy — can present similarly but typically has orange-red polypoidal lesions and is more common in Asian populations with pigmented fundi; (2) Central serous chorioretinopathy — but this is more common in younger males and typically lacks drusen or hemorrhage; (3) Myopic CNV — but she has no history of high myopia and the drusen pattern favors AMD; (4) Idiopathic CNV — a diagnosis of exclusion in younger patients.",
+        "timestamp": "2026-03-28T09:08:00Z",
+        "stage": 3
+      },
+      {
+        "id": "msg-008",
+        "role": "mentor",
+        "content": "Strong differential with sound reasoning. You correctly prioritized wet AMD and gave specific reasons for each alternative. One challenge: PCV is actually an important consideration in Indian patients — how would you distinguish it from typical wet AMD? And why does the distinction matter for treatment?",
+        "timestamp": "2026-03-28T09:09:00Z",
+        "stage": 3
+      },
+      {
+        "id": "msg-009",
+        "role": "learner",
+        "content": "PCV can be distinguished by indocyanine green angiography (ICGA), which shows the characteristic polypoidal dilations at the border of the branching vascular network — FFA alone may not reveal these. The distinction matters because PCV may respond better to combination therapy with photodynamic therapy (PDT) plus anti-VEGF rather than anti-VEGF monotherapy alone, as shown in the EVEREST II trial. For typical wet AMD, anti-VEGF monotherapy is first-line.",
+        "timestamp": "2026-03-28T09:10:30Z",
+        "stage": 3
+      },
+      {
+        "id": "msg-010",
+        "role": "mentor",
+        "content": "Excellent — EVEREST II reference is spot on. Now let's confirm our diagnosis. What investigations would you order for Mrs. Reddy, and what do you expect to find?",
+        "timestamp": "2026-03-28T09:11:30Z",
+        "stage": 4
+      },
+      {
+        "id": "msg-011",
+        "role": "learner",
+        "content": "I would order: (1) OCT macula — to quantify subretinal and intraretinal fluid, measure central macular thickness, and identify the PED; (2) Fundus fluorescein angiography (FFA) — to classify the CNV as classic, occult, or mixed and assess leakage pattern; (3) ICGA — to rule out PCV given her demographics; (4) Amsler grid documentation for baseline metamorphopsia mapping. For the fellow eye, I'd perform a thorough fundus exam to check for drusen and early AMD changes.",
+        "timestamp": "2026-03-28T09:13:00Z",
+        "stage": 4
+      },
+      {
+        "id": "msg-012",
+        "role": "lab",
+        "content": "Investigation results for Mrs. Lakshmi Reddy are ready.",
+        "timestamp": "2026-03-28T09:14:30Z",
+        "stage": 4,
+        "attachments": [
+          {
+            "type": "lab-report",
+            "title": "OCT & Angiography Results",
+            "data": {
+              "OCT Macula OD": "Central macular thickness: 412 microns (elevated). Subfoveal hyperreflective lesion consistent with type 2 CNV. Subretinal fluid present. Serous PED measuring 280 microns in height. No intraretinal cysts.",
+              "FFA": "Early well-defined hyperfluorescence at the fovea with progressive late leakage — predominantly classic CNV pattern. No evidence of ischemia.",
+              "ICGA": "Branching vascular network without terminal polypoidal lesions. Findings consistent with typical neovascular AMD rather than PCV.",
+              "Visual Acuity": "OD: 6/36 (logMAR 0.78), OS: 6/9 (logMAR 0.18)",
+              "IOP": "OD: 14 mmHg, OS: 15 mmHg",
+              "Fellow Eye": "Multiple medium and large soft drusen with RPE changes. No CNV. Consistent with intermediate dry AMD (AREDS category 3)."
+            }
+          }
+        ]
+      },
+      {
+        "id": "msg-013",
+        "role": "learner",
+        "content": "The results confirm wet AMD with a predominantly classic subfoveal CNV in the right eye. The OCT shows significant subretinal fluid and a serous PED with CMT of 412 microns. ICGA has ruled out PCV. The fellow eye shows intermediate dry AMD, which puts her at high risk for bilateral involvement.\n\nMy management plan: (1) Intravitreal anti-VEGF injection — I'd start with aflibercept 2mg or ranibizumab 0.5mg as first-line therapy, with a loading dose of 3 monthly injections followed by a treat-and-extend protocol; (2) AREDS2 supplementation for the fellow eye; (3) Home Amsler grid monitoring for both eyes; (4) Counsel her on the chronic nature of the disease and need for regular follow-up every 4-8 weeks; (5) Address her fear of blindness — explain that with current anti-VEGF therapy, most patients maintain or improve vision.",
+        "timestamp": "2026-03-28T09:17:00Z",
+        "stage": 4
+      },
+      {
+        "id": "msg-014",
+        "role": "mentor",
+        "content": "Comprehensive and evidence-based plan. Let's now move to reflection. You began this case with a frightened patient who asked: \"Am I going blind?\" Looking back, how would you answer her now? And what did this case teach you about the balance between clinical precision and human compassion?",
+        "timestamp": "2026-03-28T09:19:00Z",
+        "stage": 5
+      },
+      {
+        "id": "msg-015",
+        "role": "learner",
+        "content": "I would tell Mrs. Reddy: \"I understand your mother's experience has made this very scary. The good news is that we've caught this at a treatable stage. The condition is called wet macular degeneration, and while it's serious, we now have injections that can stop the leakage and protect your vision. Many patients maintain their reading vision with regular treatment. You won't go blind from this — we'll take care of you.\"\n\nThis case taught me that clinical acumen and empathy aren't separate skills — they inform each other. Her family history wasn't just a risk factor to document; it was the source of her deepest fear. Acknowledging that fear first made her more open to sharing details that helped me reach the diagnosis faster. I also realized that Osler's principle of listening to the patient isn't just about gathering clinical data — it's about understanding what the disease means to that individual person. Mrs. Reddy doesn't fear \"subfoveal CNV\" — she fears losing her independence, not being able to do her puja, not being able to cook for herself. The best treatment plan addresses both the retina and the person.",
+        "timestamp": "2026-03-28T09:22:00Z",
+        "stage": 5
+      },
+      {
+        "id": "msg-016",
+        "role": "mentor",
+        "content": "That is a beautifully thoughtful reflection. You've demonstrated not only strong clinical reasoning — correct diagnosis, appropriate differentials, evidence-based management — but also genuine Oslerian values: you listened before you examined, you observed before you tested, and you treated the patient, not just the disease. Your recognition that her fear of blindness was rooted in her mother's story shows real clinical maturity. Well done, doctor. Case complete.",
+        "timestamp": "2026-03-28T09:24:00Z",
+        "stage": 5
+      }
+    ],
+    "scores": {
+      "head": 85,
+      "heart": 92,
+      "hands": 78,
+      "headBreakdown": {
+        "diagnosticAccuracy": 90,
+        "differentialCompleteness": 88,
+        "reasoningDepth": 82,
+        "evidenceBased": 80
+      },
+      "heartBreakdown": {
+        "patientEngagement": 95,
+        "emotionalVocabulary": 90,
+        "communicationQuality": 92,
+        "reflectionDepth": 91
+      },
+      "handsBreakdown": {
+        "actionSequence": 80,
+        "testOrdering": 82,
+        "examinationTechnique": 75,
+        "deliberatePractice": 75
+      }
+    }
+  }
+]

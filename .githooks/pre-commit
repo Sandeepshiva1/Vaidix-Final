@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# ════════════════════════════════════════════════════════════════════════════
+# pre-commit hook — bash -n syntax check on staged shell scripts
+# ════════════════════════════════════════════════════════════════════════════
+# Installed via: ./scripts/install-git-hooks.sh
+# ════════════════════════════════════════════════════════════════════════════
+
+ERRORS=0
+
+while IFS= read -r file; do
+  if [[ "$file" == *.sh ]]; then
+    if ! bash -n "$file" 2>&1; then
+      echo "[pre-commit] ✗  bash -n failed on $file" >&2
+      ERRORS=$((ERRORS + 1))
+    fi
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ "$ERRORS" -gt 0 ]; then
+  echo "[pre-commit] $ERRORS shell script(s) failed syntax check — fix before committing." >&2
+  exit 1
+fi
+
+exit 0

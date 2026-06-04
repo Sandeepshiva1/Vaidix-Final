@@ -1,0 +1,277 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Vaidix — Production Docker Compose (app + workers + livekit + nginx)
+# ════════════════════════════════════════════════════════════════════════════
+# HARDENING-PLAN.md item #1
+#
+# Redis and MinIO are managed by SEPARATE compose files now:
+#   docker-compose.redis.yml
+#   docker-compose.minio.yml
+# Bring those up first; they share the external network `vaidix-net`.
+#
+# Run on a single Linux host (Ubuntu 22.04 LTS recommended) with:
+#   - Postgres provisioned externally (system-managed)
+#   - Redis up via docker-compose.redis.yml (hostname: redis)
+#   - MinIO up via docker-compose.minio.yml (hostname: minio)  — or use real S3
+#   - sops + age installed; vaidix.env.enc decrypts to runtime env
+#   - Let's Encrypt (or LVPEI internal CA) certs mounted at /etc/letsencrypt
+#   - All data lives under /var/lib/vaidix-data/* (named volumes below)
+#
+# First-time setup (one-time):
+#   docker network create vaidix-net
+#
+# Usage:
+#   ./scripts/load-env.sh                                   # decrypt sealed env
+#   ./scripts/render-configs.sh                             # render egress.yaml from .tpl
+#   docker compose -f docker-compose.redis.yml --env-file .env up -d
+#   docker compose -f docker-compose.minio.yml --env-file .env up -d
+#   docker compose -f docker-compose.prod.yml  --env-file .env up -d
+#   docker compose -f docker-compose.prod.yml logs -f --tail=100 [service]
+#   docker compose -f docker-compose.prod.yml down
+# ════════════════════════════════════════════════════════════════════════════
+
+x-restart: &default-restart
+  restart: unless-stopped
+
+# env_file injects everything in .env literally — vars only land in the
+# container when actually set. Avoids the empty-string-via-${VAR:-} trap
+# that broke zod URL/secret validation. .env is the single source of truth
+# for runtime config.
+x-app-env: &app-env
+  NODE_ENV: production
+  VAIDIX_DATA_ROOT: /var/lib/vaidix-data
+
+services:
+  # ─── Reverse proxy + TLS termination ─────────────────────────────────────
+  # HARDENING-PLAN item #2. Site configs in ./nginx/sites-enabled/.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: vaidix-nginx
+    <<: *default-restart
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites-enabled:/etc/nginx/sites-enabled:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - vaidix-nginx-cache:/var/cache/nginx
+    depends_on:
+      - app
+      - livekit
+    networks:
+      - vaidix-net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  # ─── Next.js app (web + API) ─────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vaidix-app:latest
+    container_name: vaidix-app
+    <<: *default-restart
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+    expose:
+      - "3000"
+    networks:
+      - vaidix-net
+    healthcheck:
+      # HARDENING-PLAN item #4
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2G
+
+  # ─── Background workers (BullMQ consumers) ───────────────────────────────
+  workers:
+    image: vaidix-app:latest
+    container_name: vaidix-workers
+    <<: *default-restart
+    command: ["npm", "run", "workers"]
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+    networks:
+      - vaidix-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2G
+
+  # ─── LiveKit Server (WebRTC SFU) ─────────────────────────────────────────
+  # v1.9 required (NOT v1.8) — livekit-client v2.18+ and the livekit-agents
+  # Python SDK both speak signaling protocol 16, which uses the /rtc/v1/*
+  # HTTP path family. v1.8 returns 404 on /rtc/v1/validate; the WS upgrade
+  # falls back to /rtc but later v1-only signaling messages get silently
+  # dropped → SDK's PeerConnection watchdog times out at ~14s → SDK issues
+  # LeaveRequest + fresh join (Reconnect:false, new pID). To every other
+  # participant it looked like the user dropping and re-joining every ~14s.
+  # Confirmed fixed on prod 2026-05-19 by swapping to v1.9.
+  #
+  # A prior attempt at this bump (reverted in commit 3805888) appeared to
+  # break joins, but on the controlled retry it worked cleanly — the
+  # earlier failure was likely the nginx upstream DNS staleness issue (see
+  # memory: livekit-recreate-also-recreates-nginx), not a v1.9 config
+  # incompatibility. The proper deploy command bounces nginx alongside
+  # livekit, which is what made the retry succeed.
+  livekit:
+    image: livekit/livekit-server:v1.9
+    container_name: vaidix-livekit
+    <<: *default-restart
+    command: --config /etc/livekit.yaml
+    # Redis password injected via Viper env override (verified against
+    # livekit/livekit-server:v1.9). Keeps the password out of livekit.yaml.
+    environment:
+      LIVEKIT_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    ports:
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      # Prod-specific yaml: use_external_ip:true + webhook URL via service
+      # name. DO NOT swap to ./livekit.yaml — that hardcodes a dev LAN IP
+      # in node_ip and a host.docker.internal webhook URL that doesn't
+      # exist on Linux. See livekit.prod.yaml comments for the reasoning.
+      - ./livekit.prod.yaml:/etc/livekit.yaml:ro
+      - vaidix-livekit-data:/data
+    networks:
+      - vaidix-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 4G
+
+  # ─── LiveKit Egress (server-side recording) ──────────────────────────────
+  # Egress does NOT honor EGRESS_REDIS_PASSWORD or LIVEKIT_REDIS_PASSWORD env
+  # vars (verified). The redis password must be in egress.yaml. egress.yaml is
+  # gitignored — render it from egress.yaml.tpl by running
+  #     scripts/render-configs.sh
+  # before `docker compose up`. CI / automation should call the same script.
+  livekit-egress:
+    image: livekit/egress:v1.9
+    container_name: vaidix-livekit-egress
+    <<: *default-restart
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - vaidix-recordings:/output
+    depends_on:
+      - livekit
+    networks:
+      - vaidix-net
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    deploy:
+      resources:
+        limits:
+          # CPU limit removed intentionally. The LiveKit egress binary has a
+          # hardcoded internal floor of 2.0 CPUs for room_composite jobs
+          # (livekit/egress validateCPUConfig — checked at startup, NOT yaml-
+          # tunable). With the previous "cpus: 1.5" cap, egress logged
+          # `not enough cpu` and refused every dispatched job, so the app
+          # got "Service Unavailable: twirp error" back from the egress API
+          # and no Recording row ever got created. On a 2 vCPU host (t3.large)
+          # capping egress at anything less than 2 means it'll never accept
+          # a room composite job. Letting it use the full host CPU is the
+          # only path that works without upsizing the instance.
+          # Live-call latency may degrade during recording. Acceptable until
+          # the instance gets bumped to t3.xlarge or larger.
+          memory: 4G
+
+  # ─── Vaidix Captions Agent (LiveKit Agent → Deepgram → /ingest) ─────────
+  # Joins every LIVE room as a hidden participant, runs Deepgram STT per
+  # subscribed audio track, POSTs transcripts to the Next.js app's
+  # /api/classroom/sessions/<id>/live-captions/ingest endpoint.
+  # Required env (in .env, sealed via sops):
+  #   DEEPGRAM_API_KEY            — Deepgram master API key
+  #   LIVE_CAPTIONS_INGEST_SECRET — 32+ char random hex, shared with the app
+  #   LIVEKIT_API_KEY / SECRET    — already used by the app
+  # The agent registers with LiveKit as a worker on startup and is auto-
+  # dispatched to every new room. One Deepgram WebSocket per UNMUTED
+  # participant, regardless of total seat count.
+  vaidix-captions-agent:
+    build:
+      context: ./vaidix-agent
+      dockerfile: Dockerfile
+    image: vaidix-captions-agent:latest
+    container_name: vaidix-captions-agent
+    <<: *default-restart
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+      DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-3}
+      VAIDIX_INGEST_URL: ${VAIDIX_INGEST_URL:-http://app:3000}
+      LIVE_CAPTIONS_INGEST_SECRET: ${LIVE_CAPTIONS_INGEST_SECRET}
+      LOG_LEVEL: ${CAPTIONS_AGENT_LOG_LEVEL:-INFO}
+    depends_on:
+      - livekit
+      - app
+    networks:
+      - vaidix-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ─── coturn (STUN/TURN) ──────────────────────────────────────────────────
+  coturn:
+    image: coturn/coturn:latest
+    container_name: vaidix-coturn
+    <<: *default-restart
+    network_mode: host
+    # The default image CMD is:
+    #   ["--log-file=stdout", "--external-ip=$(detect-external-ip)"]
+    # which passes --external-ip on the CLI. Our rendered turnserver.conf
+    # already declares external-ip, so coturn fatals with "You cannot
+    # define external IP more than once". We override CMD to keep stdout
+    # logging but strip the auto-detect CLI flag.
+    command: ["--log-file=stdout"]
+    volumes:
+      # MUST mount to /etc/turnserver.conf — coturn's default config path.
+      # Mounting elsewhere (e.g. /etc/coturn/turnserver.conf) means the
+      # container boots with NO config, listens only on private interface
+      # IPs, has no realm, no external-ip, no users, and every TURN
+      # allocation fails silently. That misconfig is what caused every
+      # guest to disconnect ~15 s after joining (no media path).
+      - ./turnserver.conf:/etc/turnserver.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+networks:
+  vaidix-net:
+    external: true
+    name: vaidix-net
+
+volumes:
+  vaidix-livekit-data:
+    name: vaidix-livekit-data
+  vaidix-recordings:
+    name: vaidix-recordings
+  vaidix-nginx-cache:
+    name: vaidix-nginx-cache
