@@ -8,14 +8,22 @@ import path from "path";
 // theme-init script + Next hydration — follow-up is to move to a per-request
 // nonce; frame-ancestors/object-src/base-uri already remove the highest-impact
 // XSS-pivot and clickjacking vectors.
+// Dev (next dev / Turbopack HMR) needs eval() for fast-refresh + debug
+// reconstruction; the production build never does. So we only relax script-src
+// with 'unsafe-eval' in development — prod stays tight.
+const isDev = process.env.NODE_ENV !== 'production';
+// Local dev serves S3 media from MinIO over http://localhost:9000. Prod serves
+// S3/CloudFront over https (already covered by the `https:` source), so this
+// origin is only whitelisted in development — prod CSP stays tight.
+const devS3 = isDev ? ' http://localhost:9000' : '';
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' blob: https:",
+  `img-src 'self' data: blob: https:${devS3}`,
+  `media-src 'self' blob: https:${devS3}`,
   "font-src 'self' data:",
-  "connect-src 'self' https: wss:",
+  `connect-src 'self' https: wss:${devS3}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
