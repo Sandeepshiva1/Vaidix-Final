@@ -16,6 +16,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/server/services/api-helpers'
+import { checkRateLimit, LIMITS } from '@/server/services/rate-limit'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
@@ -106,6 +108,16 @@ interface GradeRequest {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
+    const rl = await checkRateLimit({ bucket: `grade:${auth.user.id}`, ...LIMITS.GRADE })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Grading throttled — please try again later.', fallback: true },
+        { status: 429 }
+      )
+    }
+
     if (!GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'AI grading is not configured on this environment', fallback: true },

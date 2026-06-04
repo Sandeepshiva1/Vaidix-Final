@@ -6,7 +6,7 @@
 // `DeckForgeJob`. Slides are first-class — editable, reorderable, the source
 // of truth for both the in-app presenter and the .pptx export.
 //
-// Gemini is the AI provider in Phase A; Phase B swaps in Vaidix Core SLM
+// Gemini is the AI provider ; Phase B swaps in Vaidix Core SLM
 // behind the same interface. PDFs are sent as inline multimodal data so we
 // don't need a separate PDF-parser dependency.
 
@@ -450,7 +450,7 @@ async function forgeDeckFromTopic(
 
 /**
  * Orchestrates a forge: load source(s), call Gemini, persist Slide rows under
- * a new DeckForgeJob. Synchronous in Phase A — runs inside the request because
+ * a new DeckForgeJob. Synchronous  — runs inside the request because
  * Gemini-text returns in seconds. Phase B will move to a BullMQ worker.
  */
 export async function forgeDeck(input: ForgeInput): Promise<ForgeOutcome> {

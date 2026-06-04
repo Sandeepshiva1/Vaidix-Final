@@ -1,4 +1,4 @@
-// W5 — mint a LiveKit token for the breakout child room
+// mint a LiveKit token for the breakout child room
 import {
   jsonOk,
   requireAuth,

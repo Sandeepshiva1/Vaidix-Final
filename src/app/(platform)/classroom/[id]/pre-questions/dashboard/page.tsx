@@ -1,4 +1,4 @@
-// W6 — /classroom/[id]/pre-questions/dashboard: presenter view (host/PD/admin)
+// /classroom/[id]/pre-questions/dashboard: presenter view (host/PD/admin)
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';

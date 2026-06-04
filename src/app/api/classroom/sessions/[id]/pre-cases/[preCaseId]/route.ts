@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// DELETE /api/classroom/sessions/[id]/pre-cases/[preCaseId] — W6.8
+// DELETE /api/classroom/sessions/[id]/pre-cases/[preCaseId]
 // ════════════════════════════════════════════════════════════════════════════
 // Detach a CaseTemplate from a session's pre-case prep list. The underlying
 // CaseTemplate is untouched; resident attempts (Case rows) are also untouched.

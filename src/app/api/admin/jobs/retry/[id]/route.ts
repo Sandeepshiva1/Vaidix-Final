@@ -1,4 +1,4 @@
-// HARDENING-PLAN.md item #8 — retry a DLQ job.
+// security hardening — retry a DLQ job.
 // POST body: { queue: 'recording-pipeline', dlqJobId: 'dlq:recording-pipeline:abc' }
 // On success the DLQ job is removed and the source queue gets a new job.
 

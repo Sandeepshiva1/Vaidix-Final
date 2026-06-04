@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Recording Share Service — W5
+// Recording Share Service
 // ════════════════════════════════════════════════════════════════════════════
 // Generate share links for a recording. Optional bcrypt-hashed password,
 // configurable expiry (default 7 days, max 30 days), revocation, and full
@@ -8,7 +8,7 @@
 // Token is a 32-byte hex random ID. The raw value is what the user receives
 // in the share URL — but it is NEVER stored at rest. We persist sha256(token)
 // in `tokenHash` and look up by that, so a DB dump cannot be replayed as a
-// share link. (HARDENING-PLAN item #12.)
+// share link. (security hardening.)
 
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';

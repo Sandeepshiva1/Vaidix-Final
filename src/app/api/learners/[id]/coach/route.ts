@@ -1,13 +1,13 @@
 // /api/learners/[id]/coach
-// Stream D #19 — Teaching Bot Reinforcement Coach.
+// Teaching Bot Reinforcement Coach.
 // POST: ask the coach a free-form question. Returns { answer, followUpQuiz,
 //       caseExample } via Gemini-2.5-flash with an ophthalmology coach persona.
 //       Falls back to a deterministic stub when GEMINI_API_KEY is absent or
 //       Gemini is unavailable, so the route never 500s in dev.
 //
-// Stateless in Phase A — no Conversation/Message persistence (would need a new
+// Stateless  — no Conversation/Message persistence (would need a new
 // CoachInteraction model since Conversation requires a caseId). Persistence
-// lands in W7 alongside the journal/coach surface.
+// lands in a later phase alongside the journal/coach surface.
 
 import { z } from 'zod';
 import { Role } from '@prisma/client';
@@ -20,6 +20,7 @@ import {
 } from '@/server/services/api-helpers';
 import { db } from '@/lib/db';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
+import { isUserInProgram } from '@/server/services/program-service';
 import { env } from '@/lib/env';
 import { geminiGenerate, GeminiUnavailableError, GeminiUnparseableError, tryParseJson } from '@/server/services/ai/gemini';
 
@@ -93,6 +94,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     auth.user.role !== Role.FACULTY
   ) {
     return jsonError('FORBIDDEN', 'Cannot coach another user', 403);
+  }
+  if (learnerId !== auth.user.id) {
+    const sameProgram = auth.user.activeProgramId
+      ? await isUserInProgram(learnerId, auth.user.activeProgramId)
+      : false;
+    if (!sameProgram) return jsonError('FORBIDDEN', 'Learner is not in your active program', 403);
   }
 
   const rl = await checkRateLimit({ bucket: `coach:${auth.user.id}`, ...LIMITS.COACH_ASK });

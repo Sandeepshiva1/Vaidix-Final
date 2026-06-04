@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Document Service — W4 Stream C
+// Document Service
 // ════════════════════════════════════════════════════════════════════════════
 // CRUD + presigned uploads + AI classification + session tagging.
 //
@@ -387,12 +387,12 @@ export async function softDeleteDocument(
     data: { deletedAt: new Date() },
   });
   // Storage key removal is intentionally NOT done here — DPDPA expunge worker
-  // (W14) is what actually purges objects. Soft-delete only.
+  // is what actually purges objects. Soft-delete only.
 }
 
 /**
  * Phase A AI classifier: fast heuristic with placeholder confidence.
- * Stream C will swap this with a Gemini-backed call before W4 ends.
+ * a later pass will swap this with a Gemini-backed call later.
  */
 export function heuristicClassify(input: { title: string; mimeType: string; kind: DocumentKind }): {
   suggestedRoute: DocumentRoute;

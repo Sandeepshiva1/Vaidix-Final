@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Session visibility helpers — shared across W6.8 services
+// Session visibility helpers — shared across services
 // ════════════════════════════════════════════════════════════════════════════
 // Audience model: each TeachingSession carries three independent flags, set in
 // any combination at create-time:
@@ -22,8 +22,8 @@ export interface SessionVisibilityActor {
   userId: string;
   role: Role;
   /**
-   * W6.11 — actor's currently active program. Optional for backwards-compat
-   * during the W6.11 rollout: the listing entry-point routes (classroom,
+   * actor's currently active program. Optional for backwards-compat
+   * during the rollout: the listing entry-point routes (classroom,
    * calendar, dashboard upcoming) MUST pass it so admins/PDs are scoped to
    * their active tenant; deeper paths (visibility checks on a known sessionId)
    * tolerate omission since the session id is the security boundary there.
@@ -34,7 +34,7 @@ export interface SessionVisibilityActor {
 }
 
 /**
- * W6.11 — build the program-scoping fragment. Returns an empty fragment if
+ * build the program-scoping fragment. Returns an empty fragment if
  * the actor has no active program (defensive — should not happen in
  * authenticated requests because requireAuthWithProgram fails first).
  */

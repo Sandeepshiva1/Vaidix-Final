@@ -1,4 +1,4 @@
-// W5 — read the breakout agent log entries
+// read the breakout agent log entries
 // (Ingest is in ./ingest/route.ts under bearer-token auth, per BREAKOUT-AGENT-CONTRACT.md)
 import {
   jsonOk,

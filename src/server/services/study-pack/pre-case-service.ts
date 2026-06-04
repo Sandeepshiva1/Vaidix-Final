@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Pre-Case Service — W6.8 (Feeddback #6A, Pre-Case Scenario Simulations)
+// Pre-Case Service
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty curate which `CaseTemplate`s are pre-session prep for a given
 // `TeachingSession`. Residents see them in the Study Pack, click "Start" →
-// idempotently land on a `Case` (their attempt) using the existing W6 cases
+// idempotently land on a `Case` (their attempt) using the existing cases
 // engine. Completion of the case produces an EngagementSignal that the
 // readiness predictor picks up.
 //
@@ -63,7 +63,7 @@ export async function attachPreCase(
   if (!tpl) {
     throw new PreCaseAccessError('NOT_FOUND', 'Case template not found');
   }
-  // W6.11 — the template must belong to the session's program. Cross-tenant
+  // the template must belong to the session's program. Cross-tenant
   // attachment would let a Cornea Fellowship faculty pull MS Ophthalmology
   // templates into their session, leaking content.
   const sess = await db.teachingSession.findUnique({
@@ -357,7 +357,7 @@ export async function startPreCaseAttempt(
   if (!preCase) {
     throw new PreCaseAccessError('NOT_FOUND', 'Pre-case not found for this session');
   }
-  // W6.11 — defense-in-depth. attachPreCase already validates this at write
+  // defense-in-depth. attachPreCase already validates this at write
   // time, but re-check at read so a hand-edited DB row can't bypass tenancy.
   if (preCase.caseTemplate.programId !== preCase.session.programId) {
     throw new PreCaseAccessError('NOT_FOUND', 'Pre-case template program mismatch');
@@ -389,7 +389,7 @@ export async function startPreCaseAttempt(
     };
   }
 
-  // Otherwise create a fresh attempt by reusing the W6 cases-service path.
+  // Otherwise create a fresh attempt by reusing the cases-service path.
   try {
     const created = await startCaseFromTemplate(
       { userId: input.actor.userId, role: input.actor.role },

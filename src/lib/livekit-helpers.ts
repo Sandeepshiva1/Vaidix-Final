@@ -9,8 +9,7 @@
 // `kind: STANDARD` (the default) and the obvious filter
 // `p.kind !== ParticipantKind.AGENT` never matches — the agent kept showing
 // up as a giant placeholder tile in the video grid and a row in the People
-// panel for both hosts and guests (Feeddback.md observed via screenshots
-// 2026-05-17).
+// panel for both hosts and guests.
 //
 // The framework still assigns agent identities a stable prefix though:
 // `agent-AJ_<token>`. So we belt-and-suspenders the filter — match on EITHER

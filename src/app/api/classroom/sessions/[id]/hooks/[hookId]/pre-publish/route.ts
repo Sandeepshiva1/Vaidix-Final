@@ -1,4 +1,4 @@
-// /api/classroom/sessions/[id]/hooks/[hookId]/pre-publish — W9.4
+// /api/classroom/sessions/[id]/hooks/[hookId]/pre-publish
 // POST   — pre-publishes the hook (residents can now vote before the session)
 // DELETE — revokes pre-publish (hook hidden from residents; responses kept)
 

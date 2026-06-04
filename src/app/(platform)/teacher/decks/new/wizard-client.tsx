@@ -255,7 +255,7 @@ export function DeckWizardClient({ existingDocs }: Props) {
         throw new Error(json.error?.message ?? `Forge failed (${res.status})`);
       }
       // Wizard-forged decks land in the Presentation Studio. Legacy /[jobId]
-      // (the W4-era simple editor) stays for old jobs.
+      // (the legacy simple editor) stays for old jobs.
       router.push(`/teacher/decks/${json.data.jobId}/studio`);
     } catch (err) {
       setForgeError((err as Error).message);

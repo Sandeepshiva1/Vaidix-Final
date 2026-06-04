@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// PHI Scan Worker — fixes the W4 Document gap (reviewer flagged this)
+// PHI Scan Worker — fixes the Document gap (reviewer flagged this)
 // ════════════════════════════════════════════════════════════════════════════
 // Consumes PHI_SCAN queue jobs:
 //   { documentId } → downloads document from MinIO, extracts text per mime,

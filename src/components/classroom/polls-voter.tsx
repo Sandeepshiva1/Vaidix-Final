@@ -1,7 +1,7 @@
 'use client'
 
 // ════════════════════════════════════════════════════════════════════════════
-// Resident Polls Voter — W9.4
+// Resident Polls Voter
 // ════════════════════════════════════════════════════════════════════════════
 // Renders inside the new "Poll" tab on the resident Study Hub. Lists the
 // pre-published polls for the session, lets the resident cast one vote per

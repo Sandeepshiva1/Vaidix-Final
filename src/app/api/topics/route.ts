@@ -1,4 +1,4 @@
-// W6 — list topics, optionally filtered by subspecialty.
+// list topics, optionally filtered by subspecialty.
 // POST: faculty/PD/admin can create topics on the fly from the
 // schedule-session wizard (and other surfaces) without an admin trip.
 import { z } from 'zod';
@@ -28,7 +28,7 @@ const createSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    // W6.11 — topic curriculum is per-program.
+    // topic curriculum is per-program.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;
     const q = await parseQuery(req, querySchema);

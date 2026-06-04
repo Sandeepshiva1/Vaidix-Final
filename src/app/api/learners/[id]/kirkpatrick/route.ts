@@ -1,4 +1,4 @@
-// /api/learners/[id]/kirkpatrick — Stream D #11
+// /api/learners/[id]/kirkpatrick
 // Kirkpatrick L1–L4 evaluations.
 // POST: faculty/PD records an L1 (reaction survey) entry, OR auto-derives L2.
 // GET: returns the current rolling L1–L4 picture.
@@ -15,8 +15,24 @@ import {
 } from '@/server/services/api-helpers';
 import { audit, AUDIT_EVENTS, extractRequestMetadata } from '@/server/services/audit';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
+import { isUserInProgram } from '@/server/services/program-service';
 
 const VIEWER_ROLES_FOR_OTHERS: Role[] = [Role.ADMIN, Role.PROGRAM_DIRECTOR, Role.FACULTY];
+
+// Tenant guard: a privileged actor may only act on another learner who shares
+// their active program. Returns a 403 response when the cross-program access
+// must be blocked, or null when access is allowed.
+async function denyIfCrossProgram(
+  actor: { id: string; activeProgramId: string | null },
+  learnerId: string,
+): Promise<Response | null> {
+  if (learnerId === actor.id) return null;
+  const sameProgram = actor.activeProgramId
+    ? await isUserInProgram(learnerId, actor.activeProgramId)
+    : false;
+  if (!sameProgram) return jsonError('FORBIDDEN', 'Learner is not in your active program', 403);
+  return null;
+}
 
 const submitSchema = z.object({
   level: z.nativeEnum(KirkpatrickLevel),
@@ -50,6 +66,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (isSelf && body.data.level !== KirkpatrickLevel.L1_REACTION) {
     return jsonError('FORBIDDEN', 'Learners can only submit L1 reaction surveys themselves', 403);
   }
+  const crossProgram = await denyIfCrossProgram(auth.user, learnerId);
+  if (crossProgram) return crossProgram;
 
   const rl = await checkRateLimit({ bucket: `kp-write:${auth.user.id}`, ...LIMITS.KIRKPATRICK_WRITE });
   if (!rl.allowed) {
@@ -101,6 +119,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (learnerId !== auth.user.id && !VIEWER_ROLES_FOR_OTHERS.includes(auth.user.role)) {
     return jsonError('FORBIDDEN', 'Cannot view another learner', 403);
   }
+  const crossProgram = await denyIfCrossProgram(auth.user, learnerId);
+  if (crossProgram) return crossProgram;
 
   try {
     const evals = await db.kirkpatrickEvaluation.findMany({

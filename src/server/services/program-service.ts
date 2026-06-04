@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Program Service — W6.11 multi-tenancy
+// Program Service — multi-tenancy
 // ════════════════════════════════════════════════════════════════════════════
 // Helpers around Program + ProgramMembership. Used by:
 //   - auth.ts authorize() to hydrate the JWT at sign-in
@@ -125,6 +125,20 @@ export async function tryGetActiveProgramIdFromSession(): Promise<string | null>
   const { auth } = await import('@/auth');
   const session = await auth();
   return session?.user?.activeProgramId ?? null;
+}
+
+/**
+ * Whether a user is a member of a given program. Used to enforce tenant
+ * isolation when one user accesses *another* user's data: a FACULTY/PD in
+ * program A must not be able to read/write a learner who only belongs to
+ * program B, even though their global role would otherwise allow it.
+ */
+export async function isUserInProgram(userId: string, programId: string): Promise<boolean> {
+  const m = await db.programMembership.findUnique({
+    where: { userId_programId: { userId, programId } },
+    select: { id: true },
+  });
+  return !!m;
 }
 
 /** Used by routes that need the role inside the active program (UI shaping). */

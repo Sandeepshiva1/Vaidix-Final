@@ -1,7 +1,7 @@
 'use client'
 
 // ════════════════════════════════════════════════════════════════════════════
-// Teaser Video Button — faculty / host triggers + previews the promo MP4 (W6.8)
+// Teaser Video Button — faculty / host triggers + previews the promo MP4
 // ════════════════════════════════════════════════════════════════════════════
 // Click → POST /api/promo/teaser-video → poll /api/documents/[id] until the
 // worker has uploaded the MP4 (sizeBytes > 0). Then render an inline <video>

@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// POST /api/classroom/sessions/[id]/study-pack/views — W6.8
+// POST /api/classroom/sessions/[id]/study-pack/views
 // ════════════════════════════════════════════════════════════════════════════
 // Resident (or any session-visible user) records that they viewed a pre-session
 // item. Body must specify exactly one of: documentLinkId | preCaseId.
@@ -7,7 +7,7 @@
 // the resident finished the case conversation or watched-to-end).
 //
 // Side effect: also writes an EngagementSignal of the matching kind so the
-// existing aggregator + the W6.8 readiness predictor see the same data.
+// existing aggregator + the readiness predictor see the same data.
 
 import { z } from 'zod';
 import {

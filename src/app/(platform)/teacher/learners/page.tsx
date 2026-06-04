@@ -76,7 +76,7 @@ export default async function LearnersPage({ searchParams }: PageProps) {
             <h1 className="text-2xl font-bold tracking-tight">Learners</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Real-time view of student engagement. DOPS / 3H scoring lands in Week 8.
+            Real-time view of student engagement. DOPS / 3H scoring is coming soon.
           </p>
         </div>
       </StaggerItem>

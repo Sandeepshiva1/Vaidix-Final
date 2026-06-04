@@ -3,7 +3,6 @@
 // ════════════════════════════════════════════════════════════════════════════
 // POST: create a draft Document + return a presigned upload URL.
 // GET:  list documents visible to the actor.
-// W4 Stream C.
 
 import { z } from 'zod';
 import { Role, DocumentRoute } from '@prisma/client';

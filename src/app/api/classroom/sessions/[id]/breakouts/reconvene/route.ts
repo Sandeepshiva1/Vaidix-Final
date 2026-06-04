@@ -1,4 +1,4 @@
-// W5 — reconvene: end all ACTIVE breakouts on the session
+// reconvene: end all ACTIVE breakouts on the session
 import {
   jsonOk,
   requireAuth,

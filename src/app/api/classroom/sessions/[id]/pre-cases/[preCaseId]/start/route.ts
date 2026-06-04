@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════════════════════════════════
-// POST /api/classroom/sessions/[id]/pre-cases/[preCaseId]/start — W6.8
+// POST /api/classroom/sessions/[id]/pre-cases/[preCaseId]/start
 // ════════════════════════════════════════════════════════════════════════════
 // Resident clicks "Start" on a Study Pack pre-case. Idempotent:
 //   - if the resident already has an ACTIVE Case for this template, return it
-//   - else create a fresh Case via the W6 cases-service path
+//   - else create a fresh Case via the cases-service path
 // Returns { caseId, conversationId } so the client can navigate to
 // /cases/[caseId] (the existing Socratic conversation surface).
 

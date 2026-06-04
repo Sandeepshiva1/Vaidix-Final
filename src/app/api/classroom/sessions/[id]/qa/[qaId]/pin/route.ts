@@ -1,4 +1,4 @@
-// W5 — pin / unpin a Q&A item (host, PD, or admin only)
+// pin / unpin a Q&A item (host, PD, or admin only)
 import { z } from 'zod';
 import {
   jsonOk,

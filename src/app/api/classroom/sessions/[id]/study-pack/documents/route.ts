@@ -1,8 +1,8 @@
 // ════════════════════════════════════════════════════════════════════════════
-// POST /api/classroom/sessions/[id]/study-pack/documents — W6.8
+// POST /api/classroom/sessions/[id]/study-pack/documents
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty / host marks an existing session-tagged Document as pre-session.
-// The document MUST already be linked to the session (via the W4 tag-session
+// The document MUST already be linked to the session (via the tag-session
 // flow at /api/documents/[id]/tag-session) — this endpoint only flips the
 // isPreSession boolean on the existing DocumentSessionLink row.
 

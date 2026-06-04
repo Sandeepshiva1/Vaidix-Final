@@ -250,7 +250,7 @@ export function BreakoutsPanel({ sessionId, isFaculty, onJoin, currentUserId }: 
                     <Sparkles className="mr-1 inline h-3 w-3" />
                     AI auto-group
                     <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-normal text-amber-800">
-                      Available in W11
+                      Coming soon
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">

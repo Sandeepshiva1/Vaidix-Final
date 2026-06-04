@@ -9,7 +9,7 @@
 //   2. Pre-cases — search the case template library + attach selected
 //      templates as SessionPreCase rows.
 //
-// Faculty must already have tagged docs to the session via the W4 flow
+// Faculty must already have tagged docs to the session via the flow
 // (/api/documents/[id]/tag-session). This panel intentionally doesn't expose
 // "upload a new doc" — that's the documents library's job. Keeps concerns
 // separate (tagging vs prep-marking).

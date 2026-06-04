@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// /recordings/share/[token] — public share-link viewer (W5)
+// /recordings/share/[token] — public share-link viewer
 // ════════════════════════════════════════════════════════════════════════════
 // Unauthenticated, intentionally outside the (platform) layout. Renders a
 // minimal player or password gate, calling the public resolver

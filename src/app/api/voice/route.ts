@@ -9,6 +9,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/server/services/api-helpers'
+import { checkRateLimit, LIMITS } from '@/server/services/rate-limit'
 
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY || ''
 const SARVAM_STT_URL = 'https://api.sarvam.ai/speech-to-text'
@@ -16,6 +18,16 @@ const SARVAM_STT_MODEL = process.env.SARVAM_STT_MODEL || 'saaras:v3'
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
+    const rl = await checkRateLimit({ bucket: `voice:${auth.user.id}`, ...LIMITS.VOICE_STT })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Voice transcription throttled — please try again later.' },
+        { status: 429 }
+      )
+    }
+
     if (!SARVAM_API_KEY) {
       return NextResponse.json(
         { error: 'SARVAM_API_KEY not configured' },

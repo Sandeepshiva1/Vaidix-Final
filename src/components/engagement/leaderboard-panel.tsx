@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════════════════
-// LeaderboardPanel — Stream D #17
+// LeaderboardPanel
 // ════════════════════════════════════════════════════════════════════════════
 // Polls /api/classroom/sessions/[id]/leaderboard every 5s. Anonymous toggle
 // flips ?anonymous=true (resident names replaced with "Resident #N").

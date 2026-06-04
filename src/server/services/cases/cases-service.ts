@@ -1,17 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Cases Service — W6 Phase 2
+// Cases Service
 // ════════════════════════════════════════════════════════════════════════════
-// DB-backed replacement for the W6 mock-data flow:
+// DB-backed replacement for the mock-data flow:
 //   - List CaseTemplate (the library) with the same filters the old mock UI had
 //   - Start a case → creates a Case (resident attempt) + Conversation +
 //     opening patient Message from the template
 //   - Send message → persists the resident's message and produces the next
-//     AI/patient message via mentor-response.ts (Gemini in Phase A; falls back
+//     AI/patient message via mentor-response.ts (Gemini ; falls back
 //     to a stage-aware default when Gemini is unavailable)
 //   - List past conversations on a template (for "Review Previous Attempt")
 //
 // Stage progression: stage advances on every resident message until COMPLETED.
-// W13 will swap the deterministic stage walker for a model-graded transition
+// A future iteration will swap the deterministic stage walker for a model-graded transition
 // (verdict='advance' from /api/grade-style scoring).
 
 import { db } from '@/lib/db';
@@ -66,7 +66,7 @@ export interface CaseTemplateView {
 }
 
 export interface ListTemplatesOptions {
-  /** W6.11: required — case bank is per-program. */
+  /** Required — case bank is per-program. */
   programId: string;
   search?: string;
   difficulty?: CaseDifficulty;
@@ -126,7 +126,7 @@ export async function listCaseTemplates(opts: ListTemplatesOptions): Promise<Cas
 }
 
 export async function getCaseTemplate(idOrLegacyId: string, programId: string): Promise<CaseTemplateView> {
-  // W6.11 — scope by program so an MS Ophth user can never read a Cornea
+  // scope by program so an MS Ophth user can never read a Cornea
   // Fellowship template by guessing its id.
   const t = await db.caseTemplate.findFirst({
     where: {
@@ -202,7 +202,7 @@ export async function startCase(
   templateIdOrLegacy: string,
   programId: string,
 ): Promise<{ caseId: string; conversationId: string }> {
-  // W6.11 — case bank is per-program; never start a case from another tenant.
+  // case bank is per-program; never start a case from another tenant.
   const template = await db.caseTemplate.findFirst({
     where: {
       programId,
@@ -302,7 +302,7 @@ export async function getConversation(
   });
   if (!conv) throw new CasesError('NOT_FOUND', 'Conversation not found');
   // Authorization: residents can only see their own conversations.
-  // Faculty / PD / admin can see any (for review / scoring in W8).
+  // Faculty / PD / admin can see any (for review / scoring in a later phase).
   if (
     actor.role === Role.RESIDENT &&
     conv.case.residentId !== actor.userId

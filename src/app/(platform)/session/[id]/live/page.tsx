@@ -22,5 +22,5 @@ export default async function LiveConferencePage({ params }: { params: Promise<{
   const isHost = view.hostId === session.user.id
   if (!isHost && !FACULTY_LIKE.includes(session.user.role)) redirect('/dashboard')
 
-  return <LiveConference session={view} />
+  return <LiveConference session={view} isHost={isHost} />
 }

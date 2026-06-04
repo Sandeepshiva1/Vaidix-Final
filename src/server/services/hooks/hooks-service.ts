@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Live Hooks Service — Stream D #4
+// Live Hooks Service
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty creates hooks ahead of time (or queues recurring ones every 6–8 min).
 // At runtime, the LiveSession client polls /hooks?live=1 to discover newly
@@ -56,7 +56,7 @@ export async function fireHook(hookId: string, presenterId: string): Promise<voi
 }
 
 /**
- * W9.4 — Mark a hook as pre-published so residents can vote BEFORE the live
+ * Mark a hook as pre-published so residents can vote BEFORE the live
  * session starts. Idempotent: calling on an already-published hook just
  * returns the existing timestamp. Refuses to publish polls that have no
  * options (would render an unanswerable card).
@@ -98,7 +98,7 @@ export async function prePublishHook(
 }
 
 /**
- * W9.4 — Revoke pre-publish. Residents can no longer see the hook (it goes
+ * Revoke pre-publish. Residents can no longer see the hook (it goes
  * back to a draft state). Existing responses are kept so a presenter who
  * accidentally unpublishes does not lose data. Idempotent.
  */
@@ -120,7 +120,7 @@ export async function unPrePublishHook(
 }
 
 /**
- * W9.4 — Update a hook's question / options / kind. Only allowed BEFORE the
+ * Update a hook's question / options / kind. Only allowed BEFORE the
  * hook has any responses; once residents (or live participants) have voted,
  * the shape is locked to keep the aggregate honest. The presenter must
  * delete and recreate to fundamentally change a hook with votes.
@@ -156,7 +156,7 @@ export async function updateHookDraft(
 }
 
 /**
- * W9.4 — Delete a hook. Refused if there are responses (use unPrePublish
+ * Delete a hook. Refused if there are responses (use unPrePublish
  * instead to take it off the resident page while keeping the data). The
  * narrow allowance preserves audit history when a real poll runs.
  */
@@ -181,7 +181,7 @@ export async function deleteHookDraft(
 }
 
 /**
- * W9.4 — Aggregate vote counts per option for a hook. Returns the user's
+ * Aggregate vote counts per option for a hook. Returns the user's
  * own answer too so the resident voter UI can highlight it. The total +
  * per-option counts are safe to expose pre-vote (Mentimeter pattern: hide
  * results until the user has answered), but route-layer enforces that.
@@ -255,7 +255,7 @@ export async function listLiveHooks(
     where: {
       sessionId,
       ...(opts.onlyFired ? { firedAt: { not: null } } : {}),
-      // W9.4 — filter to pre-published-only (resident query); false means
+      // filter to pre-published-only (resident query); false means
       // "only drafts/unpublished" which the host UI uses to find drafts.
       ...(opts.prePublished === true ? { prePublishedAt: { not: null } } : {}),
       ...(opts.prePublished === false ? { prePublishedAt: null } : {}),
@@ -302,7 +302,7 @@ export async function recordHookResponse(input: {
   });
   if (!hook) throw new Error('Hook not found');
   if (hook.closedAt) throw new Error('Hook closed');
-  // W9.4 — a draft hook (neither pre-published nor fired) is not visible to
+  // a draft hook (neither pre-published nor fired) is not visible to
   // residents and must not accept votes. The host shouldn't reach this path
   // either since their UI only shows published rows in the voter; this is a
   // defense-in-depth check against forged hookId requests.

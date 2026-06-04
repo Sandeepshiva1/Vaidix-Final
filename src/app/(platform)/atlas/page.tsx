@@ -101,7 +101,7 @@ export default function SignsAtlasPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Master the visual language of ophthalmology. DB-backed catalog lands in Week 9.
+          Master the visual language of ophthalmology. DB-backed catalog is coming soon.
         </p>
         <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">{signs.length} Signs</span>
@@ -112,23 +112,23 @@ export default function SignsAtlasPage() {
         </div>
       </StaggerItem>
 
-      {/* W9 build-plan banner — atlas reads mock JSON until /api/atlas + AtlasImage upload land per VAIDIX-BUILD-PLAN-NOW.md §10c. */}
+      {/* preview banner — atlas reads mock JSON until /api/atlas + AtlasImage upload land */}
       <StaggerItem>
         <Card className="border-dashed">
           <CardContent className="flex items-start gap-3 pt-6">
             <FlaskConical className="mt-0.5 size-5 shrink-0 text-amber-600" />
             <div className="text-sm">
-              <p className="font-medium">Scheduled for Week 9 of the build plan.</p>
+              <p className="font-medium">Not yet available.</p>
               <p className="mt-1 text-muted-foreground">
                 The atlas currently reads from{' '}
                 <code className="rounded bg-muted px-1 py-0.5 text-xs">mock-data/signs-atlas.json</code>.
                 The <span className="font-medium">AtlasImage</span> +{' '}
-                <span className="font-medium">AtlasTag</span> tables exist in the schema (W0 lock)
+                <span className="font-medium">AtlasTag</span> tables exist in the schema
                 but no upload route or DB query route has shipped yet — admin upload, faculty
                 review, and the <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/atlas</code>{' '}
-                read endpoint all ship in W9. Engagement (bookmarks via{' '}
+                read endpoint are not yet wired. Engagement (bookmarks via{' '}
                 <code className="rounded bg-muted px-1 py-0.5 text-xs">targetType=ATLAS_IMAGE</code>)
-                already reuses the W6.5 service — no new infra needed when the catalog goes live.
+                already reuses the existing engagement service — no new infra needed when the catalog goes live.
               </p>
             </div>
           </CardContent>

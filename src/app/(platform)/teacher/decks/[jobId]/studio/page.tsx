@@ -7,7 +7,7 @@
 // a refine chat input footer.
 //
 // The legacy editor at /teacher/decks/[jobId] is kept for backward compat
-// with W4-era forge jobs; the wizard-forge flow redirects to /studio.
+// with legacy forge jobs; the wizard-forge flow redirects to /studio.
 
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/auth';

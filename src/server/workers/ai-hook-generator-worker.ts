@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// AI Hook Generator Worker — W8.1
+// AI Hook Generator Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Processes 'ai-hook-generator' jobs from the AI_HOOK queue.
 // Each job reads the live session transcript, calls Gemini, creates + fires

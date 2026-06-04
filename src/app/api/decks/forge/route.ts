@@ -1,5 +1,5 @@
 // POST /api/decks/forge — generate a slide deck from an uploaded document
-// and/or a recording transcript. Faculty-only. Phase A: synchronous Gemini.
+// and/or a recording transcript. Faculty-only. synchronous Gemini.
 
 import { z } from 'zod';
 import { Role, DeckForgeStatus } from '@prisma/client';

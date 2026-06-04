@@ -1,4 +1,4 @@
-// W6 — presenter dashboard: top-N themes with example questions (host/PD/admin)
+// presenter dashboard: top-N themes with example questions (host/PD/admin)
 import { z } from 'zod';
 import {
   jsonOk,

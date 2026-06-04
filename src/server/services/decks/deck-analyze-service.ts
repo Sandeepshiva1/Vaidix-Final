@@ -16,7 +16,7 @@
 // router's `aiEnhanceEnglish` / `aiEnhanceContent` ops.
 //
 // Persisted to DeckForgeJob.analysisResult as a versioned blob (`source:
-// "router-v2"`) — the W4 v1 heuristic shape stays parseable for old rows.
+// "router-v2"`) — the v1 heuristic shape stays parseable for old rows.
 
 import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';

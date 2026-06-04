@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/providers/theme-provider'
+import { CsrfFetchProvider } from '@/providers/csrf-fetch-provider'
 import { CommandPalette } from '@/components/shared/command-palette'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
@@ -25,8 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <CommandPalette />
-          {children}
+          <CsrfFetchProvider>
+            <CommandPalette />
+            {children}
+          </CsrfFetchProvider>
         </ThemeProvider>
       </body>
     </html>

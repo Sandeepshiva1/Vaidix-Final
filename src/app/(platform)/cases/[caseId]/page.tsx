@@ -1,6 +1,6 @@
 'use client'
 
-// W6 P2 — DB-backed case detail page. The "Start Case" button creates a real
+// DB-backed case detail page. The "Start Case" button creates a real
 // Case + Conversation server-side via POST /api/cases/[id]/conversations and
 // then routes to the live chat at /cases/[id]/session?conv=<id>.
 

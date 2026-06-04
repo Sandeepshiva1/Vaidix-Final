@@ -294,8 +294,7 @@ export default async function LayoutLabPage() {
             + Playwright UI test exercising all five layouts end-to-end.
           </li>
           <li>
-            Phase 6 — single new entry in{' '}
-            <code className="rounded bg-white/10 px-1 text-xs">VAIDIX-BUILD-PLAN-NOW.md</code>{' '}
+            Phase 6 — single new entry in the project roadmap
             committed in the same turn as the Phase 3 API/DB changes.
           </li>
         </ol>

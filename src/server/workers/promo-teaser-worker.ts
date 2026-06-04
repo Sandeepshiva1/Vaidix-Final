@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Promo Teaser Render Worker — W6.8
+// Promo Teaser Render Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Consumes 'promo-teaser-render' jobs from the PROMO queue. For each job:
 //   1. Look up the placeholder Document row that the route created

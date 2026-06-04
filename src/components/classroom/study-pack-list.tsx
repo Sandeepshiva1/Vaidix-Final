@@ -959,7 +959,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
           </div>
         </div>
 
-        {/* ── Promo & Share banner (W9) ── */}
+        {/* ── Promo & Share banner ── */}
         <AnimatePresence>
           {showPromoBanner && (
             <motion.div
@@ -1280,7 +1280,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
                   )}
                 </div>
 
-                {/* ── AI-suggested objective chips (W9) ── */}
+                {/* ── AI-suggested objective chips ── */}
                 <AnimatePresence>
                   {suggestions.length > 0 && (
                     <motion.div
@@ -1564,7 +1564,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
               </div>
             )}
 
-            {/* ── Q&A TAB (W9.3) ── */}
+            {/* ── Q&A TAB ── */}
             {activeTab === 'questions' && (
               <div className="space-y-5">
                 {/* Frame their thinking — presenter-published doubt prompts */}
@@ -1640,7 +1640,7 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
               </div>
             )}
 
-            {/* ── POLLS TAB (W9.4) ── */}
+            {/* ── POLLS TAB ── */}
             {activeTab === 'polls' && (
               <PollsManager sessionId={sessionId} />
             )}
@@ -2014,7 +2014,7 @@ function StudentStudyHub({
                     : <FlashcardDrill cards={flashcards} drillIdx={drillIdx} setDrillIdx={setDrillIdx} results={drillResults} setResults={setDrillResults} />
                 )}
 
-                {/* W9.4 — pre-session structured polls (LiveHook kind=POLL,
+                {/* pre-session structured polls (LiveHook kind=POLL,
                     pre-published). Mentimeter-style: one vote, then aggregate. */}
                 {activeTab === 'polls' && (
                   <PollsVoter sessionId={sessionId} />

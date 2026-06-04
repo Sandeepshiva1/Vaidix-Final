@@ -1,10 +1,11 @@
-// /api/learners/[id]/blooms-progression — Stream D #21
+// /api/learners/[id]/blooms-progression
 // Aggregates the learner's case attempts bucketed by Case.difficultyLevel
 // (1–6 maps to Bloom's). Each bucket reports attempted vs strong-score events.
 
 import { db } from '@/lib/db';
 import { Role } from '@prisma/client';
 import { handleUnexpected, jsonError, jsonOk, requireAuth } from '@/server/services/api-helpers';
+import { isUserInProgram } from '@/server/services/program-service';
 
 const VIEWER_ROLES_FOR_OTHERS: Role[] = [Role.ADMIN, Role.PROGRAM_DIRECTOR, Role.FACULTY];
 
@@ -27,6 +28,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   if (learnerId !== auth.user.id && !VIEWER_ROLES_FOR_OTHERS.includes(auth.user.role)) {
     return jsonError('FORBIDDEN', 'Cannot view another learner', 403);
+  }
+  if (learnerId !== auth.user.id) {
+    const sameProgram = auth.user.activeProgramId
+      ? await isUserInProgram(learnerId, auth.user.activeProgramId)
+      : false;
+    if (!sameProgram) return jsonError('FORBIDDEN', 'Learner is not in your active program', 403);
   }
 
   try {

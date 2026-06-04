@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════════════════
-// LiveCaptionsOverlay — Stream B9 + W7.4
+// LiveCaptionsOverlay
 // ════════════════════════════════════════════════════════════════════════════
 // Subscribes to /api/classroom/sessions/[id]/live-captions SSE. Renders the
 // most recent partial + final lines as a captioned overlay at the bottom of

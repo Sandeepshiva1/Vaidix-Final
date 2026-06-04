@@ -25,6 +25,7 @@ export async function GET() {
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
+      take: 1000, // bound the response; admin onboarding queue is reviewed, not paged
     });
 
     const openInvitations = await db.invitation.findMany({
@@ -41,6 +42,7 @@ export async function GET() {
         invitedBy: { select: { id: true, name: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 1000,
     });
 
     return jsonOk({

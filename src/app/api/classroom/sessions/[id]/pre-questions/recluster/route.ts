@@ -1,4 +1,4 @@
-// W6 — host/PD/admin: bypass the 30s debounce and force an immediate re-cluster
+// host/PD/admin: bypass the 30s debounce and force an immediate re-cluster
 import {
   jsonOk,
   requireAuth,

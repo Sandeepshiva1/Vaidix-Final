@@ -1,4 +1,4 @@
-// HARDENING-PLAN.md item #14 — durable audit-log writer.
+// security hardening — durable audit-log writer.
 // Queue path: app calls `audit()` → fails on direct write → enqueues here →
 // worker retries with exponential backoff. Idempotency uses the BullMQ jobId
 // (UUID minted at enqueue time) and an `audit_events.idempotencyKey` column.

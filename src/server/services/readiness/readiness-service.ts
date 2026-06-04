@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Readiness Service — W6.8 (Feeddback #5, Readiness Predictor)
+// Readiness Service
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty / PD see a per-learner readiness panel for an upcoming session.
 // We compute a deterministic 0–100 score per learner from prep signals:

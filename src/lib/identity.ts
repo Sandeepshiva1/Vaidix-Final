@@ -35,7 +35,7 @@ export type UserWithProfile = PrismaUser & {
 }
 
 /**
- * W6.11 — lightweight membership shape passed to the client. Mirrors
+ * lightweight membership shape passed to the client. Mirrors
  * SessionProgramMembership in src/types/next-auth.d.ts but uses the lowercase
  * UserRole the UI works in. Kept in `Identity` (not on a separate context)
  * so the existing RoleProvider stays the single source for "who is this and
@@ -59,9 +59,9 @@ export interface Identity {
   department: string | null
   yearOfTraining: string | null
   specialization: string | null
-  /** W6.11 — programs the user is a member of (active filtered). */
+  /** programs the user is a member of (active filtered). */
   programs: IdentityProgramMembership[]
-  /** W6.11 — currently selected program. Null only for users with zero memberships. */
+  /** currently selected program. Null only for users with zero memberships. */
   activeProgramId: string | null
 }
 

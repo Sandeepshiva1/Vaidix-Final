@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Post-Session Content Pack — W8.3
+// Post-Session Content Pack
 // ════════════════════════════════════════════════════════════════════════════
 // Two-pass pipeline for Pearls, Q&A, SJT, PBL extraction from session
 // transcripts. Routes through ai/router — never calls providers directly.
@@ -17,11 +17,7 @@
 //
 // Fallback: if Gemini segmentation fails, the long path falls through to
 // single-pass on the last SHORT_TRANSCRIPT_THRESHOLD chars.
-//
-// NOTE: Uses $queryRaw / $executeRawUnsafe for three tables and the
-// sourceSessionTranscriptId column — see original W8.3 note at the bottom.
 
-import crypto from 'node:crypto';
 import { db } from '@/lib/db';
 import {
   aiExtractFromSourceJson,
@@ -133,10 +129,6 @@ export interface PostSessionPackResult {
   reason?: string;
 }
 
-function newId(): string {
-  return crypto.randomUUID().replace(/-/g, '');
-}
-
 // ─── Main entry ────────────────────────────────────────────────────────────
 
 export async function generatePostSessionPack(
@@ -158,11 +150,11 @@ export async function generatePostSessionPack(
     return { pearls: 0, qaPairs: 0, sjtCases: 0, pblScenarios: 0, skipped: true, reason: 'session-not-found' };
   }
 
-  // Idempotency — raw SQL because postSessionQa is not in the stale Prisma client.
-  const existingRows = await db.$queryRaw<[{ count: bigint }]>`
-    SELECT COUNT(*) as count FROM post_session_qa WHERE "sessionTranscriptId" = ${transcript.id}
-  `;
-  if (Number(existingRows[0]?.count ?? 0) > 0) {
+  // Idempotency — skip if a pack was already generated for this transcript.
+  const existingCount = await db.postSessionQa.count({
+    where: { sessionTranscriptId: transcript.id },
+  });
+  if (existingCount > 0) {
     return { pearls: 0, qaPairs: 0, sjtCases: 0, pblScenarios: 0, skipped: true, reason: 'already-generated' };
   }
 
@@ -322,16 +314,18 @@ async function persistPearls(
   topicId: string | null,
 ): Promise<number> {
   for (const p of pearls) {
-    await db.$executeRawUnsafe(
-      `INSERT INTO pearls (id, title, body, "programId", "topicId", "sourceType", "sourceSessionTranscriptId", "extractedByAi", approved, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, 'session_transcript', $6, true, false, now(), now())`,
-      newId(),
-      p.title.slice(0, 120),
-      p.body.slice(0, 500),
-      programId,
-      topicId ?? null,
-      transcriptId,
-    );
+    await db.pearl.create({
+      data: {
+        title: p.title.slice(0, 120),
+        body: p.body.slice(0, 500),
+        programId,
+        topicId: topicId ?? null,
+        sourceType: 'session_transcript',
+        sourceSessionTranscriptId: transcriptId,
+        extractedByAi: true,
+        approved: false,
+      },
+    });
   }
   return pearls.length;
 }
@@ -350,14 +344,14 @@ async function extractQaPairs(content: string, transcriptId: string): Promise<nu
     if (!Array.isArray(parsed)) return 0;
     const valid = parsed.slice(0, 5).filter((q) => q.question && q.answer);
     for (const q of valid) {
-      await db.$executeRawUnsafe(
-        `INSERT INTO post_session_qa (id, "sessionTranscriptId", question, answer, source, "createdAt")
-         VALUES ($1, $2, $3, $4, 'claude', now())`,
-        newId(),
-        transcriptId,
-        q.question.slice(0, 500),
-        q.answer.slice(0, 1000),
-      );
+      await db.postSessionQa.create({
+        data: {
+          sessionTranscriptId: transcriptId,
+          question: q.question.slice(0, 500),
+          answer: q.answer.slice(0, 1000),
+          source: 'claude',
+        },
+      });
     }
     return valid.length;
   } catch (err) {
@@ -382,16 +376,17 @@ async function generateSjt(content: string, transcriptId: string): Promise<numbe
     if (!parsed?.stem) return 0;
     const options = Array.isArray(parsed.options) ? parsed.options.slice(0, 4) : [];
     const correctIndex = typeof parsed.correctIndex === 'number' ? parsed.correctIndex : null;
-    await db.$executeRawUnsafe(
-      `INSERT INTO sjt_cases (id, "sessionTranscriptId", stem, options, "correctIndex", rationale, "createdByAi", approved, "createdAt")
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6, true, false, now())`,
-      newId(),
-      transcriptId,
-      parsed.stem.slice(0, 2000),
-      JSON.stringify(options),
-      correctIndex,
-      (parsed.rationale ?? '').slice(0, 1000),
-    );
+    await db.sjtCase.create({
+      data: {
+        sessionTranscriptId: transcriptId,
+        stem: parsed.stem.slice(0, 2000),
+        options,
+        correctIndex,
+        rationale: (parsed.rationale ?? '').slice(0, 1000),
+        createdByAi: true,
+        approved: false,
+      },
+    });
     return 1;
   } catch (err) {
     if (!(err instanceof AiUnavailableError) && !(err instanceof AiUnparseableError)) {
@@ -414,15 +409,16 @@ async function generatePbl(content: string, transcriptId: string): Promise<numbe
     });
     if (!parsed?.trigger) return 0;
     const objectives = Array.isArray(parsed.objectives) ? parsed.objectives.slice(0, 5) : [];
-    await db.$executeRawUnsafe(
-      `INSERT INTO pbl_scenarios (id, "sessionTranscriptId", "trigger", objectives, content, "createdByAi", approved, "createdAt")
-       VALUES ($1, $2, $3, $4::jsonb, $5, true, false, now())`,
-      newId(),
-      transcriptId,
-      parsed.trigger.slice(0, 1000),
-      JSON.stringify(objectives),
-      (parsed.content ?? '').slice(0, 3000),
-    );
+    await db.pblScenario.create({
+      data: {
+        sessionTranscriptId: transcriptId,
+        trigger: parsed.trigger.slice(0, 1000),
+        objectives,
+        content: (parsed.content ?? '').slice(0, 3000),
+        createdByAi: true,
+        approved: false,
+      },
+    });
     return 1;
   } catch (err) {
     if (!(err instanceof AiUnavailableError) && !(err instanceof AiUnparseableError)) {
@@ -433,15 +429,6 @@ async function generatePbl(content: string, transcriptId: string): Promise<numbe
 }
 
 // ─── Read helpers (used by the GET /post-session route) ────────────────────
-// NOTE: $queryRaw / $executeRawUnsafe throughout because post_session_qa,
-// sjt_cases, pbl_scenarios, and the sourceSessionTranscriptId column on
-// pearls are not in the stale Prisma client. Replace with typed methods
-// once `prisma generate` can run (query-engine DLL not held by dev server).
-
-interface QaRow { id: string; question: string; answer: string; createdAt: Date }
-interface SjtRow { id: string; stem: string; options: unknown; correctIndex: number | null; rationale: string; createdAt: Date }
-interface PblRow { id: string; trigger: string; objectives: unknown; content: string; createdAt: Date }
-interface PearlRow { id: string; title: string; body: string; approved: boolean; createdAt: Date }
 
 export async function readPostSessionPack(sessionId: string) {
   const transcript = await db.sessionTranscript.findUnique({
@@ -451,18 +438,26 @@ export async function readPostSessionPack(sessionId: string) {
   if (!transcript) return null;
 
   const [pearls, qaPairs, sjtCases, pblScenarios] = await Promise.all([
-    db.$queryRaw<PearlRow[]>`
-      SELECT id, title, body, approved, "createdAt" FROM pearls
-      WHERE "sourceSessionTranscriptId" = ${transcript.id} ORDER BY "createdAt" ASC`,
-    db.$queryRaw<QaRow[]>`
-      SELECT id, question, answer, "createdAt" FROM post_session_qa
-      WHERE "sessionTranscriptId" = ${transcript.id} ORDER BY "createdAt" ASC`,
-    db.$queryRaw<SjtRow[]>`
-      SELECT id, stem, options, "correctIndex", rationale, "createdAt" FROM sjt_cases
-      WHERE "sessionTranscriptId" = ${transcript.id} ORDER BY "createdAt" ASC`,
-    db.$queryRaw<PblRow[]>`
-      SELECT id, "trigger", objectives, content, "createdAt" FROM pbl_scenarios
-      WHERE "sessionTranscriptId" = ${transcript.id} ORDER BY "createdAt" ASC`,
+    db.pearl.findMany({
+      where: { sourceSessionTranscriptId: transcript.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, title: true, body: true, approved: true, createdAt: true },
+    }),
+    db.postSessionQa.findMany({
+      where: { sessionTranscriptId: transcript.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, question: true, answer: true, createdAt: true },
+    }),
+    db.sjtCase.findMany({
+      where: { sessionTranscriptId: transcript.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, stem: true, options: true, correctIndex: true, rationale: true, createdAt: true },
+    }),
+    db.pblScenario.findMany({
+      where: { sessionTranscriptId: transcript.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, trigger: true, objectives: true, content: true, createdAt: true },
+    }),
   ]);
 
   return {

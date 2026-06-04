@@ -1,5 +1,5 @@
 import { jsonOk, jsonError, requireAuth, handleUnexpected, parseBody } from '@/server/services/api-helpers';
-import { getSession, cancelSession, updateSession } from '@/server/services/session-service';
+import { getSession, cancelSession, updateSession, getEffectiveSessionRole } from '@/server/services/session-service';
 import { cancelSessionSchema, updateSessionSchema } from '@/lib/validation/session';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -8,6 +8,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     if (!gate.ok) return gate.response;
 
     const { id } = await ctx.params;
+    // Authorization: only members who can see this session may read it. Without
+    // this any authenticated user (any program) could read a session's host/
+    // invitee emails and roster. Mirrors the chat route's access gate.
+    const role = await getEffectiveSessionRole(id, gate.user.id, gate.user.role);
+    if (!role) return jsonError('FORBIDDEN', 'No access to this session', 403);
+
     const session = await getSession(id);
     if (!session) return jsonError('NOT_FOUND', 'Session not found', 404);
     return jsonOk({ session });

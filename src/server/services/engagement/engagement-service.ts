@@ -1,12 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Engagement Service — W4 Stream D foundation
+// Engagement Service
 // ════════════════════════════════════════════════════════════════════════════
-// Producers (Stream A live hooks, Stream D leaderboards, W2 chat/hand-raise):
+// Producers (live hooks, leaderboards, chat/hand-raise):
 //   recordEngagementSignal({ sessionId, userId, kind, value?, metadata? })
 //
 // Consumers:
 //   - Presenter alerts (this file): periodic evaluator computes alert thresholds
-//   - Readiness predictor (W11): aggregates per-learner signals
+//   - Readiness predictor: aggregates per-learner signals
 //
 // Anyone can write a signal; reads (aggregates) are presenter-only.
 
@@ -147,7 +147,7 @@ export async function evaluatePresenterAlerts(sessionId: string): Promise<{
     }
   }
 
-  // TOO_MUCH_LECTURE — W8.2: no interactive signals in 15 min, session > 20 min old.
+  // TOO_MUCH_LECTURE: no interactive signals in 15 min, session > 20 min old.
   if (agg.participants > 0 && sessionAgeMs > 20 * 60_000) {
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60_000);
     const recentInteractive = await db.engagementSignal.count({
@@ -172,7 +172,7 @@ export async function evaluatePresenterAlerts(sessionId: string): Promise<{
     }
   }
 
-  // SILENT_PARTICIPANTS — W8.2: hook response rate < 25% over last 30 min (≥2 hooks, ≥5 participants).
+  // SILENT_PARTICIPANTS: hook response rate < 25% over last 30 min (≥2 hooks, ≥5 participants).
   if (agg.participants >= 5) {
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60_000);
     const [firedCount, responseCount] = await Promise.all([

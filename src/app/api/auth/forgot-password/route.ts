@@ -14,7 +14,7 @@ const RESET_EXPIRY_MIN = 60;
 export async function POST(req: Request) {
   try {
     const meta = extractRequestMetadata(req);
-    // IP-keyed bucket — fail-closed for credential paths (HARDENING-PLAN #11).
+    // IP-keyed bucket — fail-closed for credential paths (security hardening).
     const rl = await checkRateLimit({
       bucket: `forgot:${meta.ipAddress ?? 'unknown'}`,
       ...LIMITS.FORGOT_PASSWORD,

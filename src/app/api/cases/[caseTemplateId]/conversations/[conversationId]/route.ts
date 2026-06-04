@@ -1,4 +1,4 @@
-// W6 P2 — fetch a single conversation with its full message history
+// fetch a single conversation with its full message history
 import {
   jsonOk,
   jsonError,

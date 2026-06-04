@@ -10,7 +10,7 @@
 //
 // Faculty marks an existing session-tagged document as pre-session via
 // `assignDocumentToStudyPack(...)`. The doc must already be linked to the
-// session (via the W4 tag-session flow); this service only flips the
+// session (via the tag-session flow); this service only flips the
 // `isPreSession` boolean on the existing link row. That decoupling keeps
 // "is this doc visible on the session page at all" separate from "is this
 // the ranked pre-session prep" — same lifecycle, two different concerns.

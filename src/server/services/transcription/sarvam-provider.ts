@@ -2,7 +2,7 @@
 // Sarvam Saaras transcription — testing/showcase provider only.
 // ════════════════════════════════════════════════════════════════════════════
 // Production env gate (src/lib/env.ts) prevents this from running in prod.
-// Synthetic / consented data only. See VAIDIX-VIDEO-ARCHITECTURE.md §6.1.
+// Synthetic / consented data only. See the video architecture notes
 
 import { env } from '@/lib/env';
 import type {

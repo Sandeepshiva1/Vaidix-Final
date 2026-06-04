@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #20 — EXIF / metadata strip on uploaded images.
+// security hardening — EXIF / metadata strip on uploaded images.
 // Strips identifying camera/GPS/owner fields before the file lands in
 // permanent storage. Pure JS implementation for JPEG and PNG; other types
 // are passed through unchanged (operator can extend per Phase 2).

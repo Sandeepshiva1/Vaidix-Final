@@ -36,7 +36,7 @@ const listSchema = z.object({
     .optional()
     .transform((v) => v === 'true'),
   sinceMs: z.coerce.number().int().nonnegative().optional(),
-  // W9.4 — `prePublished=true` returns only pre-session-published polls
+  // `prePublished=true` returns only pre-session-published polls
   // (resident view). `prePublished=false` returns drafts only (host view).
   // Omitted = no filter applied on the pre-publish dimension.
   prePublished: z

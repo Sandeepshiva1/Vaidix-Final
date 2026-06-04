@@ -1,6 +1,6 @@
 'use client'
 
-// W6 P2 — DB-backed case chat session.
+// DB-backed case chat session.
 //
 // URL contract:  /cases/[caseId]/session?conv=<conversationId>
 //   - The detail page POSTs /api/cases/[id]/conversations to create a fresh

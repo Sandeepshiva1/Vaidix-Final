@@ -4,7 +4,7 @@
 // screen-share is live.
 //
 // Architecture: same SessionAuditEvent → useSessionEvents pipeline as the
-// rest of W7. Each completed stroke fires ANNOTATION_DRAW (server-gated to
+// the live collaboration tools. Each completed stroke fires ANNOTATION_DRAW (server-gated to
 // HOST/CO_HOST), broadcast via the LiveKit data channel for instant peer
 // rendering and persisted with a tMs offset so the recording-viewer can
 // replay it. Clearing the canvas fires ANNOTATION_CLEAR. We deliberately do

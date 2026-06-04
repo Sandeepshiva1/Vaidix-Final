@@ -1,4 +1,4 @@
-// W6 — list current AI-generated themes for a session (anyone with visibility)
+// list current AI-generated themes for a session (anyone with visibility)
 import {
   jsonOk,
   requireAuth,

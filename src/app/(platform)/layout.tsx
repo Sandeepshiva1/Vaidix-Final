@@ -32,7 +32,7 @@ export default async function PlatformLayout({
   // Force re-auth rather than rendering a half-broken shell.
   if (!user || user.deletedAt) redirect('/login')
 
-  // W6.11 — programs list (membership) comes off the JWT (hydrated at sign-in,
+  // programs list (membership) comes off the JWT (hydrated at sign-in,
   // rarely changes). activeProgramId is read FROM THE DB user row above so
   // that a /api/me/active-program POST followed by router.refresh() reflects
   // immediately, without requiring a JWT cookie refresh roundtrip.

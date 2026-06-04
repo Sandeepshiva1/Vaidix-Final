@@ -1,8 +1,8 @@
 // ════════════════════════════════════════════════════════════════════════════
-// WhatsApp Pearl Worker — Stream D #9
+// WhatsApp Pearl Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Co-tenant of the EMAIL queue (one queue, multiple kinds). At dispatch we
-// branch on `data.kind`. A dedicated WHATSAPP queue can be split off in W12.
+// branch on `data.kind`. A dedicated WHATSAPP queue can be split off in a later phase.
 
 import { createWorker, QUEUES } from '@/lib/queue';
 import { sendWhatsappPearl } from '@/server/services/whatsapp/whatsapp-service';

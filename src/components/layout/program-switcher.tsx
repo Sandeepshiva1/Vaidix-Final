@@ -1,6 +1,6 @@
 'use client'
 
-// W6.11 — Program switcher in the top bar.
+// Program switcher in the top bar.
 //
 // Renders the active program as a button. Clicking opens a dropdown of all
 // programs the user is a member of; selecting one calls switchProgram() on

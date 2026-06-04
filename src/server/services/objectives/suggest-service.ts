@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// AI Objective Suggestion — W9
+// AI Objective Suggestion
 // ════════════════════════════════════════════════════════════════════════════
 // Speaker uploads study material into the Pre-Conference prep pack. This
 // service ingests those docs (multimodal) and asks Gemini to draft up to 5

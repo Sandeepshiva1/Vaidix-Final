@@ -24,7 +24,9 @@ import { getEffectiveSessionRole } from '@/server/services/session-service';
 import { translateCaption, SUPPORTED_LANGS, TranslateError } from '@/server/services/captions/translate-service';
 
 const translateSchema = z.object({
-  text: z.string().min(1).max(5000),
+  // Live caption segments are short; a tight cap reduces per-call cost and the
+  // value of forcing cache misses with long attacker-supplied text.
+  text: z.string().min(1).max(1000),
   from: z.enum(SUPPORTED_LANGS),
   to: z.enum(SUPPORTED_LANGS),
 });
@@ -48,17 +50,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const parsed = await parseBody(req, translateSchema);
   if (!parsed.ok) return parsed.response;
 
-  const rl = await checkRateLimit({
-    bucket: `captions-translate:${auth.user.id}`,
-    ...LIMITS.CAPTIONS_TRANSLATE,
-  });
-  if (!rl.allowed) {
-    return jsonError(
-      'RATE_LIMITED',
-      'Translation rate exceeded — try again later',
-      429,
-      { resetAt: rl.resetAt.toISOString() },
-    );
+  const meta = extractRequestMetadata(req);
+  // Per-user, per-session, and per-IP ceilings — all fail-closed. The session
+  // and IP buckets bound the cost even when an attacker spreads requests across
+  // many accounts (the cache key is the attacker-controlled text).
+  const limits = [
+    { bucket: `captions-translate:${auth.user.id}`, ...LIMITS.CAPTIONS_TRANSLATE },
+    { bucket: `captions-translate-session:${sessionId}`, ...LIMITS.CAPTIONS_TRANSLATE_SESSION },
+    { bucket: `captions-translate-ip:${meta.ipAddress ?? 'noip'}`, ...LIMITS.CAPTIONS_TRANSLATE_IP },
+  ];
+  for (const cfg of limits) {
+    const rl = await checkRateLimit(cfg);
+    if (!rl.allowed) {
+      return jsonError(
+        'RATE_LIMITED',
+        'Translation rate exceeded — try again later',
+        429,
+        { resetAt: rl.resetAt.toISOString() },
+      );
+    }
   }
 
   try {

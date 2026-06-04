@@ -342,7 +342,7 @@ export function PendingSessionManager({ session, proposer, currentUser }: Pendin
         </div>
       </motion.div>
 
-      {/* W6.8 — Pre-Conference Prep panels (host / faculty / PD only) */}
+      {/* Pre-Conference Prep panels (host / faculty / PD only) */}
       {(isHost || isAdminOrPD || currentUser.role === 'FACULTY') && (
         <PreConferencePrepBlock sessionId={session.id} canCurate={isHost || isAdminOrPD} />
       )}

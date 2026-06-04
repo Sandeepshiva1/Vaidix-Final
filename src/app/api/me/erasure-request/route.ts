@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #17 — user-initiated erasure request.
+// security hardening — user-initiated erasure request.
 // POST creates a DpdpaRequest of kind ERASURE in RECEIVED status.
 // An admin/PD must approve before any data is touched (legal hold cases).
 // Audit log itself is preserved for the regulatory window — see RetentionPolicy.

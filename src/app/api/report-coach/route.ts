@@ -21,6 +21,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/server/services/api-helpers'
+import { checkRateLimit, LIMITS } from '@/server/services/rate-limit'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
@@ -157,6 +159,16 @@ function buildFallbackReport(req: ReportRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
+    const rl = await checkRateLimit({ bucket: `report-coach:${auth.user.id}`, ...LIMITS.REPORT_COACH })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Report coach throttled — please try again later.', fallback: true },
+        { status: 429 }
+      )
+    }
+
     const body = (await req.json()) as ReportRequest
 
     if (!body.items || body.items.length === 0) {

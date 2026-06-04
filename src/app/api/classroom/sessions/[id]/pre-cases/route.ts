@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// /api/classroom/sessions/[id]/pre-cases — W6.8
+// /api/classroom/sessions/[id]/pre-cases
 // ════════════════════════════════════════════════════════════════════════════
 // GET  → list pre-cases (curator view for host/PD/admin, learner view otherwise)
 // POST → attach a CaseTemplate as pre-session prep (host/PD/admin only)

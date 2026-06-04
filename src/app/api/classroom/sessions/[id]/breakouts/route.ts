@@ -1,4 +1,4 @@
-// W5 — list and create breakouts on a session
+// list and create breakouts on a session
 import { z } from 'zod';
 import { BreakoutGroupingMode } from '@prisma/client';
 import {

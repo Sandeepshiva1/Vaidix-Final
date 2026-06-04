@@ -55,7 +55,7 @@ export async function parseQuery<T>(req: Request, schema: ZodSchema<T>): Promise
   return { ok: true, data: parsed.data };
 }
 
-// HARDENING-PLAN.md item #13 — re-validate that the JWT's passwordVersion
+// security hardening — re-validate that the JWT's passwordVersion
 // still matches the user's current passwordVersion in DB. A bumped version
 // (admin suspension, password change, forced logout) revokes every existing
 // JWT within `SESSION_RECHECK_TTL_SEC` even though the JWT itself hasn't
@@ -83,18 +83,37 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+// The cache value is an HMAC of userId:passwordVersion keyed on NEXTAUTH_SECRET,
+// not a literal flag. Redis is a trust boundary: if an attacker can blind-write
+// to it, a literal `'1'` would let them re-validate a revoked/suspended JWT.
+// Requiring a value only the server can compute closes that cache-poisoning path
+// — a forged key won't match and we fall through to the authoritative DB check.
+function pwverMarker(userId: string, passwordVersion: number): string {
+  return crypto
+    .createHmac('sha256', process.env.NEXTAUTH_SECRET ?? '')
+    .update(`${userId}:${passwordVersion}`)
+    .digest('hex');
+}
+
 async function isSessionStillValid(userId: string, passwordVersion: number): Promise<boolean> {
   const key = `pwver:ok:${userId}:${passwordVersion}`;
+  const expected = pwverMarker(userId, passwordVersion);
   try {
     const cached = await withTimeout(redis.get(key), REDIS_TIMEOUT_MS);
-    if (cached) return true;
+    if (
+      cached &&
+      cached.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(cached), Buffer.from(expected))
+    ) {
+      return true;
+    }
   } catch {
     // Redis down or slow → fall through to DB. Don't fail-open to "valid".
   }
   const current = await isUserCurrent(userId, passwordVersion);
   if (current) {
     try {
-      await withTimeout(redis.set(key, '1', 'EX', SESSION_RECHECK_TTL_SEC), REDIS_TIMEOUT_MS);
+      await withTimeout(redis.set(key, expected, 'EX', SESSION_RECHECK_TTL_SEC), REDIS_TIMEOUT_MS);
     } catch {
       // best-effort cache; not fatal.
     }
@@ -108,7 +127,7 @@ export interface AuthedUser {
   name: string;
   role: Role;
   /**
-   * W6.11 — the user's currently selected program. Null only for users with
+   * the user's currently selected program. Null only for users with
    * zero memberships (impossible after seed but defensible). Routes that
    * scope queries by tenant should pass this through.
    */
@@ -144,7 +163,7 @@ export async function requireAuth(): Promise<{ ok: true; user: AuthedUser } | { 
 }
 
 /**
- * W6.11 — DB-backed live read of users.activeProgramId. The JWT carries a
+ * DB-backed live read of users.activeProgramId. The JWT carries a
  * cached value but the source of truth is the DB user row, so a switch via
  * POST /api/me/active-program is reflected on the very next request without
  * waiting for a JWT cookie rotation. React.cache() dedupes within a single
@@ -159,7 +178,7 @@ const liveActiveProgramId = cache(async (userId: string): Promise<string | null>
 });
 
 /**
- * W6.11 — variant for routes that genuinely cannot work without a tenant
+ * variant for routes that genuinely cannot work without a tenant
  * scope (cohort lists, session lists, case bank, etc.). Reads activeProgramId
  * from the DB (not the JWT), so switches are immediate. Returns 409 if the
  * user has no active program selected.
@@ -196,7 +215,7 @@ export async function requireRole(...allowed: Role[]): Promise<{ ok: true; user:
   return gate;
 }
 
-// HARDENING-PLAN item #15 — CSRF double-submit cookie pattern.
+// security hardening — CSRF double-submit cookie pattern.
 //
 // Wire-up: NextAuth's middleware sets/refreshes the `vaidix-csrf` cookie
 // (non-httpOnly, SameSite=Lax) when missing. Browser JS reads it and echoes

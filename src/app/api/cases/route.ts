@@ -1,4 +1,4 @@
-// W6 P2 — list case-library templates with the same filters the old mock UI had
+// list case-library templates with the same filters the old mock UI had
 import { z } from 'zod';
 import { CaseDifficulty } from '@prisma/client';
 import {
@@ -19,7 +19,7 @@ const querySchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    // W6.11 — case bank is per-program.
+    // case bank is per-program.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;
     const q = await parseQuery(req, querySchema);

@@ -1,4 +1,4 @@
-// W5 — Breakout Agent ingest endpoint
+// Breakout Agent ingest endpoint
 // Wire contract for the AI Discussion Co-Facilitator (Python sidecar).
 // See docs/BREAKOUT-AGENT-CONTRACT.md.
 //

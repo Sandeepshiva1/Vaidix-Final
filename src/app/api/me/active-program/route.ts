@@ -1,4 +1,4 @@
-// W6.11 — Switch the authenticated user's active program.
+// Switch the authenticated user's active program.
 //
 // POST /api/me/active-program  body: { programId: string }
 //

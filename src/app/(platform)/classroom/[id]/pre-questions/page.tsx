@@ -1,4 +1,4 @@
-// W6 — /classroom/[id]/pre-questions: resident-facing submit + vote board
+// /classroom/[id]/pre-questions: resident-facing submit + vote board
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';

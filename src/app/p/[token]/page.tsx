@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Public Promo Share Page — W9
+// Public Promo Share Page
 // ════════════════════════════════════════════════════════════════════════════
 // Unauthenticated landing page rendered at /p/[token]. Pulls session + asset
 // bundle via the public API, then renders flyer + WA banner + IG card

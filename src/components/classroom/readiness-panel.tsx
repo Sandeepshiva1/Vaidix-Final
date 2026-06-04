@@ -1,7 +1,7 @@
 'use client'
 
 // ════════════════════════════════════════════════════════════════════════════
-// Readiness Panel — faculty / PD / admin view (W6.8)
+// Readiness Panel — faculty / PD / admin view
 // ════════════════════════════════════════════════════════════════════════════
 // Shows the per-learner readiness snapshot for an upcoming session:
 //   - Top: 4 stat cards (total / ready / at-risk / underprepared / avg)

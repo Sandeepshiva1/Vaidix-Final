@@ -1,4 +1,4 @@
-// W5 — Q&A reply (single-level only; service enforces no nested replies)
+// Q&A reply (single-level only; service enforces no nested replies)
 import { z } from 'zod';
 import {
   jsonOk,

@@ -1,4 +1,4 @@
-// W5 — like / unlike a Q&A item
+// like / unlike a Q&A item
 import {
   jsonOk,
   jsonError,

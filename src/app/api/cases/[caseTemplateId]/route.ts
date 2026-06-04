@@ -1,5 +1,5 @@
-// W6 P2 — fetch one case-library template (by id or legacyId)
-// W8 — extended with PATCH for owner edits.
+// fetch one case-library template (by id or legacyId)
+// extended with PATCH for owner edits.
 
 import { z } from 'zod';
 import { Role, CaseDifficulty } from '@prisma/client';

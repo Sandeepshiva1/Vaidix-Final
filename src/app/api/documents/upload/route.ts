@@ -27,6 +27,7 @@ import {
   requireAuth,
 } from '@/server/services/api-helpers';
 import { inferKind, buildDocumentKey } from '@/server/services/documents/document-service';
+import { validateUpload } from '@/server/services/documents/upload-validation';
 import { DocumentRoute, DocumentStatus } from '@prisma/client';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
 import { audit, AUDIT_EVENTS, extractRequestMetadata } from '@/server/services/audit';
@@ -75,12 +76,20 @@ export async function POST(req: Request) {
     });
   }
 
-  const mimeType = file.type || 'application/octet-stream';
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  // Never trust the client-declared file.type. Allowlist by extension and
+  // verify the leading bytes match; persist the canonical content-type so the
+  // download path can't be coerced into serving active content (HTML/SVG).
+  const validated = validateUpload(file.name, bytes);
+  if (!validated.ok) {
+    return jsonError('UNSUPPORTED_FILE', validated.reason, 415);
+  }
+  const mimeType = validated.mimeType;
   const kind = inferKind(mimeType);
   const local = isLocalStorageBackend();
 
   try {
-    const bytes = Buffer.from(await file.arrayBuffer());
 
     // Create the document row first so we can key local-FS writes on its id.
     // On S3 backend we still use the buildDocumentKey-shaped key for parity

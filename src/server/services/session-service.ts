@@ -131,7 +131,7 @@ export async function createSession(
     throw new Error('HOST_NOT_FACULTY');
   }
 
-  // W6.11 — cohort must belong to the same program; defense-in-depth against
+  // cohort must belong to the same program; defense-in-depth against
   // a PD with two memberships submitting a Cornea cohort id while active in MS.
   if (input.cohortId) {
     const cohort = await db.cohort.findUnique({
@@ -501,7 +501,7 @@ export async function getSession(id: string) {
 }
 
 // ----------------------------------------------------------------------------
-// W2 — Live room helpers
+// Live room helpers
 // ----------------------------------------------------------------------------
 
 /**

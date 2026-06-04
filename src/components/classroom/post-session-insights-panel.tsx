@@ -1,7 +1,7 @@
 'use client'
 
 // ════════════════════════════════════════════════════════════════════════════
-// PostSessionInsightsPanel — W8.3 frontend
+// PostSessionInsightsPanel
 // ════════════════════════════════════════════════════════════════════════════
 // Renders below LiveSession on the session detail page once a transcript is
 // finalized. Shows:

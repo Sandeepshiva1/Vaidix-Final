@@ -8,7 +8,7 @@ import 'next-auth';
 import 'next-auth/jwt';
 
 /**
- * W6.11 multi-tenancy: lightweight Program shape carried in the JWT so every
+ * multi-tenancy: lightweight Program shape carried in the JWT so every
  * page/server-action can show the switcher without a DB roundtrip. Kept
  * deliberately small — full Program metadata lives in the DB and is fetched
  * only when needed.

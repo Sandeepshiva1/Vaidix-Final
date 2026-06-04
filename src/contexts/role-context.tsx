@@ -69,7 +69,7 @@ interface RoleContextValue {
   /** Localized label for the effective role. */
   roleLabel: string
 
-  // ─── W6.11 program switcher ────────────────────────────────────────────────
+  // ─── program switcher ────────────────────────────────────────────────
   /** Programs the user is a member of. Empty array if the switcher should hide. */
   programs: IdentityProgramMembership[]
   /** Currently selected program id, or null if the user has no memberships. */
@@ -101,12 +101,12 @@ export function RoleProvider({ children, initialIdentity }: RoleProviderProps) {
   const [overrideRole, setOverrideRole] = useState<UserRole | null>(null)
   const [switchingProgram, setSwitchingProgram] = useState(false)
 
-  // W6.11: real switch — POST to validate, then refresh so the (platform)
+  // real switch — POST to validate, then refresh so the (platform)
   // layout re-renders with the new activeProgramId. Membership list comes
   // from the JWT and rarely changes, so we don't refetch it here.
   //
   // CSRF: middleware sets a `vaidix-csrf` non-httpOnly cookie; we echo it
-  // into the `x-csrf-token` header (HARDENING-PLAN #15 / api-helpers
+  // into the `x-csrf-token` header (security hardening / api-helpers
   // requireCsrf). Same pattern as objectives-checklist / study-pack-curator.
   const switchProgram = useCallback(
     async (programId: string) => {

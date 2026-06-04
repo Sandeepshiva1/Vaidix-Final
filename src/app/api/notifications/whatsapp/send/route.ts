@@ -1,4 +1,4 @@
-// POST /api/notifications/whatsapp/send — Stream D #9 admin/test send.
+// POST /api/notifications/whatsapp/send —  admin/test send.
 // Body: { userId, pearlId } → looks up the pearl + sends one immediate WA pearl.
 // Real-world cadence (24h/72h/7d) goes through schedule-pearls.
 
@@ -15,6 +15,7 @@ import {
 import { sendWhatsappPearl } from '@/server/services/whatsapp/whatsapp-service';
 import { audit, AUDIT_EVENTS, extractRequestMetadata } from '@/server/services/audit';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
+import { isUserInProgram } from '@/server/services/program-service';
 
 const FACULTY_LIKE: Role[] = [Role.FACULTY, Role.PROGRAM_DIRECTOR, Role.ADMIN];
 
@@ -33,6 +34,15 @@ export async function POST(req: Request) {
   const rl = await checkRateLimit({ bucket: `wa-send:${auth.user.id}`, ...LIMITS.WHATSAPP_SEND });
   if (!rl.allowed) {
     return jsonError('RATE_LIMITED', 'WhatsApp send throttled', 429, { resetAt: rl.resetAt.toISOString() });
+  }
+
+  // Tenant guard: the recipient must share the sender's active program — without
+  // this a faculty member could message any user id in the institution.
+  const recipientInProgram = auth.user.activeProgramId
+    ? await isUserInProgram(body.data.userId, auth.user.activeProgramId)
+    : false;
+  if (!recipientInProgram) {
+    return jsonError('FORBIDDEN', 'Recipient is not in your active program', 403);
   }
 
   try {

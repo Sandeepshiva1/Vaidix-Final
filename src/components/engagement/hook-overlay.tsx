@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════════════════
-// HookOverlay — Stream D #4 (live hook prompt for learners)
+// HookOverlay —  (live hook prompt for learners)
 // ════════════════════════════════════════════════════════════════════════════
 // Polls /api/classroom/sessions/[id]/hooks?onlyFired=true every 4s. When a new
 // fired hook arrives, surfaces a centered modal with options. Submitting POSTs

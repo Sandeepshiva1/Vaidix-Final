@@ -70,7 +70,7 @@ interface DoubtPromptView {
 export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
   const [items, setItems] = useState<PreQuestionView[]>([])
   const [themes, setThemes] = useState<ThemeView[]>([])
-  // W9.3 — presenter-published framing prompts. Surface as starter chips
+  // presenter-published framing prompts. Surface as starter chips
   // above the compose box so the resident has an entry point beyond "What
   // would you like the presenter to address?".
   const [doubtPrompts, setDoubtPrompts] = useState<DoubtPromptView[]>([])
@@ -211,7 +211,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
           </div>
 
           <div className="p-4 space-y-3">
-            {/* W9.3 — presenter-published doubt prompts. Tapping a chip drops
+            {/* presenter-published doubt prompts. Tapping a chip drops
                 the prompt into the textarea as a starter so the resident has
                 somewhere to go beyond a blank box. */}
             {doubtPrompts.length > 0 && (

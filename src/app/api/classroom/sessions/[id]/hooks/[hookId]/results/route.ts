@@ -1,4 +1,4 @@
-// GET /api/classroom/sessions/[id]/hooks/[hookId]/results — W9.4
+// GET /api/classroom/sessions/[id]/hooks/[hookId]/results
 // Aggregate vote counts for a hook. Mentimeter-style policy:
 //   - host / PD / admin always see results
 //   - resident sees results only after they have answered (anti-bias)

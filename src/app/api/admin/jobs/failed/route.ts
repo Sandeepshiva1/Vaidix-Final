@@ -1,4 +1,4 @@
-// HARDENING-PLAN.md item #8 — list jobs in every critical DLQ.
+// security hardening — list jobs in every critical DLQ.
 // Admin/PD only. Used by the on-call surface when a recording/transcript
 // failed to land or when a reminder didn't fire.
 

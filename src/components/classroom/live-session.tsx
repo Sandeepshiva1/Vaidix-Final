@@ -1568,7 +1568,7 @@ function VideoGrid({ sessionId, isHostish, localUserName }: { sessionId: string;
   // Drop tracks belonging to the captions agent — withPlaceholder:true
   // creates a placeholder tile for every participant even if they have no
   // camera, so without this filter the agent shows up as a giant empty
-  // tile in the host's video grid (Feeddback.md, 2026-05-17 screenshots).
+  // tile in the host's video grid.
   const allTracks = rawTracks.filter((t) => !isAgentParticipant(t.participant))
   const { targetIdentity, setSpotlight } = useSpotlight(sessionId)
 

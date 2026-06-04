@@ -1,4 +1,4 @@
-// /api/classroom/sessions/[id]/hooks/[hookId] — W9.4
+// /api/classroom/sessions/[id]/hooks/[hookId]
 // PATCH: host edits the draft (prompt/options/correct/kind/explanation)
 // DELETE: host removes the draft (refused when responses exist; use the
 //   pre-publish DELETE endpoint to take it off the resident view while

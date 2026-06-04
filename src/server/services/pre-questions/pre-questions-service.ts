@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Pre-Conference Question Engine — W6 (Feeddback #2)
+// Pre-Conference Question Engine
 // ════════════════════════════════════════════════════════════════════════════
 // Residents submit questions ahead of a session and upvote others. A debounced
 // BullMQ job re-clusters into themes ~30s after the last submission/vote so

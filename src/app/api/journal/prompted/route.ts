@@ -1,4 +1,4 @@
-// /api/journal/prompted — Reflection Bot prompts (Stream D #20)
+// /api/journal/prompted — Reflection Bot prompts
 // GET: returns the next reflection prompt for the current user (rotates).
 // POST: saves a journal entry tagged with prompted=true and the promptType.
 

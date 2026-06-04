@@ -48,7 +48,7 @@ export async function audit(input: AuditInput): Promise<void> {
   } catch (err) {
     // Audit failures must surface in structured logs so SREs notice.
     // Direct DB write is best-effort; the durable path is the AUDIT_WRITE
-    // queue (HARDENING-PLAN item #14) which is processed async by a worker.
+    // queue (security hardening) which is processed async by a worker.
     log.error(
       { err, eventType: input.eventType, entityId: input.entityId },
       '[audit] direct write failed — relying on queued retry'
@@ -98,8 +98,8 @@ export const AUDIT_EVENTS = {
   MODULE_GRANTED: 'module.granted',
   MODULE_REVOKED: 'module.revoked',
 
-  // ─── W4-Sprint events ────────────────────────────────────────────────
-  // Stream A — Recording
+  // ─── events ────────────────────────────────────────────────
+  // Recording
   RECORDING_EGRESS_STARTED: 'recording.egress.started',
   RECORDING_EGRESS_COMPLETED: 'recording.egress.completed',
   RECORDING_EGRESS_FAILED: 'recording.egress.failed',
@@ -107,7 +107,7 @@ export const AUDIT_EVENTS = {
   RECORDING_TRANSCRIBE_DONE: 'recording.transcribe.done',
   RECORDING_VIEWED: 'recording.viewed',
 
-  // Stream C — Documents
+  // Documents
   DOCUMENT_UPLOAD_INITIATED: 'document.upload.initiated',
   DOCUMENT_CLASSIFIED: 'document.classified',
   DOCUMENT_APPROVED: 'document.approved',
@@ -136,21 +136,21 @@ export const AUDIT_EVENTS = {
   CASE_TEMPLATE_ARCHIVED: 'case_template.archived',
   CASE_TEMPLATE_EDITED: 'case_template.edited',
 
-  // ─── W7.4 — Live captions (Deepgram in Phase 1) ─────────────────────────
+  // ─── — Live captions (Deepgram in Phase 1) ─────────────────────────
   CAPTIONS_TOKEN_MINTED: 'captions.token.minted',
   CAPTIONS_PUBLISHED: 'captions.published',
   CAPTIONS_TRANSLATED: 'captions.translated',
   CAPTIONS_TRANSCRIPT_FINALIZED: 'captions.transcript.finalized',
   CAPTIONS_TRANSCRIPT_READ: 'captions.transcript.read',
-  // ─── W8.3 — Post-session content pack ───────────────────────────────────
+  // ─── — Post-session content pack ───────────────────────────────────
   TRANSCRIPT_PDF_EXPORTED: 'transcript.pdf.exported',
   POST_SESSION_PACK_TRIGGERED: 'post_session.pack.triggered',
 
-  // Stream D — Engagement / Hooks / Alerts
+  // Engagement / Hooks / Alerts
   LIVE_HOOK_CREATED: 'live_hook.created',
   LIVE_HOOK_FIRED: 'live_hook.fired',
   LIVE_HOOK_RESPONDED: 'live_hook.responded',
-  // W9.4 — Pre-session structured polls (extends LiveHook with prePublishedAt)
+  // Pre-session structured polls (extends LiveHook with prePublishedAt)
   LIVE_HOOK_UPDATED: 'live_hook.updated',
   LIVE_HOOK_DELETED: 'live_hook.deleted',
   LIVE_HOOK_PRE_PUBLISHED: 'live_hook.pre_published',
@@ -160,12 +160,12 @@ export const AUDIT_EVENTS = {
   PRESENTER_ALERT_ACKED: 'presenter_alert.acknowledged',
   KIRKPATRICK_RECORDED: 'kirkpatrick.recorded',
 
-  // Stream D — WhatsApp out-of-band
+  // WhatsApp out-of-band
   WHATSAPP_PEARL_SENT: 'whatsapp.pearl.sent',
   WHATSAPP_PEARL_BLOCKED: 'whatsapp.pearl.blocked',
   WHATSAPP_PEARLS_SCHEDULED: 'whatsapp.pearls.scheduled',
 
-  // ─── W5 events ───────────────────────────────────────────────────────
+  // ─── events ───────────────────────────────────────────────────────
   // Q&A threads
   QA_QUESTION_POSTED: 'qa.question.posted',
   QA_REPLY_POSTED: 'qa.reply.posted',
@@ -188,13 +188,13 @@ export const AUDIT_EVENTS = {
   RECORDING_SHARE_BLOCKED: 'recording_share.blocked',
   RECORDING_SHARE_REVOKED: 'recording_share.revoked',
 
-  // ─── W6 events ───────────────────────────────────────────────────────
-  // Cases (W6 Phase 2)
+  // ─── events ───────────────────────────────────────────────────────
+  // Cases
   CASE_STARTED: 'case.started',
   CASE_MESSAGE_SENT: 'case.message_sent',
   CASE_COMPLETED: 'case.completed',
 
-  // Pre-Conference Question Submission Engine (Feeddback #2)
+  // Pre-Conference Question Submission Engine
   PRE_QUESTION_SUBMITTED: 'pre_question.submitted',
   PRE_QUESTION_VOTED: 'pre_question.voted',
   PRE_QUESTION_UNVOTED: 'pre_question.unvoted',
@@ -202,32 +202,32 @@ export const AUDIT_EVENTS = {
   PRE_QUESTION_RECLUSTER_REQUESTED: 'pre_question.recluster_requested',
   PRE_QUESTION_THEMES_GENERATED: 'pre_question.themes_generated',
   PRE_QUESTION_CLUSTER_FAILED: 'pre_question.cluster_failed',
-  // W9.3 — presenter-published doubt prompts + AI-suggested drafts
+  // presenter-published doubt prompts + AI-suggested drafts
   PRE_QUESTION_PROMPTS_UPDATED: 'pre_question.prompts_updated',
   PRE_QUESTION_PROMPTS_SUGGESTED: 'pre_question.prompts_suggested',
 
-  // ─── W6.8 — Pre-Conference Polish ────────────────────────────────────
-  // Promo teaser video (Feeddback #1, video form — extends SVG promo)
+  // ─── — Pre-Conference Polish ────────────────────────────────────
+  // Promo teaser video
   PROMO_TEASER_REQUESTED: 'promo.teaser.requested',
   PROMO_TEASER_RENDERED: 'promo.teaser.rendered',
   PROMO_TEASER_FAILED: 'promo.teaser.failed',
-  // ─── W9 — Promo & Share ──────────────────────────────────────────────
+  // ─── — Promo & Share ──────────────────────────────────────────────
   PROMO_GENERATED: 'promo.generated',
   PROMO_SHARE_CREATED: 'promo_share.created',
   PROMO_SHARE_ACCESSED: 'promo_share.accessed',
   PROMO_SHARE_REVOKED: 'promo_share.revoked',
   OBJECTIVES_AI_SUGGESTED: 'objectives.ai_suggested',
-  // Study Pack curation (Feeddback #3 — Study Material Hub pre-session surface)
+  // Study Pack curation
   STUDY_PACK_DOC_ADDED: 'study_pack.doc.added',
   STUDY_PACK_DOC_REMOVED: 'study_pack.doc.removed',
   STUDY_PACK_VIEW_RECORDED: 'study_pack.view.recorded',
-  // Pre-Case scaffolding (Feeddback #6A — Pre-Case Scenario Simulations)
+  // Pre-Case scaffolding
   PRE_CASE_ATTACHED: 'pre_case.attached',
   PRE_CASE_DETACHED: 'pre_case.detached',
   PRE_CASE_UPDATED: 'pre_case.updated',
   PRE_CASE_STARTED: 'pre_case.started',
   PRE_CASE_COMPLETED: 'pre_case.completed',
-  // Readiness Predictor (Feeddback #5)
+  // Readiness Predictor
   READINESS_VIEWED: 'readiness.viewed',
   // Learning objectives — structured per-session goals
   OBJECTIVES_UPDATED: 'objectives.updated',

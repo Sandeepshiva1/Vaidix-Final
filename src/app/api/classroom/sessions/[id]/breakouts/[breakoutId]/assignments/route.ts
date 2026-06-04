@@ -1,4 +1,4 @@
-// W5 — assign a participant to a breakout
+// assign a participant to a breakout
 // Faculty/PD/admin: assign anyone. Participants: only self-select mode + own id.
 import { z } from 'zod';
 import {

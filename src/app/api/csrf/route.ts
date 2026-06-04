@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #15 — bootstrap a CSRF token cookie for the SPA.
+// security hardening — bootstrap a CSRF token cookie for the SPA.
 // Browser fetches GET /api/csrf on first load (or after sign-in); server
 // either confirms the existing token or mints a new one and sets the cookie.
 // Response body returns the token so the SPA can keep it in memory and

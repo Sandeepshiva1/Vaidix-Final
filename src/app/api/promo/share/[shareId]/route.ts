@@ -1,4 +1,4 @@
-// DELETE /api/promo/share/[shareId] — W9
+// DELETE /api/promo/share/[shareId]
 // Faculty revokes a previously-published promo share. Idempotent.
 
 import {

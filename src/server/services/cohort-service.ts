@@ -44,7 +44,7 @@ async function ensureFacultyId(facultyId: string | null | undefined): Promise<st
 }
 
 /**
- * W6.11 multi-tenancy: callers MUST pass the active programId. Cohorts are
+ * multi-tenancy: callers MUST pass the active programId. Cohorts are
  * tenant-scoped — a PD viewing the MS Ophthalmology dashboard should never
  * see Cornea Fellowship cohorts even if they have membership in both.
  */

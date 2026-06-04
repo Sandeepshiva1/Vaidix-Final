@@ -54,7 +54,7 @@ function formatTime(d: Date): string {
 
 export async function GET() {
   try {
-    // W6.11 — dashboard upcoming is tenant-scoped.
+    // dashboard upcoming is tenant-scoped.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;
     const { user } = gate;

@@ -72,7 +72,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const effectiveRole = await getEffectiveSessionRole(sessionId, user.id, user.role);
 
     if (!effectiveRole || effectiveRole === 'VIEWER') {
-      // Not visible to this user under W3 visibility rules.
+      // Not visible to this user under visibility rules.
       // Two ways in: (a) valid share token → queue in waiting room; (b) nothing → 403
       if (effectiveRole === 'VIEWER') {
         // Admin/Proposer auditing — skip admission, mint viewer token.

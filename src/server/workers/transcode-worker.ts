@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Transcode Worker — W4 Stream A
+// Transcode Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Consumes RECORDING queue jobs:
 //   { recordingId } → downloads raw MP4 from MinIO → FFmpeg multi-bitrate HLS

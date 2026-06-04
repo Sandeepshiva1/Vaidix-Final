@@ -1,6 +1,6 @@
 'use client'
 
-// W6 P2 — DB-backed case library. Replaces the prior mock-JSON import with a
+// DB-backed case library. Replaces the prior mock-JSON import with a
 // fetch from /api/cases. The filter state machine and CaseCard rendering are
 // unchanged; only the data source moved.
 
@@ -44,7 +44,7 @@ interface CaseTemplateApi {
 const difficultyOptions = ['all', 'beginner', 'intermediate', 'advanced'] as const
 
 // Map the DB shape → the legacy ClinicalCase shape that CaseCard already
-// understands. Keeping CaseCard's contract stable means W7+ changes to the
+// understands. Keeping CaseCard's contract stable means later changes to the
 // list page don't break the card and vice versa.
 function adapt(t: CaseTemplateApi): ClinicalCase {
   return {
@@ -65,7 +65,7 @@ function adapt(t: CaseTemplateApi): ClinicalCase {
     tags: t.tags,
     imageCount: t.imageCount,
     completions: t.completions,
-    avgScore: 0, // not denormalized yet — wired in W8 when scoring history lands
+    avgScore: 0, // not denormalized yet — wired up when scoring history lands
     isEmergency: t.isEmergency,
   }
 }

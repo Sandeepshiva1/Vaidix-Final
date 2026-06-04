@@ -31,9 +31,9 @@ export default async function CompetencyMapPage() {
           <CardContent className="flex items-start gap-3 pt-6">
             <FlaskConical className="mt-0.5 size-5 shrink-0 text-amber-600" />
             <div className="text-sm">
-              <p className="font-medium">Scheduled for Week 8 of the build plan.</p>
+              <p className="font-medium">Not yet available.</p>
               <p className="mt-1 text-muted-foreground">
-                The competency heatmap reads from the <span className="font-medium">EpaRecord</span> + <span className="font-medium">DopsAssessment</span> + <span className="font-medium">MiniCexAssessment</span> tables. Those tables exist in the schema (per W0 lock) but no records have been written yet — DOPS / Mini-CEX assessment forms ship in W8. This page will populate automatically once the first assessments land.
+                The competency heatmap reads from the <span className="font-medium">EpaRecord</span> + <span className="font-medium">DopsAssessment</span> + <span className="font-medium">MiniCexAssessment</span> tables. Those tables exist in the schema but no records have been written yet — DOPS / Mini-CEX assessment forms are not yet wired. This page will populate automatically once the first assessments land.
               </p>
               <Link
                 href="/calendar/new"

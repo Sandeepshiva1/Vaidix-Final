@@ -1,12 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Mentor Response — W6 Phase 2 (Phase A: Gemini)
+// Mentor Response (Gemini-backed)
 // ════════════════════════════════════════════════════════════════════════════
 // Generates the next message in a case conversation. The mentor follows the
 // 5-stage Socratic dialogue (Patient Story → Observation → Hypothesis →
 // Investigation → Reflection). Output is a SHORT message (≤120 words) keeping
 // the Oslerian tone of "difficult but fair senior doctor" — no fluff.
 //
-// W13 will replace this with the same call shape backed by Vaidix Core +
+// A future iteration will replace this with the same call shape backed by Vaidix Core +
 // RAG retrieval. Caller (cases-service.sendMessage) treats this as a plain
 // async function: { role, content }.
 

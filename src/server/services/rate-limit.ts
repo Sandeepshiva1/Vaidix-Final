@@ -14,7 +14,7 @@
 //                password reset, invitation send, WhatsApp, coach calls)
 //                where unbounded retries are a security/cost incident.
 //
-// HARDENING-PLAN.md item #11.
+// security hardening.
 
 import { redis } from '@/lib/redis';
 
@@ -118,7 +118,7 @@ export const LIMITS = {
   // General API — fail-open (read-heavy, low-risk).
   API_GENERAL: { limit: 300, windowSec: 60, failMode: 'open' as const },
 
-  // ─── W4-Sprint ───────────────────────────────────────────────────────────
+  // ─── ───────────────────────────────────────────────────────────
   DOCUMENT_UPLOAD: { limit: 30, windowSec: 60 * 60, failMode: 'open' as const },
   DOCUMENT_ANALYZE: { limit: 60, windowSec: 60 * 60, failMode: 'closed' as const }, // billable upstream
   // Legacy single-source forge (document-detail "Forge presentation" button).
@@ -144,7 +144,7 @@ export const LIMITS = {
   KIRKPATRICK_WRITE: { limit: 60, windowSec: 60 * 60, failMode: 'open' as const },
   ENGAGEMENT_SIGNAL_WRITE: { limit: 600, windowSec: 60, failMode: 'open' as const },
 
-  // ─── W7 — Live collaboration ─────────────────────────────────────────────
+  // ─── — Live collaboration ─────────────────────────────────────────────
   // Reactions burst hard during exciting moments — keep ceiling generous.
   // Fail-open because each event also rides the LiveKit data channel; losing
   // a DB row degrades replay accuracy but doesn't break the live UX.
@@ -153,7 +153,7 @@ export const LIMITS = {
   SESSION_FILE_UPLOAD: { limit: 30, windowSec: 60 * 60, failMode: 'closed' as const },
   WEBINAR_REGISTER: { limit: 5, windowSec: 60 * 60, failMode: 'closed' as const },
 
-  // ─── W7.4 — Live captions ────────────────────────────────────────────────
+  // ─── — Live captions ────────────────────────────────────────────────
   // Token mint: one mint per session is the steady state, but reconnects on
   // network blips can burst. Fail-closed: short-lived Deepgram tokens are
   // billable upstream and a leak vector if uncapped.
@@ -167,4 +167,23 @@ export const LIMITS = {
   // because Gemini is billable and a runaway re-render loop on the overlay
   // shouldn't silently rack up cost.
   CAPTIONS_TRANSLATE: { limit: 300, windowSec: 60 * 60, failMode: 'closed' as const },
+  // Defense-in-depth on top of the per-user cap: an attacker controlling many
+  // accounts can still drive billable Gemini calls because the cache key is the
+  // (attacker-controlled) text. A per-session and per-IP ceiling bounds the
+  // blast radius regardless of how many accounts are used.
+  CAPTIONS_TRANSLATE_SESSION: { limit: 3000, windowSec: 60 * 60, failMode: 'closed' as const },
+  CAPTIONS_TRANSLATE_IP: { limit: 600, windowSec: 60 * 60, failMode: 'closed' as const },
+
+  // Standalone learning-engine AI endpoints. grade / report-coach (Gemini) and
+  // voice (Sarvam STT) are billable upstream calls driven by fully user-supplied
+  // bodies. Fail-closed: an unbounded retry loop on a Redis outage is a cost/
+  // abuse incident, not just degraded UX.
+  GRADE: { limit: 120, windowSec: 60 * 60, failMode: 'closed' as const },
+  REPORT_COACH: { limit: 30, windowSec: 60 * 60, failMode: 'closed' as const },
+  VOICE_STT: { limit: 120, windowSec: 60 * 60, failMode: 'closed' as const },
+
+  // Public recording-share password attempts. Without this an attacker with a
+  // valid (256-bit) share link can brute-force a weak password unthrottled.
+  // Keyed per token+IP, fail-closed.
+  SHARE_PASSWORD: { limit: 10, windowSec: 15 * 60, failMode: 'closed' as const },
 } as const;

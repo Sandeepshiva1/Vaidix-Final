@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// /teacher/documents — Faculty Document Library (W4 Stream C)
+// /teacher/documents — Faculty Document Library
 // ════════════════════════════════════════════════════════════════════════════
 
 import { redirect } from 'next/navigation';

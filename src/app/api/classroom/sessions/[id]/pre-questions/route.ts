@@ -1,4 +1,4 @@
-// W6 — list + submit pre-conference questions
+// list + submit pre-conference questions
 import { z } from 'zod';
 import { PreSessionQuestionUrgency } from '@prisma/client';
 import {

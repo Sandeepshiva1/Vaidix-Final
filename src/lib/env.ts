@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 // Usage: import { env } from '@/lib/env'
 // Fails fast at startup if any required env var is missing/malformed.
-// Production gates (§16 Build Plan): refuse to boot if a misconfigured
+// Production gates: refuse to boot if a misconfigured
 // production deploy would leak patient data to external services.
 
 import { z } from 'zod';
@@ -80,17 +80,17 @@ const envSchema = z.object({
   DEEPSEEK_API_KEY: z.string().optional(),
   DEEPSEEK_MODEL: z.string().default('deepseek-chat'),
 
-  // Provider selectors (W4-Sprint)
+  // Provider selectors
   TRANSCRIPTION_PROVIDER: z.enum(['sarvam', 'self_hosted']).default('sarvam'),
   SELF_HOSTED_TRANSCRIPTION_URL: z.string().url().optional(),
   AI_PROVIDER: z.enum(['gemini', 'vaidix_core']).default('gemini'),
 
-  // WhatsApp Business API (Stream D #9)
+  // WhatsApp Business API
   WHATSAPP_API_URL: z.string().url().optional(),
   WHATSAPP_API_TOKEN: z.string().optional(),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
 
-  // Live captions LiveKit Agent shared secret (Stream B9)
+  // Live captions LiveKit Agent shared secret
   LIVE_CAPTIONS_INGEST_SECRET: z.string().min(16).optional(),
 
   // Limits & paths
@@ -113,7 +113,7 @@ export const env = parsed.data;
 
 // ─── Production safety gates ───────────────────────────────────────────────
 // These run once at module load. Failure throws and refuses to boot in prod.
-// Reference: VAIDIX-BUILD-PLAN-NOW.md §16.3, VAIDIX-VIDEO-ARCHITECTURE.md §6.1.
+// Reference: internal design notes, the video architecture notes
 //
 // IMPORTANT: gates apply to RUNTIME only — `next build` runs with
 // NODE_ENV=production but is a compilation step, not a deploy. Skip during

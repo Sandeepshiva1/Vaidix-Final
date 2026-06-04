@@ -1,5 +1,5 @@
-// W5 — list + create recording shares for a session
-// (Resolves to the session's recording, which Stream A creates after egress.)
+// list + create recording shares for a session
+// (Resolves to the session's recording, which the egress pipeline creates after egress.)
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import {

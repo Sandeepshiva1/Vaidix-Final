@@ -20,24 +20,24 @@ export const QUEUES = {
   REMINDER: 'session-reminder',
   PRE_QUESTION_CLUSTER: 'pre-question-cluster',
   PHI_SCAN: 'phi-scan',
-  // W6.8 — Promo teaser video render (own queue so no co-tenant skipping)
+  // Promo teaser video render (own queue so no co-tenant skipping)
   PROMO: 'promo-pipeline',
-  // W8.1 — AI hook auto-generator (15-min cadence per live session)
+  // AI hook auto-generator (15-min cadence per live session)
   AI_HOOK: 'ai-hook',
-  // W8.3 — Post-session content pack (Pearl + QA + SJT + PBL via Claude)
+  // Post-session content pack (Pearl + QA + SJT + PBL via Claude)
   POST_SESSION: 'post-session',
-  // HARDENING-PLAN item #14
+  // security hardening
   AUDIT_WRITE: 'audit-write',
-  // HARDENING-PLAN item #16
+  // security hardening
   RETENTION: 'retention',
-  // HARDENING-PLAN item #17 — DSR / DPDPA
+  // security hardening — DSR / DPDPA
   DSR_EXPORT: 'dsr-export',
   ERASURE: 'erasure',
 } as const;
 
 export type QueueName = typeof QUEUES[keyof typeof QUEUES];
 
-// HARDENING-PLAN item #8 — DLQ queues for jobs that must not silently drop.
+// security hardening — DLQ queues for jobs that must not silently drop.
 // Use `dlqOf(QUEUES.X)` to get the dlq queue for kind X. The worker for X
 // moves its failed jobs into the DLQ via the `failed` event handler.
 export function dlqOf(name: QueueName): string {

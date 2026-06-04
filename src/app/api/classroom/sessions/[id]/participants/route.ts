@@ -35,6 +35,7 @@ export async function GET(
     const coHosts = await db.sessionParticipant.findMany({
       where: { sessionId, role: 'CO_HOST' },
       select: { userId: true },
+      take: 500, // bound the result; co-hosts are few in practice
     });
 
     return jsonOk({ coHostIds: coHosts.map((p) => p.userId) });

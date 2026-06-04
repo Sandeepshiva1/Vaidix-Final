@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Recording Service — W4 Stream A
+// Recording Service
 // ════════════════════════════════════════════════════════════════════════════
 // Access control + signed URL minting for HLS playback.
 // HLS master.m3u8 + variant playlists + .ts segments are all in MinIO.

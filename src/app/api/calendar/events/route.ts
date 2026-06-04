@@ -4,7 +4,7 @@ import { calendarQuerySchema } from '@/lib/validation/session';
 
 export async function GET(req: Request) {
   try {
-    // W6.11 — calendar events are tenant-scoped.
+    // calendar events are tenant-scoped.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;
 

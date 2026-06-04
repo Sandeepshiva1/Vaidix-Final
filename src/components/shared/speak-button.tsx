@@ -3,7 +3,7 @@
 /**
  * SpeakButton — text-to-speech for patient voice blocks.
  *
- * Phase A: uses the browser's Web Speech Synthesis API (free, zero latency,
+ * uses the browser's Web Speech Synthesis API (free, zero latency,
  * works offline). Picks an Indian English voice if available, otherwise
  * falls back to default.
  *

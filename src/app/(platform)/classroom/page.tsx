@@ -20,7 +20,7 @@ export default async function ClassroomListPage() {
   const s = await auth()
   if (!s?.user) redirect('/login')
 
-  // W6.11 — read activeProgramId live from the DB so a switcher change is
+  // read activeProgramId live from the DB so a switcher change is
   // reflected without re-auth.
   const userRow = await db.user.findUnique({
     where: { id: s.user.id },
@@ -59,7 +59,7 @@ export default async function ClassroomListPage() {
 
   const sessions = await db.teachingSession.findMany({
     where: {
-      // W6.11 — never list sessions outside the user's active program.
+      // never list sessions outside the user's active program.
       programId: activeProgramId,
       deletedAt: null,
       AND: [

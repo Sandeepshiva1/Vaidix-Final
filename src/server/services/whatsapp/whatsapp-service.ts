@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// WhatsApp Pearl Delivery — Stream D #9
+// WhatsApp Pearl Delivery
 // ════════════════════════════════════════════════════════════════════════════
 // Sends pearls via WhatsApp Business API on a 24h / 72h / 7d cadence.
 // Phase A (no real WA credentials): writes Notification rows + logs the
@@ -89,7 +89,7 @@ export async function sendWhatsappPearl(input: WhatsappSendInput): Promise<{
       reason = (e as Error).message;
     }
   } else {
-    // Phase A: dry-run. Log only.
+    // dry-run. Log only.
     console.log('[whatsapp-service] dry-run send', { userId: input.userId, ...input.payload });
   }
 
@@ -130,7 +130,7 @@ export async function schedulePearlSpacedDelivery(input: SchedulePearlInput): Pr
   scheduled: number;
   jobIds: string[];
 }> {
-  const queue = getQueue(QUEUES.EMAIL); // co-tenant the email queue for now; dedicated WA queue is W12 follow-up
+  const queue = getQueue(QUEUES.EMAIL); // shares the email queue for now; a dedicated WhatsApp queue is a follow-up
   const jobIds: string[] = [];
   for (const day of [1, 3, 7] as const) {
     const jobId = `wa-pearl-${input.userId}-${input.pearl.id}-d${day}`;

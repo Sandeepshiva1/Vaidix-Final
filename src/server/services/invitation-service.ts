@@ -370,13 +370,13 @@ export async function acceptInvitation(
   const existingUser = await db.user.findUnique({ where: { email: inv.email } });
   if (existingUser) throw new Error('USER_EXISTS');
 
-  // W6.11 — figure out which program this new user lands in. Order:
+  // figure out which program this new user lands in. Order:
   //   1. Cohort's program (if cohortId on the invitation)
   //   2. Inviter's currently active program
   //   3. The default LVPEI MS Ophthalmology program
   // The Invitation model does NOT (yet) carry a programId column; that's a
   // Phase-2 schema addition once admins routinely manage > 1 program. For
-  // now we derive at accept time so existing W3 invitation flows keep working.
+  // now we derive at accept time so existing invitation flows keep working.
   let assignedProgramId: string | null = null;
   if (inv.cohortId) {
     const c = await db.cohort.findUnique({
@@ -448,7 +448,7 @@ export async function acceptInvitation(
       avatarUrl: inv.avatarUrl,
       programDirectorId: programDirectorIdToApply,
       facultyMentorId: facultyMentorIdToApply,
-      // W6.11 — every new user lands in a program from day 1 so the cohort/
+      // every new user lands in a program from day 1 so the cohort/
       // session lists never 409 NO_ACTIVE_PROGRAM on first login.
       activeProgramId: assignedProgramId,
       profile: {
@@ -487,7 +487,7 @@ export async function acceptInvitation(
       }
     }
 
-    // W6.11 — register the membership inside the transaction so accept/create
+    // register the membership inside the transaction so accept/create
     // either both succeed or both roll back. assignedProgramId is computed
     // above (cohort program → inviter active → first ACTIVE → throw).
     await tx.programMembership.create({

@@ -12,14 +12,14 @@ import { startReelRenderWorker } from './reel-render-worker';
 import { startPreQuestionClusterWorker } from './pre-question-cluster-worker';
 import { startPhiScanWorker } from './phi-scan-worker';
 import { startPromoTeaserWorker } from './promo-teaser-worker';
-// HARDENING-PLAN sprint
+// security hardening sprint
 import { startAuditWorker } from './audit-worker';                  // item #14
 import { startRetentionWorker } from './retention-worker';          // item #16
 import { startDsrExportWorker } from './dsr-export-worker';         // item #17
 import { startErasureWorker } from './erasure-worker';              // item #17
 import { startDlqWatchers } from './dlq-watcher';                    // item #8
-import { startAiHookGeneratorWorker } from './ai-hook-generator-worker'; // W8.1
-import { startPostSessionPackWorker } from './post-session-pack-worker';  // W8.3
+import { startAiHookGeneratorWorker } from './ai-hook-generator-worker';
+import { startPostSessionPackWorker } from './post-session-pack-worker';
 import { log } from '@/lib/log';
 
 const workers = [

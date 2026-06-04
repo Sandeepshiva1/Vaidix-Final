@@ -1,4 +1,4 @@
-// HARDENING-PLAN.md item #7 — structured logging + request id.
+// security hardening — structured logging + request id.
 //
 // Single logger across app + workers. Emits structured JSON to stdout/stderr
 // with the shape Loki / Vector / Datadog expect. Pino is listed as a dep so
@@ -22,24 +22,40 @@ type Level = keyof typeof LEVEL_ORDER;
 const isDev = process.env.NODE_ENV !== 'production';
 const wantedLevel: Level = (process.env.LOG_LEVEL as Level) ?? (isDev ? 'debug' : 'info');
 
-const REDACT_KEYS = new Set([
-  'password',
-  'passwordHash',
-  'tokenHash',
-  'token',
-  'authorization',
-  'cookie',
-  'NEXTAUTH_SECRET',
-  'GEMINI_API_KEY',
-  'SARVAM_API_KEY',
-]);
+// Secrets + PII/PHI keys that must never reach stdout/Loki/Datadog. This is a
+// DPDPA-handling medical product, so the list deliberately covers identity and
+// clinical-content fields, not just credentials. Matched case-insensitively.
+const REDACT_KEYS = new Set(
+  [
+    // secrets
+    'password', 'passwordHash', 'tokenHash', 'token', 'authorization', 'cookie',
+    'nextauth_secret', 'gemini_api_key', 'sarvam_api_key', 'apikey', 'secret',
+    // identity / PII
+    'email', 'mobile', 'phone', 'phonenumber', 'name', 'firstname', 'lastname',
+    'fullname', 'displayname', 'address', 'dob', 'dateofbirth', 'ipaddress',
+    'useragent', 'mrn', 'aadhaar', 'pannumber',
+    // clinical content / PHI
+    'transcript', 'transcripttext', 'captions', 'segments', 'content', 'body',
+    'answer', 'learneranswer', 'previousanswer', 'surveydata', 'summary',
+  ].map((k) => k.toLowerCase()),
+);
+
+// Value-level scrub: masks PII embedded in free-text (error messages, prompts,
+// transcripts) even under keys we don't explicitly list. Emails always; runs of
+// 10+ digits (phone / Aadhaar / MRN). Short numeric ids are left intact.
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const LONG_DIGITS_RE = /\d{10,}/g;
+function scrubString(s: string): string {
+  return s.replace(EMAIL_RE, '[REDACTED-EMAIL]').replace(LONG_DIGITS_RE, '[REDACTED-NUM]');
+}
 
 function redact(input: unknown): unknown {
+  if (typeof input === 'string') return scrubString(input);
   if (input === null || typeof input !== 'object') return input;
   if (Array.isArray(input)) return input.map(redact);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
-    out[k] = REDACT_KEYS.has(k) ? '[REDACTED]' : redact(v);
+    out[k] = REDACT_KEYS.has(k.toLowerCase()) ? '[REDACTED]' : redact(v);
   }
   return out;
 }

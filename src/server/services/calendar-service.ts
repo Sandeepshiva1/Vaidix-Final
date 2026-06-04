@@ -46,7 +46,7 @@ async function buildVisibilityWhere(userId: string, role: Role, from: Date, to: 
   // Compose under `AND` so the two independent OR-clauses (time-window vs.
   // visibility) don't collide on a shared top-level `OR` key.
   return {
-    // W6.11 — narrow to the actor's active program. Defensive when missing.
+    // narrow to the actor's active program. Defensive when missing.
     ...(activeProgramId ? { programId: activeProgramId } : {}),
     deletedAt: null,
     scheduledStart: { lt: to },

@@ -1,4 +1,4 @@
-// GET /api/p/[token] — W9 (PUBLIC, no auth)
+// GET /api/p/[token] (PUBLIC, no auth)
 // Returns the promo bundle (session details + presigned SVG URLs) for a
 // share token. Used by the public landing page at /p/[token].
 

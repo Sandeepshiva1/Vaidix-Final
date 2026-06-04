@@ -7,7 +7,7 @@
 // linked preread documents. We deliberately do NOT parse uploaded file bytes:
 // this is a fast, cheap prep helper, not a full deck forge.
 //
-// Gemini is the AI provider in Phase A (same wrapper used everywhere else).
+// Gemini is the AI provider  (same wrapper used everywhere else).
 // When the model is unreachable / unconfigured, `GeminiUnavailableError`
 // propagates so the route can surface an honest 503 instead of fabricating
 // content.

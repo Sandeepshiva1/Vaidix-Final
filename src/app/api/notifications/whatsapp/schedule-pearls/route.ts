@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    // W6.11 — only let the actor schedule pearls from a program they are
+    // only let the actor schedule pearls from a program they are
     // active in. Prevents a Cornea Fellowship faculty from scheduling MS
     // Ophthalmology pearls to MS residents.
     const u = await db.user.findUnique({

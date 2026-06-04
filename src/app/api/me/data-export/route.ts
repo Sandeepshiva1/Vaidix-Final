@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #17 — user-initiated data export (DPDPA / GDPR-style).
+// security hardening — user-initiated data export (DPDPA / GDPR-style).
 // POST creates a DpdpaRequest of kind EXPORT; an async dsr-export-worker
 // gathers the user's data, uploads a tarball to s3://vaidix-video/dsr-export/,
 // emails a time-limited presigned URL when ready.

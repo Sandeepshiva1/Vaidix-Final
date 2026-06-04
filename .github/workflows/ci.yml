@@ -1,0 +1,46 @@
+name: CI
+
+# Required quality gate. The local `next build` skips type-checking for the
+# slow-disk dev loop (see next.config.ts); this workflow is where type and lint
+# errors are actually caught, so they cannot ship.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npx eslint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time placeholders — real secrets are injected at deploy time.
+          NEXTAUTH_SECRET: ci-build-placeholder-secret-not-used-at-runtime-000
+          DATABASE_URL: postgresql://user:pass@localhost:5432/ci
+          NEXTAUTH_URL: http://localhost:3000
+
+  # End-to-end tests need Postgres/Redis/MinIO service containers + seed data.
+  # Scaffolded separately so the static gate above stays fast and always-on.
+  # See playwright.config.ts and scripts/ for the harness.

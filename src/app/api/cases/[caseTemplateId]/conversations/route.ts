@@ -1,4 +1,4 @@
-// W6 P2 — list past attempts on this template (for "Review previous attempt"),
+// list past attempts on this template (for "Review previous attempt"),
 // or POST to start a new attempt (creates Case + Conversation + opening Message).
 import {
   jsonOk,
@@ -34,7 +34,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ caseTemplateId
 
 export async function POST(req: Request, ctx: { params: Promise<{ caseTemplateId: string }> }) {
   try {
-    // W6.11 — starting a case must validate the template belongs to the
+    // starting a case must validate the template belongs to the
     // user's active program; the service layer enforces this.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;

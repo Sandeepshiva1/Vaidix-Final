@@ -10,7 +10,7 @@ import { Role, SessionApprovalStatus } from '@prisma/client';
 
 export async function GET(req: Request) {
   try {
-    // W6.11 — sessions are program-scoped.
+    // sessions are program-scoped.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;
     const { user } = gate;

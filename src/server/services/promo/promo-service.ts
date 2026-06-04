@@ -28,7 +28,7 @@ const TEMPLATE_DIMS: Record<PromoTemplate, { w: number; h: number }> = {
   instagram_card: { w: 1080, h: 1080 },
 };
 
-/** Re-exports for the W6.8 teaser-video pipeline so it can reuse the
+/** Re-exports for the teaser-video pipeline so it can reuse the
  * Gemini-with-heuristic-fallback copy builder + the SVG palette without
  * duplicating logic. Keep the implementations private to this file. */
 export type { PromoCopy };
@@ -616,7 +616,7 @@ export async function generatePromoAssets(input: GeneratePromoInput): Promise<Ge
   // also fits Stories) + Instagram card (1080×1080). The A4 flyer template
   // is still callable via input.templates for explicit print-poster use,
   // but residency speakers share digitally — flyer was overkill in the
-  // default set. Drop from default per W9.2 feedback.
+  // default set. Drop from default per design feedback.
   const templates = input.templates ?? (['whatsapp_banner', 'instagram_card'] as const);
   const copy = await buildCopy({
     title: session.title,

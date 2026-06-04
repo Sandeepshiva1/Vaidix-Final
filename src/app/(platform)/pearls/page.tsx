@@ -27,7 +27,7 @@ export default async function PearlsPage() {
   // Pearls content currently lives in mock-data/pearls.json. The DB has the
   // same IDs (seeded via prisma/seed.ts), so engagement state (likes,
   // bookmarks) joins cleanly on `pearl.id`. When richer pearl content lives
-  // in the Pearl table itself (W9), this read will switch to db.pearl.findMany.
+  // in the Pearl table itself, this read will switch to db.pearl.findMany.
   const pearls = pearlsData as MockPearl[]
   const ids = pearls.map((p) => p.id)
 

@@ -1,4 +1,4 @@
-// POST /api/classroom/sessions/[id]/objectives/suggest — W9
+// POST /api/classroom/sessions/[id]/objectives/suggest
 // Faculty triggers AI-suggested learning objectives derived from the study
 // pack the speaker has already uploaded. Returns suggestion chips the
 // speaker reviews + accepts individually — nothing is persisted by this

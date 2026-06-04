@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #17 — DPDPA erasure worker.
+// security hardening — DPDPA erasure worker.
 // Anonymises personal columns instead of hard-deleting, so referential
 // integrity is preserved (a removed user's audit-log entries still need an
 // actorId). Audit log itself is regulatory-retained and not touched.
@@ -31,7 +31,7 @@ async function processErasure(job: Job<JobData>) {
         name: '(erased)',
         passwordHash: '!!disabled-by-erasure!!',
         // Bump passwordVersion so any live JWT for this user is revoked
-        // within 30s by HARDENING-PLAN #13.
+        // within 30s by security hardening.
         passwordVersion: { increment: 1 },
         status: UserStatus.SUSPENDED,
       },

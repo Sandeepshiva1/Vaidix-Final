@@ -1,4 +1,4 @@
-// POST /api/classroom/sessions/[id]/hooks/suggest — W9.4
+// POST /api/classroom/sessions/[id]/hooks/suggest
 // Gemini drafts up to 3 multi-choice polls from the session's objectives +
 // uploaded materials. Returns DRAFTS only — the presenter reviews, edits if
 // needed, then accepts each by calling the existing POST /hooks endpoint to

@@ -1,4 +1,4 @@
-// W5 — revoke a recording share
+// revoke a recording share
 import {
   jsonOk,
   requireAuth,

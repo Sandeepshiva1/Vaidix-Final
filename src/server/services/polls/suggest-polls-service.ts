@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// AI Poll Suggestion — W9.4
+// AI Poll Suggestion
 // ════════════════════════════════════════════════════════════════════════════
 // Presenter clicks "Suggest with AI" on the new Polls tab → Gemini drafts up
 // to 3 multi-choice polls grounded in the session's objectives + uploaded

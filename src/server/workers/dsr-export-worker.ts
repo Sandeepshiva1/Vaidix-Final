@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #17 — DPDPA data export worker.
+// security hardening — DPDPA data export worker.
 // Gathers a user's data into a JSON tarball, uploads to MinIO under
 // dsr-export/<requestId>.tar.gz, sets a presigned URL, marks the request
 // COMPLETED and emails the user. Tarball auto-expires from S3 after 7d

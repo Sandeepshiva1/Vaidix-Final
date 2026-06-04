@@ -5,7 +5,7 @@ import { Role } from '@prisma/client';
 
 export async function GET() {
   try {
-    // W6.11 — scope cohort list to the user's active program.
+    // scope cohort list to the user's active program.
     const gate = await requireAuthWithProgram();
     if (!gate.ok) return gate.response;
     const cohorts = await listCohorts({ programId: gate.user.activeProgramId });

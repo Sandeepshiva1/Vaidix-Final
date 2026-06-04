@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// DELETE /api/classroom/sessions/[id]/study-pack/documents/[linkId] — W6.8
+// DELETE /api/classroom/sessions/[id]/study-pack/documents/[linkId]
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty / host removes a document from the pre-session study pack. The
 // DocumentSessionLink row stays — only the `isPreSession` boolean flips back

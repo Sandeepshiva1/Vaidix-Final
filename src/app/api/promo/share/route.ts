@@ -1,4 +1,4 @@
-// POST /api/promo/share — W9
+// POST /api/promo/share
 // Faculty mints a public share link for the session's existing promo assets.
 // Body: { sessionId, expiresInDays? }. Returns { shareId, token, url, expiresAt }.
 

@@ -1,10 +1,10 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Breakout Service — W5
+// Breakout Service
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty splits a live session into N child rooms. Phase 1 modes:
 //   - RANDOM: server shuffles candidate participants and partitions into N
 //   - SELF_SELECT: empty rooms; participants claim a seat via /assignments
-//   - AI_AUTO: schema-only in Phase 1, route returns 501 (ships W11)
+//   - AI_AUTO: schema-only in Phase 1, route returns 501 (ships later)
 //
 // LiveKit child rooms are created via Server SDK with a deterministic name:
 //   `session-<sessionId>-bk-<breakoutId>`. Tokens are minted per-participant
@@ -119,7 +119,7 @@ export async function createBreakouts(
   if (input.groupingMode === BreakoutGroupingMode.AI_AUTO) {
     throw new BreakoutError(
       'AI_GROUPING_DEFERRED',
-      'AI auto-grouping ships in W11 with the readiness predictor'
+      'AI auto-grouping is not yet available'
     );
   }
   if (input.groupCount < 1 || input.groupCount > 16) {
@@ -395,7 +395,7 @@ export async function reconveneAll(
   return { ended: active.length };
 }
 
-// ─── Agent log (W5: schema + ingest contract only — Python sidecar later) ────
+// ─── Agent log ────
 // See docs/BREAKOUT-AGENT-CONTRACT.md.
 
 export interface AgentLogIngestInput {

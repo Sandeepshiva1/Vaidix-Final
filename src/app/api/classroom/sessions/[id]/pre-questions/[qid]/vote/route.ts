@@ -1,4 +1,4 @@
-// W6 — vote / unvote a pre-question
+// vote / unvote a pre-question
 import {
   jsonOk,
   requireAuth,

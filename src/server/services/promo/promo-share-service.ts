@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Promo Share Service — W9
+// Promo Share Service
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty mints a public-share token for an already-generated promo. The
 // short URL `/p/[token]` opens a landing page showing flyer + WA banner + IG
@@ -13,7 +13,7 @@
 
 import { db } from '@/lib/db';
 import { presignDownload } from '@/lib/storage';
-import { mintToken, hashToken } from '@/server/services/tokens';
+import { mintToken, hashToken, encryptToken, decryptToken } from '@/server/services/tokens';
 import { Role, DocumentRoute } from '@prisma/client';
 import { audit, AUDIT_EVENTS } from '@/server/services/audit';
 
@@ -82,7 +82,10 @@ export async function createPromoShare(
   const share = await db.promoShare.create({
     data: {
       sessionId: input.sessionId,
-      token,
+      // Encrypted at rest (not plaintext) so a DB dump can't replay the link.
+      // Resolution uses tokenHash; this column exists only to re-display the
+      // URL to the creator, which needs the (decryptable) original token.
+      token: encryptToken(token),
       tokenHash: hashToken(token),
       expiresAt,
       createdById: input.actor.userId,
@@ -135,12 +138,14 @@ export async function getCurrentPromoShareForSession(
     select: { id: true, token: true, expiresAt: true },
   });
   if (!share) return null;
-  // Legacy rows (pre-migration) have a placeholder token that won't resolve;
-  // hide them so the speaker can mint a fresh, real share instead.
-  if (share.token.startsWith('legacy_')) return null;
+  // Decrypt the stored token to rebuild the share URL. Legacy/plaintext rows
+  // (pre-encryption, or the old `legacy_` placeholder) won't decrypt — hide
+  // them so the speaker mints a fresh, real share instead.
+  const plainToken = decryptToken(share.token);
+  if (!plainToken) return null;
   return {
     shareId: share.id,
-    url: `${origin.replace(/\/$/, '')}/p/${share.token}`,
+    url: `${origin.replace(/\/$/, '')}/p/${plainToken}`,
     expiresAt: share.expiresAt.toISOString(),
   };
 }

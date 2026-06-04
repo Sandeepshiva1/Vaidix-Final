@@ -57,7 +57,7 @@ export default async function CohortAnalyticsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Cohort Analytics</h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Engagement across all active cohorts. DOPS / EPA / 3H scoring lands in Week 8.
+          Engagement across all active cohorts. DOPS / EPA / 3H scoring is coming soon.
         </p>
       </StaggerItem>
 
@@ -106,7 +106,7 @@ export default async function CohortAnalyticsPage() {
             <div className="text-sm">
               <p className="font-medium">3H (Head/Heart/Hands) and Oslerian principle averages — coming Week 8.</p>
               <p className="mt-1 text-muted-foreground">
-                Scoring infrastructure (DOPS, Mini-CEX, EPA records, ScoringEvent log) ships in Week 8 per <span className="font-medium">VAIDIX-BUILD-PLAN-NOW.md</span>. This widget will populate automatically when the first scoring events land.
+                Scoring infrastructure (DOPS, Mini-CEX, EPA records, ScoringEvent log) is not yet wired. This widget will populate automatically when the first scoring events land.
               </p>
             </div>
           </CardContent>

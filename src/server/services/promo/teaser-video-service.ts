@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// AI Promo Teaser Video Service — W6.8 (Feeddback #1, video form)
+// AI Promo Teaser Video Service
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty triggers POST /api/promo/teaser-video → service queues a render job.
 // The worker (`promo-teaser-render` in reel-render-worker.ts) generates 3

@@ -94,7 +94,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         });
 
-        // W6.11: load the user's program memberships + active program here
+        // Load the user's program memberships + active program here
         // so the JWT carries them from sign-in onwards. No edge-runtime DB
         // imports leak into auth.config (this file is Node-only).
         const { programs, activeProgramId } = await loadProgramsForUser(result.user.id);

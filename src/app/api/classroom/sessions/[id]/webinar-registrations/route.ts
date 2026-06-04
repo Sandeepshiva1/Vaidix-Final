@@ -124,6 +124,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const regs = await db.webinarRegistration.findMany({
       where: { sessionId },
       orderBy: { createdAt: 'desc' },
+      take: 2000, // bound the response; export endpoint handles full dumps
       select: {
         id: true,
         name: true,

@@ -1,4 +1,4 @@
-// W5 — Q&A list + create
+// Q&A list + create
 import { z } from 'zod';
 import {
   jsonOk,

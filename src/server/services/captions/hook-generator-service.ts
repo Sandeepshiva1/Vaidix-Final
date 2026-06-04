@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// AI Hook Auto-Generator — W8.1
+// AI Hook Auto-Generator
 // ════════════════════════════════════════════════════════════════════════════
 // Every 15 minutes during a LIVE session this service reads the rolling
 // SessionTranscript window and calls Gemini to generate 2 engagement hooks

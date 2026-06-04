@@ -1,5 +1,5 @@
-// POST /api/documents/[id]/analyze — Smart Presentation Enhancement Studio (Stream C #15).
-// Phase A: heuristic-only analysis (page count, mime check, title heuristics).
+// POST /api/documents/[id]/analyze — Smart Presentation Enhancement Studio.
+// heuristic-only analysis (page count, mime check, title heuristics).
 // Phase B: swap with Gemini-vision pass over slide images for real density/balance scoring.
 
 import { db } from '@/lib/db';
@@ -178,7 +178,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       result = heuristicAnalyze(doc);
     }
 
-    // Persist to a DeckForgeJob row (re-uses the existing model + W4 analysisResult column).
+    // Persist to a DeckForgeJob row (re-uses the existing model + analysisResult column).
     const job = await db.deckForgeJob.create({
       data: {
         documentId: doc.id,

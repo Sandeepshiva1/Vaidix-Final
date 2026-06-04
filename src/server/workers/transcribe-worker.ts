@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Transcribe Worker — W4 Stream B
+// Transcribe Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Consumes TRANSCRIBE queue jobs:
 //   { recordingId } → extracts audio (WAV) from raw MP4 in MinIO
@@ -182,7 +182,7 @@ async function transcribeJob(data: TranscribeJobData): Promise<{ recordingId: st
       });
     }
 
-    // 6. Mark recording ready (AI post-processing — pearl extraction — is W13 work).
+    // 6. Mark recording ready (AI post-processing — pearl extraction — is future work).
     await db.recording.update({
       where: { id: recording.id },
       data: {

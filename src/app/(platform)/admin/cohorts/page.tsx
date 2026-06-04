@@ -12,7 +12,7 @@ export default async function CohortsPage() {
     redirect('/dashboard')
   }
 
-  // W6.11 — read activeProgramId live from DB so a switcher change is
+  // read activeProgramId live from DB so a switcher change is
   // reflected without a sign-in cycle. Falls back to the JWT cached value.
   const userRow = await db.user.findUnique({
     where: { id: session.user.id },

@@ -2,8 +2,8 @@
 // POST /api/classroom/webhooks/livekit
 // ════════════════════════════════════════════════════════════════════════════
 // Receives signed LiveKit webhook events:
-//   - Room lifecycle (W2): room_started / room_finished / participant_joined/left
-//   - Egress lifecycle (W4 Stream A): egress_started / egress_updated /
+//   - Room lifecycle: room_started / room_finished / participant_joined/left
+//   - Egress lifecycle: egress_started / egress_updated /
 //     egress_ended — drives the recording state machine and enqueues transcode.
 // Updates session + recording records without trusting any client state.
 
@@ -271,7 +271,7 @@ export async function POST(req: Request) {
     return new Response('OK', { status: 200 });
   }
 
-  // ─── Room lifecycle events (existing W2 logic) ─────────────────────────
+  // ─── Room lifecycle events (existing logic) ─────────────────────────
   const sessionId = roomToSessionId(event.room?.name);
   if (!sessionId) {
     return new Response('OK (no-op)', { status: 200 });

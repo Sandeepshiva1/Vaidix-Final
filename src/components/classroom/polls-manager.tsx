@@ -1,7 +1,7 @@
 'use client'
 
 // ════════════════════════════════════════════════════════════════════════════
-// Faculty Polls Manager — W9.4
+// Faculty Polls Manager
 // ════════════════════════════════════════════════════════════════════════════
 // Lives inside the new "Polls" tab of FacultyPrepPanel. Lets the host:
 //   1. AI-suggest 1–3 drafts grounded in objectives + materials

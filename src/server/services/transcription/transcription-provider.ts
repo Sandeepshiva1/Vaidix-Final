@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 // TranscriptionProvider — common interface for Sarvam and self-hosted Whisper.
 // ════════════════════════════════════════════════════════════════════════════
-// W4-Sprint Stream B foundation. The transcribe BullMQ worker calls
+// foundation. The transcribe BullMQ worker calls
 // getTranscriptionProvider().transcribe(...) — knows nothing about which
 // implementation runs. Cutover to LVPEI on-prem self-hosted = env var flip
 // + restart, enforced by the production env gate in src/lib/env.ts.

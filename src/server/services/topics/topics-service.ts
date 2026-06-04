@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Topics Service — W6
+// Topics Service
 // ════════════════════════════════════════════════════════════════════════════
 // Read-only surface over the Topic model. Hierarchy is exposed shallowly
 // (parent + children one level deep) so /api/topics returns a tree without
@@ -87,7 +87,7 @@ export async function listTopics(opts: {
   programId: string;
   subspecialty?: string;
 }): Promise<TopicSummary[]> {
-  // W6.11 — Topic curriculum is per-program; never list across tenants.
+  // Topic curriculum is per-program; never list across tenants.
   const rows = await db.topic.findMany({
     where: {
       programId: opts.programId,
@@ -116,7 +116,7 @@ export async function listTopics(opts: {
 }
 
 export async function getTopic(idOrSlug: string, programId: string): Promise<TopicDetail> {
-  // W6.11 — slug is unique-within-program post-migration, so the OR-by-slug
+  // slug is unique-within-program post-migration, so the OR-by-slug
   // path requires the programId to disambiguate the same slug across tenants.
   const topic = await db.topic.findFirst({
     where: {

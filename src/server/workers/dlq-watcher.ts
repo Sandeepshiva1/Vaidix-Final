@@ -1,4 +1,4 @@
-// HARDENING-PLAN.md item #8 — global DLQ watcher.
+// security hardening — global DLQ watcher.
 // Subscribes to QueueEvents on every CRITICAL queue. On `failed`, copies the
 // failed job into the corresponding `*-dlq` queue (delayed 1h to allow the
 // last automatic attempt to land), writes an audit row, and bumps a metric.

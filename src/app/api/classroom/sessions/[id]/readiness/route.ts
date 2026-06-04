@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// GET /api/classroom/sessions/[id]/readiness — W6.8 (Feeddback #5)
+// GET /api/classroom/sessions/[id]/readiness
 // ════════════════════════════════════════════════════════════════════════════
 // Returns the per-learner readiness snapshot for the session host / PD / admin.
 // Residents calling this get 403 — readiness reveals individual identity which
@@ -39,7 +39,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       sessionId
     );
     // Audit reads — readiness exposes per-learner identity, so PD/admin
-    // access is loggable for compliance review (mirrors the W4 audit
+    // access is loggable for compliance review (mirrors the audit
     // pattern around DOPS-style assessment views).
     await audit({
       actorId: auth.user.id,

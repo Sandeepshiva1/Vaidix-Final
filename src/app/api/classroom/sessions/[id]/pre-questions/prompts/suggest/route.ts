@@ -1,4 +1,4 @@
-// POST /api/classroom/sessions/[id]/pre-questions/prompts/suggest — W9.3
+// POST /api/classroom/sessions/[id]/pre-questions/prompts/suggest
 // Faculty asks Gemini to draft 1–3 "doubt prompts" the residents will see
 // above the Ask & Vote compose box. Returns the drafts — persists nothing.
 // The speaker accepts/dismisses each, and acceptance is via the existing

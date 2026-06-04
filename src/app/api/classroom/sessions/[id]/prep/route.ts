@@ -29,7 +29,7 @@ const prereqItemSchema = z.object({
   required: z.boolean(),
 });
 
-// W9.3 — presenter-published "doubt prompts" that frame what residents ask
+// presenter-published "doubt prompts" that frame what residents ask
 // before the session. Stored in session.metadata.doubtPrompts (same JSON
 // column prereqItems live in) — no new model, no migration.
 const doubtPromptSchema = z.object({

@@ -1,5 +1,5 @@
 // POST /api/documents/[id]/classify — runs the AI classifier (Phase A heuristic).
-// Stream C will swap heuristicClassify for a Gemini call before W4 ends.
+// a later pass will swap heuristicClassify for a Gemini call later.
 
 import { db } from '@/lib/db';
 import { handleUnexpected, jsonError, jsonOk, requireAuth } from '@/server/services/api-helpers';

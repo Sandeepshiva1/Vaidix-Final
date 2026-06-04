@@ -1,5 +1,5 @@
 // Read the `vaidix-csrf` cookie that NextAuth middleware refreshes on every
-// request and return it as the `x-csrf-token` header (HARDENING-PLAN #15).
+// request and return it as the `x-csrf-token` header (security hardening).
 // Server-side `requireCsrf` constant-time compares cookie vs header.
 
 export function csrfHeaders(): Record<string, string> {

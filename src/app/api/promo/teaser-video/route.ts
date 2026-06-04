@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// POST /api/promo/teaser-video — W6.8 (Feeddback #1, video form)
+// POST /api/promo/teaser-video
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty / PD / Admin generates a 15-sec silent vertical promo teaser MP4
 // for an upcoming session. Returns 202 + the placeholder Document.id; client

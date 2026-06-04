@@ -1,4 +1,4 @@
-// W6 — fetch one topic by id or slug, with shallow hierarchy + counts
+// fetch one topic by id or slug, with shallow hierarchy + counts
 import {
   jsonOk,
   jsonError,

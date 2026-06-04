@@ -23,7 +23,7 @@ export const SESSION_AUDIT = {
   SCREEN_SHARE_START: 'SCREEN_SHARE_START',
   SCREEN_SHARE_STOP: 'SCREEN_SHARE_STOP',
 
-  // W7 replay events. Written via /api/classroom/sessions/[id]/events with a
+  // Replay events. Written via /api/classroom/sessions/[id]/events with a
   // server-assigned tMs offset so the recording viewer can replay them in
   // sync with the video timeline. See REPLAYABLE_EVENT_TYPES below for the
   // subset that the events endpoint accepts (some — e.g. SPOTLIGHT_SET — are

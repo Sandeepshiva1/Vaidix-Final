@@ -35,6 +35,7 @@ export async function GET(req: Request) {
         sessionLinks: { some: { sessionId: q.data.sessionId } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 200, // bound the response; promo assets per session are few
       select: { id: true, title: true, s3Key: true, mimeType: true, sizeBytes: true, createdAt: true },
     });
     const assets = await Promise.all(

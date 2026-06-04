@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════════════════
-// PresenterAlertsHud — Stream D #5
+// PresenterAlertsHud
 // ════════════════════════════════════════════════════════════════════════════
 // Host-only HUD that subscribes to the room client's presenter-alerts stream
 // (default LMS impl uses SSE on /api/classroom/sessions/[id]/presenter-alerts).

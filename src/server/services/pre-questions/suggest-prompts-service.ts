@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// AI Doubt-Prompt Suggestion — W9.3
+// AI Doubt-Prompt Suggestion
 // ════════════════════════════════════════════════════════════════════════════
 // Faculty publishes 1–3 "doubt prompts" that frame what residents ask before
 // the session — e.g. "What confuses you most about herpetic uveitis?". This

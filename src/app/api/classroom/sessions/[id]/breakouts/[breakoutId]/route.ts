@@ -1,4 +1,4 @@
-// W5 — end a single breakout (faculty/PD/admin)
+// end a single breakout (faculty/PD/admin)
 // Symmetric subset of reconvene that ends just one of the breakouts.
 import { db } from '@/lib/db';
 import { BreakoutStatus, Role } from '@prisma/client';

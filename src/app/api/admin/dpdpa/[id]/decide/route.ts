@@ -1,4 +1,4 @@
-// HARDENING-PLAN item #17 — admin approves/rejects a DPDPA erasure request.
+// security hardening — admin approves/rejects a DPDPA erasure request.
 // POST { decision: 'APPROVE' | 'REJECT', notes?: string }
 // On APPROVE: enqueues the ERASURE worker to scrub identifying fields.
 // On REJECT: marks the request REJECTED with notes; user is emailed.

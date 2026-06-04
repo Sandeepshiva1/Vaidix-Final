@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Pre-question clustering — W6
+// Pre-question clustering
 // ════════════════════════════════════════════════════════════════════════════
 // Calls Gemini to cluster a session's submitted pre-questions into themes.
 // Returns label + summary + assignments (questionId → themeIndex). Caller

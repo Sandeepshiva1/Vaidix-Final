@@ -41,7 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return jsonOk({ alreadyConfirmed: true });
     }
 
-    // W6.11 — webinar self-registrations create EXTERNAL_LEARNER accounts.
+    // webinar self-registrations create EXTERNAL_LEARNER accounts.
     // Land them in the session's program so they can see this session
     // (and only this session, until an admin grants other memberships).
     const sessionRow = await db.teachingSession.findUnique({

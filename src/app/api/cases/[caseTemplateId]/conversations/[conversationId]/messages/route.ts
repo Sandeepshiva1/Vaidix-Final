@@ -1,5 +1,5 @@
-// W6 P2 — append a resident message; the service generates the next mentor
-// reply (Gemini in Phase A) and advances the Socratic stage.
+// append a resident message; the service generates the next mentor
+// reply (Gemini ) and advances the Socratic stage.
 import { z } from 'zod';
 import {
   jsonOk,

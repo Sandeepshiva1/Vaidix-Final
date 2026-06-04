@@ -54,7 +54,7 @@ export interface AdaptiveItem {
 
 /**
  * Derive a per-axis difficulty score for an item.
- * Phase A: rule-based from audience + base difficulty + axes scored.
+ * rule-based from audience + base difficulty + axes scored.
  * Phase B: faculty-curated and stored on each item.
  *
  * Logic:
@@ -219,7 +219,7 @@ export function updateState(
   newUsed.add(item.id)
 
   // Branching: when a high-criticality history item is missed, queue a probe
-  // (Phase A: just records the trigger; Phase B will use Claude to generate a follow-up scenario)
+  // (just records the trigger; Phase B will use Claude to generate a follow-up scenario)
   let newPending = state.pendingBranching
   if (item.type === 'history-audit' && result.missedHistory) {
     const highMissed = result.missedHistory.filter(
@@ -436,7 +436,7 @@ import { mulberry32 } from './seeded-random'
  * Given current session state and a pool of available items, decide the
  * next action: pick the next item or terminate the test.
  *
- * Phase A: rule-based scoring as documented at the top of this file.
+ * rule-based scoring as documented at the top of this file.
  * Phase B: this entire function body can be replaced with a Claude API call
  *           that takes the same inputs and returns the same shape.
  *

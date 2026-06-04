@@ -11,7 +11,7 @@
 //   REPLAYABLE_EVENT_TYPES are returned.
 //
 // This route deliberately reuses SessionAuditEvent rather than creating a
-// parallel events table. See VAIDIX-BUILD-PLAN-NOW.md §W7 for the rationale.
+// parallel events table. See internal design notes for the rationale.
 
 import { z } from 'zod';
 import {

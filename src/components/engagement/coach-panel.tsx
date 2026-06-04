@@ -1,7 +1,7 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════════════════
-// CoachPanel — Stream D #19 client surface
+// CoachPanel —  client surface
 // ════════════════════════════════════════════════════════════════════════════
 // Learner asks the reinforcement coach a free-form question; bot replies with
 // answer + follow-up quiz + case example. Phase A is stateless (no history).

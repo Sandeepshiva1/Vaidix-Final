@@ -116,33 +116,33 @@ export default function KnowledgeBasePage() {
               <h1 className="text-2xl font-bold tracking-tight">Knowledge Base</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Curated guidelines, protocols, and references. RAG ingestion lands in Week 13.
+              Curated guidelines, protocols, and references. RAG ingestion is coming soon.
             </p>
           </div>
-          <Button disabled title="Article authoring ships in Week 13">
+          <Button disabled title="Article authoring is not yet available">
             <Plus className="size-4 mr-1.5" />
             Add Article
           </Button>
         </div>
       </StaggerItem>
 
-      {/* W13 build-plan banner — preview list below is illustrative until
-          /api/admin/ingestion/jobs + /api/rag/query land per VAIDIX-BUILD-PLAN-NOW.md §10g. */}
+      {/* preview banner — preview list below is illustrative until
+          /api/admin/ingestion/jobs + /api/rag/query land. */}
       <StaggerItem>
         <Card className="border-dashed">
           <CardContent className="flex items-start gap-3 pt-6">
             <FlaskConical className="mt-0.5 size-5 shrink-0 text-amber-600" />
             <div className="text-sm">
-              <p className="font-medium">Scheduled for Week 13 of the build plan.</p>
+              <p className="font-medium">Not yet available.</p>
               <p className="mt-1 text-muted-foreground">
                 The Knowledge Base is the front-end for the RAG ingestion pipeline:{' '}
                 <span className="font-medium">RagCollection</span> +{' '}
                 <span className="font-medium">RagDocument</span> +{' '}
-                <span className="font-medium">RagChunkMeta</span> tables exist in the schema (W0
-                lock) but no documents have been ingested yet — content ingestion (PubMed PMC,
+                <span className="font-medium">RagChunkMeta</span> tables exist in the schema
+                but no documents have been ingested yet — content ingestion (PubMed PMC,
                 journal scraping), BGE-M3 embeddings into Qdrant, and the{' '}
                 <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/rag/query</code>{' '}
-                retrieval endpoint all ship in W13. The articles listed below are illustrative
+                retrieval endpoint are not yet wired. The articles listed below are illustrative
                 placeholders, not real records.
               </p>
             </div>

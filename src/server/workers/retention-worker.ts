@@ -1,4 +1,4 @@
-// HARDENING-PLAN.md item #16 — daily retention sweep.
+// security hardening — daily retention sweep.
 // Iterates `retention_policies`, applies each enabled policy. Strategy:
 //   - purge:     delete rows older than ttlDays + remove S3 objects
 //   - anonymise: replace identifying fields with placeholders, keep stats

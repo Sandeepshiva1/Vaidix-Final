@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Pre-Question Cluster Worker — W6 (Feeddback #2)
+// Pre-Question Cluster Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Drains the `pre-question-cluster` BullMQ queue. Jobs are debounced by
 // jobId=sessionId — the producer (pre-questions-service.scheduleRecluster)

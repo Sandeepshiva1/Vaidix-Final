@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// Post-Session Pack Worker — W8.3
+// Post-Session Pack Worker
 // ════════════════════════════════════════════════════════════════════════════
 // Processes 'post-session-pack' jobs from the POST_SESSION queue.
 // Triggered automatically when a transcript is finalized (finalizeOnEnd=true).
