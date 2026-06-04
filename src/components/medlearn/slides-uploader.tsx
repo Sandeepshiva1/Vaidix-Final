@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import styles from './medlearn.module.css';
 import { IconUpload } from './icons';
 import { attachDocumentAndForgeAction } from './actions';
+import { ensureCsrfHeaders } from '@/lib/csrf-client';
 
 interface Props {
   sessionId: string;
@@ -185,9 +186,14 @@ async function uploadDocumentMultipart({
   form.append('description', description);
   form.append('file', file);
 
+  // /api/documents/upload enforces CSRF — attach the x-csrf-token header.
+  const csrf = await ensureCsrfHeaders();
+
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/documents/upload', true);
+    xhr.withCredentials = true;
+    for (const [k, v] of Object.entries(csrf)) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) onProgress((ev.loaded / ev.total) * 100);
     };
