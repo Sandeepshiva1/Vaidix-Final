@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { Role } from '@prisma/client'
 import { loadSessionView } from '@/lib/medlearn/session-view'
+import { loadPostData } from './post-data'
 import { PostClient } from './post-client'
 
 export const dynamic = 'force-dynamic'
@@ -24,5 +25,7 @@ export default async function PostConferencePage({ params }: PageProps) {
   const isHost = view.hostId === session.user.id
   if (!isHost && !FACULTY_LIKE.includes(session.user.role)) redirect('/dashboard')
 
-  return <PostClient session={view} />
+  const data = await loadPostData(id, { userId: session.user.id, role: session.user.role })
+
+  return <PostClient session={view} data={data} />
 }

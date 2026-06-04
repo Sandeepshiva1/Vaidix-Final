@@ -11,33 +11,29 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Clock3,
   Copy,
   Download,
-  Edit2,
   ExternalLink,
   Eye,
   FileText,
   Info,
   Link2,
   MessageCircle,
-  Mic,
   Play,
   Plus,
-  RefreshCw,
-  Save,
   Send,
   Share2,
   Sparkles,
   ThumbsUp,
   Trophy,
   Users2,
-  Video,
   X,
   Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ensureCsrfHeaders } from '@/lib/csrf-client'
 import type { SessionView } from '@/lib/medlearn/session-view'
+import type { PostData } from './post-data'
 
 type PostTab =
   | 'overview'
@@ -50,26 +46,6 @@ type PostTab =
   | 'analytics'
   | 'share'
 
-interface Pearl {
-  id: string
-  type: 'key' | 'visual' | 'case'
-  title: string
-  body: string
-  schedule: '24h' | '72h' | '7d'
-  sent: boolean
-  editing: boolean
-}
-
-interface Reel {
-  id: string
-  title: string
-  duration: string
-  topic: string
-  type: 'concept' | 'soundbite'
-  speaker?: string
-  quote?: string
-}
-
 interface Doubt {
   id: string
   author: string
@@ -80,166 +56,9 @@ interface Doubt {
   answered: boolean
   endorsed: number
   reply?: string
-  voiceNote?: boolean
-  videoUrl?: string
   peerReplies?: { author: string; initials: string; text: string }[]
   questionType?: 'doubt' | 'text-based' | 'open-ended'
 }
-
-interface SimCase {
-  id: string
-  title: string
-  scenario: string
-  score: number
-  correct: number
-  total: number
-  students: { name: string; score: number; level: string }[]
-}
-
-interface StudentEval {
-  name: string
-  initials: string
-  bloom: { remember: number; understand: number; apply: number; analyse: number; evaluate: number; create: number }
-  kirkpatrick: { reaction: number; learning: number; behaviour: number; results: number }
-  overall: number
-  pathwayReady: boolean
-}
-
-interface StudentAnalytics {
-  name: string
-  initials: string
-  cohort: string
-  preScore: number
-  liveScore: number
-  postScore: number
-  attendance: boolean
-  doubts: number
-  peerEngagement: number
-}
-
-// Demo-seeded session materials — not part of SessionView yet (real-data wiring
-// is a later phase), so these live as local state seeded with the demo default.
-interface SourceFile {
-  name: string
-  size: string
-  kind: 'pdf' | 'pptx' | 'docx' | 'notes'
-}
-interface PrereadFile {
-  name: string
-  size: string
-  kind: 'pdf' | 'video' | 'docx' | 'notes'
-}
-
-const SOURCE_FILES_SEED: SourceFile[] = [
-  { name: 'Glaucoma Suspect — Diagnosis & Management.pptx', size: '5.2 MB', kind: 'pptx' },
-  { name: 'OHTS Study Summary.pdf', size: '1.8 MB', kind: 'pdf' },
-]
-
-const PREREAD_FILES_SEED: PrereadFile[] = [
-  { name: 'OCT-RNFL interpretation primer.pdf', size: '1.1 MB', kind: 'pdf' },
-]
-
-const PEARLS_SEED: Pearl[] = [
-  { id: 'p1', type: 'key', title: 'Pearl 1 — Optic Disc Haemorrhage', body: 'A single disc haemorrhage doubles the 5-year risk of glaucoma conversion in OHT patients. Treat more aggressively when present, even if IOP is borderline.', schedule: '24h', sent: true, editing: false },
-  { id: 'p2', type: 'key', title: 'Pearl 2 — RNFL Asymmetry Rule', body: 'Inter-eye RNFL asymmetry >10µm in corresponding sectors is clinically significant — even before visual field changes appear on standard automated perimetry.', schedule: '72h', sent: false, editing: false },
-  { id: 'p3', type: 'key', title: 'Pearl 3 — Target IOP Calculation', body: 'Set target IOP = baseline − (20–30% for moderate risk) or − (30–40% for high risk). Recalculate every 6 months based on structural/functional progression.', schedule: '7d', sent: false, editing: false },
-  { id: 'p4', type: 'visual', title: 'Visual Card — ISNT Rule', body: 'In a normal optic disc, rim width follows: Inferior > Superior > Nasal > Temporal. Violation of this rule is a red flag for glaucomatous cupping.', schedule: '24h', sent: false, editing: false },
-  { id: 'p5', type: 'visual', title: 'Visual Card — VF Progression Map', body: 'Hemifield defects respecting the horizontal meridian are characteristic of glaucoma. Compare mean deviation and pattern standard deviation across serial fields.', schedule: '72h', sent: false, editing: false },
-  { id: 'p6', type: 'case', title: 'Mini Case — The 52-year-old Suspect', body: 'OHT patient, IOP 26 mmHg, normal VF, RNFL 78µm inferior. No disc haemorrhage. OHTS risk score: 12%. Decision: Monitor vs treat? Key factors — CCT, family history, and rate of structural change.', schedule: '7d', sent: false, editing: false },
-]
-
-const REELS_SEED: Reel[] = [
-  { id: 'r1', title: 'ISNT Rule — 30-sec Explainer', duration: '0:30', topic: 'Optic disc anatomy', type: 'concept' },
-  { id: 'r2', title: 'Target IOP — Why It Matters', duration: '0:28', topic: 'IOP management', type: 'concept' },
-  { id: 'r3', title: 'Reading an RNFL Report', duration: '0:30', topic: 'OCT interpretation', type: 'concept' },
-  { id: 'r4', title: '"The disc haemorrhage is a warning sign…"', duration: '0:18', topic: 'Key teaching moment', type: 'soundbite', speaker: 'Dr. Avinash Pathengay', quote: '"One disc haemorrhage — that\'s your signal. Don\'t wait for the field defect."' },
-  { id: 'r5', title: '"OHTS taught us to treat based on risk…"', duration: '0:22', topic: 'Evidence-based practice', type: 'soundbite', speaker: 'Dr. Avinash Pathengay', quote: '"The OHTS data is clear — risk calculators should guide our decision, not just the IOP number."' },
-]
-
-const DOUBTS_SEED: Doubt[] = [
-  { id: 'd1', author: 'Arjun Mehta', cohort: 'R3 · VR', text: 'In a suspect with normal VF but RNFL thinning on OCT, how often should we repeat imaging?', time: '2h ago', pinned: true, answered: false, endorsed: 5, questionType: 'doubt',
-    peerReplies: [{ author: 'Rakesh Naidu', initials: 'RN', text: 'Most protocols suggest 6-monthly OCT for 2 years, then annually if stable. At least 2 consecutive worsening scans before calling progression.' }] },
-  { id: 'd2', author: 'Pooja Iyer', cohort: 'R2 · Cornea', text: 'What is the threshold IOP to start treatment in a low-risk OHT patient?', time: '4h ago', pinned: false, answered: true, endorsed: 3, questionType: 'doubt',
-    reply: 'Great question Pooja — most guidelines use ≥26 mmHg as a threshold, but we always factor in CCT, disc morphology, and family history. Low-risk patients with IOP 22-25 mmHg may be monitored every 6 months rather than treated.' },
-  { id: 'd3', author: 'Sneha Rao', cohort: 'R2 · VR', text: 'Is selective laser trabeculoplasty first-line now or still after drops?', time: '6h ago', pinned: false, answered: false, endorsed: 7, questionType: 'doubt',
-    peerReplies: [{ author: 'Vikram Joshi', initials: 'VJ', text: 'LiGHT trial showed SLT non-inferior to drops at 3 years with lower cost. Many guidelines now list it as a valid first-line option.' }] },
-  { id: 'd4', author: 'Kiran Reddy', cohort: 'R1 · Cornea', text: 'How do we differentiate physiological cupping from early glaucomatous cupping?', time: '1d ago', pinned: false, answered: false, endorsed: 9, questionType: 'doubt',
-    peerReplies: [{ author: 'Arjun Mehta', initials: 'AM', text: 'Key differentiators: ISNT rule violation, disc haemorrhage, RNFL defects on OCT, and VF correlation. Physiological cupping has a symmetric, round cup with intact rim.' }] },
-  { id: 'q1', author: 'Dr. Avinash (Faculty)', cohort: 'Faculty', text: 'What is the most important OCT biomarker for predicting visual prognosis in DME?', time: 'Just now', pinned: false, answered: false, endorsed: 0, questionType: 'text-based' },
-  { id: 'q2', author: 'Dr. Avinash (Faculty)', cohort: 'Faculty', text: 'Describe your approach to a patient with refractory DME after 6 anti-VEGF injections. What factors guide your next decision?', time: 'Just now', pinned: false, answered: false, endorsed: 0, questionType: 'open-ended' },
-]
-
-const SIM_CASES: SimCase[] = [
-  {
-    id: 's1',
-    title: 'Case Simulation 1 — OHT Management Decision',
-    scenario: 'A 55-year-old with IOP 27 mmHg OU, CCT 510µm, normal VFs, mild inferior RNFL thinning. OHTS score 18%. What is the most appropriate management?',
-    score: 72,
-    correct: 6,
-    total: 8,
-    students: [
-      { name: 'Arjun Mehta', score: 90, level: 'Apply' },
-      { name: 'Pooja Iyer', score: 75, level: 'Understand' },
-      { name: 'Sneha Rao', score: 65, level: 'Remember' },
-      { name: 'Kiran Reddy', score: 58, level: 'Remember' },
-    ],
-  },
-  {
-    id: 's2',
-    title: 'Case Simulation 2 — Progressive Glaucoma',
-    scenario: 'Follow-up at 2 years: on Latanoprost, IOP 18 mmHg. VF showing -2 dB/year progression. RNFL loss 4µm/year. Is the current management adequate?',
-    score: 61,
-    correct: 5,
-    total: 8,
-    students: [
-      { name: 'Arjun Mehta', score: 85, level: 'Analyse' },
-      { name: 'Pooja Iyer', score: 60, level: 'Understand' },
-      { name: 'Sneha Rao', score: 55, level: 'Remember' },
-      { name: 'Kiran Reddy', score: 45, level: 'Remember' },
-    ],
-  },
-]
-
-const STUDENT_EVALS: StudentEval[] = [
-  {
-    name: 'Arjun Mehta', initials: 'AM',
-    bloom: { remember: 95, understand: 90, apply: 85, analyse: 80, evaluate: 70, create: 55 },
-    kirkpatrick: { reaction: 90, learning: 85, behaviour: 75, results: 65 },
-    overall: 84, pathwayReady: true,
-  },
-  {
-    name: 'Pooja Iyer', initials: 'PI',
-    bloom: { remember: 88, understand: 80, apply: 65, analyse: 55, evaluate: 40, create: 30 },
-    kirkpatrick: { reaction: 85, learning: 72, behaviour: 55, results: 40 },
-    overall: 65, pathwayReady: true,
-  },
-  {
-    name: 'Sneha Rao', initials: 'SR',
-    bloom: { remember: 70, understand: 62, apply: 50, analyse: 42, evaluate: 30, create: 20 },
-    kirkpatrick: { reaction: 75, learning: 60, behaviour: 45, results: 35 },
-    overall: 52, pathwayReady: true,
-  },
-  {
-    name: 'Kiran Reddy', initials: 'KR',
-    bloom: { remember: 65, understand: 55, apply: 40, analyse: 32, evaluate: 25, create: 15 },
-    kirkpatrick: { reaction: 70, learning: 55, behaviour: 40, results: 28 },
-    overall: 44, pathwayReady: false,
-  },
-]
-
-const STUDENT_ANALYTICS: StudentAnalytics[] = [
-  { name: 'Arjun Mehta',  initials: 'AM', cohort: 'R3 · VR',   preScore: 88, liveScore: 840, postScore: 91, attendance: true,  doubts: 2, peerEngagement: 1 },
-  { name: 'Pooja Iyer',   initials: 'PI', cohort: 'R2 · Cor',  preScore: 74, liveScore: 720, postScore: 78, attendance: true,  doubts: 1, peerEngagement: 0 },
-  { name: 'Rakesh Naidu', initials: 'RN', cohort: 'R3 · Glc',  preScore: 69, liveScore: 660, postScore: 72, attendance: true,  doubts: 0, peerEngagement: 1 },
-  { name: 'Vikram Joshi', initials: 'VJ', cohort: 'R1 · Uvea', preScore: 55, liveScore: 550, postScore: 60, attendance: true,  doubts: 0, peerEngagement: 1 },
-  { name: 'Sneha Rao',    initials: 'SR', cohort: 'R2 · VR',   preScore: 49, liveScore: 490, postScore: 55, attendance: true,  doubts: 1, peerEngagement: 0 },
-  { name: 'Priya Sharma', initials: 'PS', cohort: 'Fellow',    preScore: 31, liveScore: 310, postScore: 38, attendance: false, doubts: 0, peerEngagement: 0 },
-  { name: 'Kiran Reddy',  initials: 'KR', cohort: 'R1 · Cor',  preScore: 28, liveScore: 280, postScore: 34, attendance: true,  doubts: 1, peerEngagement: 0 },
-  { name: 'Aisha Khan',   initials: 'AK', cohort: 'R2 · Glc',  preScore: 22, liveScore: 220, postScore: 29, attendance: false, doubts: 0, peerEngagement: 0 },
-]
-
-const BLOOM_LEVELS = ['Remember', 'Understand', 'Apply', 'Analyse', 'Evaluate', 'Create'] as const
-const BLOOM_COLORS = ['bg-slate-400', 'bg-sky-400', 'bg-teal-400', 'bg-emerald-400', 'bg-amber-400', 'bg-rose-400']
 
 const TABS: { key: PostTab; label: string; icon: React.ReactNode }[] = [
   { key: 'overview',    label: 'Overview',    icon: <Sparkles className="size-3.5" /> },
@@ -262,103 +81,268 @@ function downloadBlob(content: string, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url)
 }
 
-export function PostClient({ session }: { session: SessionView }) {
-  // Demo-only session fields not present on SessionView (later phase wires real
-  // data) — seeded with the demo defaults, kept as local state.
-  const [sourceFiles] = useState<SourceFile[]>(SOURCE_FILES_SEED)
-  const [prereadFiles] = useState<PrereadFile[]>(PREREAD_FILES_SEED)
+function formatBytes(bytesStr: string): string {
+  const bytes = Number(bytesStr)
+  if (!Number.isFinite(bytes) || bytes <= 0) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diff = Date.now() - then
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+// Adapt a real PostDoubt (Q&A item) into the demo's Doubt render-shape.
+function toDoubt(d: PostData['doubts'][number]): Doubt {
+  return {
+    id: d.id,
+    author: d.author,
+    cohort: '',
+    text: d.text,
+    time: relativeTime(d.time),
+    pinned: d.pinned,
+    answered: d.answered,
+    endorsed: d.endorsed,
+    reply: d.answer ?? undefined,
+    questionType: 'doubt',
+    peerReplies: d.replies.map((r) => ({
+      author: r.author,
+      initials: r.author.split(' ').map((w) => w[0]).join('').slice(0, 2),
+      text: r.text,
+    })),
+  }
+}
+
+export function PostClient({ session, data }: { session: SessionView; data: PostData }) {
+  // Real session materials from DocumentSessionLink (split pre-session vs presentation).
+  const sourceFiles = data.materials.filter((m) => !m.isPreSession)
+  const prereadFiles = data.materials.filter((m) => m.isPreSession)
 
   const [activeTab, setActiveTab] = useState<PostTab>('overview')
-  const [pearls, setPearls] = useState<Pearl[]>(PEARLS_SEED)
-  const [doubts, setDoubts] = useState<Doubt[]>(DOUBTS_SEED)
+  // Pearls + reels are AI-generated; generation is PARKED behind real buttons.
+  const pearls = data.pearls
+  const [doubts, setDoubts] = useState<Doubt[]>(() => data.doubts.map(toDoubt))
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
-  const [videoUrlDraft, setVideoUrlDraft] = useState<Record<string, string>>({})
   const [expandedDoubt, setExpandedDoubt] = useState<string | null>(null)
-  const [expandedSim, setExpandedSim] = useState<string | null>('s1')
-  const [shareLink] = useState('https://vaidix.app/s/gl-2026')
+  const [expandedSim, setExpandedSim] = useState<string | null>(data.cases[0]?.id ?? null)
   const [linkCopied, setLinkCopied] = useState(false)
-  const [pearlEditDraft, setPearlEditDraft] = useState<Record<string, string>>({})
-  const [regeneratingPearl, setRegeneratingPearl] = useState<Record<string, boolean>>({})
-  const [regeneratingReel, setRegeneratingReel] = useState<Record<string, boolean>>({})
-  const [analyticsPhase, setAnalyticsPhase] = useState<'pre' | 'live' | 'post' | 'combined'>('combined')
+  const [shareLink, setShareLink] = useState<string | null>(null)
+  const [shareBusy, setShareBusy] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
   const [showEvalInfo, setShowEvalInfo] = useState(false)
-  const [evalSharedWithMod, setEvalSharedWithMod] = useState(false)
   const [scoresVisibleToStudents, setScoresVisibleToStudents] = useState(false)
   const [showAddQuestion, setShowAddQuestion] = useState(false)
   const [newQuestionType, setNewQuestionType] = useState<'text-based' | 'open-ended'>('text-based')
   const [newQuestionText, setNewQuestionText] = useState('')
-  const doubtsOpen = true
-  const daysLeft = 5
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [generateBusy, setGenerateBusy] = useState(false)
+  const [generateMsg, setGenerateMsg] = useState<string | null>(null)
+  // Post-conference doubts are the recording Q&A — "open" while a recording exists.
+  const doubtsOpen = data.hasRecording
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [doubts])
 
-  const sendPearl = (pid: string) => {
-    setPearls((prev) => prev.map((p) => p.id === pid ? { ...p, sent: true } : p))
-  }
+  const qaBase = `/api/classroom/sessions/${session.id}/qa`
 
-  const deletePearl = (pid: string) => {
-    setPearls((prev) => prev.filter((p) => p.id !== pid))
-  }
-
-  const regeneratePearl = (pid: string) => {
-    setRegeneratingPearl((r) => ({ ...r, [pid]: true }))
-    setTimeout(() => setRegeneratingPearl((r) => ({ ...r, [pid]: false })), 2000)
-  }
-
-  const regenerateReel = (rid: string) => {
-    setRegeneratingReel((r) => ({ ...r, [rid]: true }))
-    setTimeout(() => setRegeneratingReel((r) => ({ ...r, [rid]: false })), 2000)
-  }
-
-  const startEdit = (pid: string, body: string) => {
-    setPearlEditDraft((d) => ({ ...d, [pid]: body }))
-    setPearls((prev) => prev.map((p) => p.id === pid ? { ...p, editing: true } : p))
-  }
-
-  const saveEdit = (pid: string) => {
-    setPearls((prev) => prev.map((p) => p.id === pid ? { ...p, body: pearlEditDraft[pid] ?? p.body, editing: false } : p))
-  }
-
-  const cancelEdit = (pid: string) => {
-    setPearls((prev) => prev.map((p) => p.id === pid ? { ...p, editing: false } : p))
-  }
-
-  const sendReply = (did: string) => {
+  // ── Real Q&A actions (recording-backed PostSessionQa / QaItem) ─────────────
+  const sendReply = async (did: string) => {
     const text = (replyDraft[did] ?? '').trim()
     if (!text) return
-    const videoUrl = (videoUrlDraft[did] ?? '').trim()
-    setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, reply: text, answered: true, videoUrl: videoUrl || d.videoUrl } : d))
+    setActionError(null)
+    // Optimistic
+    setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, reply: text, answered: true } : d))
     setReplyDraft((r) => ({ ...r, [did]: '' }))
-    setVideoUrlDraft((r) => ({ ...r, [did]: '' }))
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(`${qaBase}/${did}/answer`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...csrf },
+        body: JSON.stringify({ answer: text }),
+      })
+      if (!res.ok) throw new Error('Failed to post answer')
+    } catch {
+      setActionError('Could not save your answer. Please try again.')
+    }
   }
 
-  const addVoiceNote = (did: string) => {
-    setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, voiceNote: true } : d))
+  const endorseDoubt = async (did: string) => {
+    setActionError(null)
+    setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, endorsed: d.endorsed + 1 } : d))
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(`${qaBase}/${did}/likes`, { method: 'POST', headers: csrf })
+      if (res.ok) {
+        const json = await res.json().catch(() => null)
+        const likeCount = json?.data?.likeCount
+        if (typeof likeCount === 'number') {
+          setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, endorsed: likeCount } : d))
+        }
+      }
+    } catch {
+      setActionError('Could not endorse. Please try again.')
+    }
   }
 
-  const addQuestion = () => {
+  const togglePin = async (did: string) => {
+    setActionError(null)
+    const target = doubts.find((d) => d.id === did)
+    const next = !(target?.pinned ?? false)
+    setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, pinned: next } : d))
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(`${qaBase}/${did}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrf },
+        body: JSON.stringify({ pinned: next }),
+      })
+      if (!res.ok) throw new Error('pin failed')
+    } catch {
+      // revert
+      setDoubts((prev) => prev.map((d) => d.id === did ? { ...d, pinned: !next } : d))
+      setActionError('Could not update pin. Only the host / PD / admin can pin.')
+    }
+  }
+
+  // Add Question: posts a real top-level Q&A item to the recording.
+  const addQuestion = async () => {
     const text = newQuestionText.trim()
     if (!text) return
-    const newQ: Doubt = {
-      id: `q${Date.now()}`, author: 'Dr. Avinash (Faculty)', cohort: 'Faculty',
-      text, time: 'Just now', pinned: false, answered: false, endorsed: 0, questionType: newQuestionType,
+    setActionError(null)
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(qaBase, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrf },
+        body: JSON.stringify({ timestampSec: 0, question: text }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        throw new Error(json?.error?.message ?? 'Failed to post question')
+      }
+      const json = await res.json().catch(() => null)
+      const newId = json?.data?.id ?? `tmp-${Date.now()}`
+      setDoubts((prev) => [
+        ...prev,
+        { id: newId, author: 'You', cohort: '', text, time: 'just now', pinned: false, answered: false, endorsed: 0, questionType: newQuestionType },
+      ])
+      setNewQuestionText('')
+      setShowAddQuestion(false)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not post the question (a recording is required).')
     }
-    setDoubts((prev) => [...prev, newQ])
-    setNewQuestionText('')
-    setShowAddQuestion(false)
   }
 
-  const copyLink = () => {
-    setLinkCopied(true)
-    setTimeout(() => setLinkCopied(false), 2000)
+  // Share: mint a real recording-share link (or surface a graceful message).
+  const copyLink = async () => {
+    setShareError(null)
+    if (shareLink) {
+      try { await navigator.clipboard.writeText(shareLink) } catch { /* ignore */ }
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+      return
+    }
+    setShareBusy(true)
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(`/api/classroom/sessions/${session.id}/recording-share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrf },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        if (res.status === 409) throw new Error('No recording to share yet.')
+        throw new Error('Could not create a share link.')
+      }
+      const json = await res.json().catch(() => null)
+      const url: string | undefined = json?.data?.url
+      if (!url) throw new Error('Share link unavailable.')
+      setShareLink(url)
+      try { await navigator.clipboard.writeText(url) } catch { /* ignore */ }
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch (e) {
+      setShareError(e instanceof Error ? e.message : 'Could not create a share link.')
+    } finally {
+      setShareBusy(false)
+    }
   }
 
-  const pearlsBySchedule = (sched: '24h' | '72h' | '7d') => pearls.filter((p) => p.schedule === sched)
+  // Fetch a signed download URL for a session document and open it.
+  const openDocument = async (documentId: string) => {
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/documents/${documentId}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Could not load document')
+      const json = await res.json().catch(() => null)
+      const url: string | undefined = json?.data?.document?.downloadUrl
+      if (!url) throw new Error('Download link unavailable')
+      window.open(url, '_blank', 'noopener')
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not open the document.')
+    }
+  }
 
-  const scheduleLabel: Record<string, string> = { '24h': '24 Hours After', '72h': '72 Hours After', '7d': '7 Days After' }
+  // Park AI generation (pearls / reels / post-session pack). The Gemini/worker
+  // pipeline is offline in this env; the route enqueues a job or 503s gracefully.
+  const triggerGeneration = async (label: string) => {
+    setGenerateBusy(true)
+    setGenerateMsg(null)
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(`/api/classroom/sessions/${session.id}/post-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrf },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        setGenerateMsg(`${label} generation queued — content will appear once processing completes.`)
+      } else {
+        setGenerateMsg(`${label} generation is offline right now. Please try again later.`)
+      }
+    } catch {
+      setGenerateMsg(`${label} generation is offline right now. Please try again later.`)
+    } finally {
+      setGenerateBusy(false)
+    }
+  }
+
+  // Group Kirkpatrick evaluations by learner (real data; honest empty otherwise).
+  const KIRK_LABEL: Record<string, string> = {
+    L1_REACTION: 'L1 · Reaction',
+    L2_LEARNING: 'L2 · Learning',
+    L3_BEHAVIOR: 'L3 · Behaviour',
+    L4_RESULTS: 'L4 · Results',
+  }
+  const KIRK_ORDER = ['L1_REACTION', 'L2_LEARNING', 'L3_BEHAVIOR', 'L4_RESULTS']
+  const evalGroups = (() => {
+    const byUser = new Map<string, { userId: string; name: string; initials: string; levels: { label: string; score: number; order: number }[] }>()
+    for (const e of data.evaluations) {
+      const g = byUser.get(e.userId) ?? { userId: e.userId, name: e.name, initials: e.initials, levels: [] }
+      const order = KIRK_ORDER.indexOf(e.level)
+      g.levels.push({ label: KIRK_LABEL[e.level] ?? e.level, score: Math.round(e.score), order: order < 0 ? 99 : order })
+      byUser.set(e.userId, g)
+    }
+    return Array.from(byUser.values())
+      .map((g) => {
+        const levels = g.levels.sort((a, b) => a.order - b.order)
+        const overall = levels.length > 0 ? Math.round(levels.reduce((s, l) => s + l.score, 0) / levels.length) : null
+        return { ...g, levels, overall }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  })()
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -378,7 +362,7 @@ export function PostClient({ session }: { session: SessionView }) {
             <span>{session.date}</span>
             {doubtsOpen && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20">
-                <Bell className="size-3" /> Doubts open · {daysLeft} days left
+                <Bell className="size-3" /> Doubts open
               </span>
             )}
           </div>
@@ -411,10 +395,10 @@ export function PostClient({ session }: { session: SessionView }) {
           {/* Stats row */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[
-              { label: 'Learners',         value: '58',  sub: 'attended live',       color: 'from-teal-500/15 to-emerald-500/10',  icon: <Users2 className="size-4 text-teal-600" /> },
-              { label: 'Avg Engagement',   value: '74%', sub: 'during session',       color: 'from-sky-500/15 to-blue-500/10',       icon: <BarChart3 className="size-4 text-sky-600" /> },
-              { label: 'Quiz Top Score',   value: '840', sub: 'Arjun Mehta',          color: 'from-amber-500/15 to-orange-500/10',   icon: <Trophy className="size-4 text-amber-600" /> },
-              { label: 'Doubts Raised',    value: '12',  sub: `${daysLeft} days left`, color: 'from-violet-500/15 to-purple-500/10',  icon: <MessageCircle className="size-4 text-violet-600" /> },
+              { label: 'Learners',         value: String(data.attendedCount),  sub: `attended · ${data.invitedCount} invited`,       color: 'from-teal-500/15 to-emerald-500/10',  icon: <Users2 className="size-4 text-teal-600" /> },
+              { label: 'Avg Engagement',   value: data.avgEngagement === null ? '—' : `${data.avgEngagement}%`, sub: data.avgEngagement === null ? 'no signal' : 'during session',       color: 'from-sky-500/15 to-blue-500/10',       icon: <BarChart3 className="size-4 text-sky-600" /> },
+              { label: 'Evaluations',      value: String(data.evaluations.length), sub: data.evaluations.length === 0 ? 'not generated' : 'Kirkpatrick',          color: 'from-amber-500/15 to-orange-500/10',   icon: <Trophy className="size-4 text-amber-600" /> },
+              { label: 'Doubts Raised',    value: String(data.doubtsCount),  sub: doubtsOpen ? 'open' : 'closed', color: 'from-violet-500/15 to-purple-500/10',  icon: <MessageCircle className="size-4 text-violet-600" /> },
             ].map((s) => (
               <div key={s.label} className={cn('rounded-2xl border border-border/60 bg-linear-to-br p-4', s.color)}>
                 <div className="flex items-center justify-between">
@@ -430,12 +414,12 @@ export function PostClient({ session }: { session: SessionView }) {
           {/* Feature cards */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { tab: 'pearls' as PostTab,      icon: <Zap className="size-5 text-amber-600" />,        title: 'Knowledge Pearls',        desc: 'AI-generated key pearls, visual cards, and mini cases ready to send', color: 'bg-amber-50 border-amber-200' },
-              { tab: 'reels' as PostTab,        icon: <Play className="size-5 text-rose-600" />,        title: 'Content Reels',           desc: '3 concept reels + 2 speaker soundbites generated from session', color: 'bg-rose-50 border-rose-200' },
-              { tab: 'doubts' as PostTab,       icon: <MessageCircle className="size-5 text-sky-600" />, title: 'Doubts (Open)',           desc: `4 new questions · ${daysLeft} days remaining`, color: 'bg-sky-50 border-sky-200' },
-              { tab: 'simulations' as PostTab,  icon: <Brain className="size-5 text-violet-600" />,     title: 'AI Simulations',          desc: '2 case simulations evaluated · avg score 67%', color: 'bg-violet-50 border-violet-200' },
-              { tab: 'evaluation' as PostTab,   icon: <BarChart3 className="size-5 text-teal-600" />,   title: 'Evaluation Report',       desc: "Bloom's + Kirkpatrick scoring for all 8 students", color: 'bg-teal-50 border-teal-200' },
-              { tab: 'analytics' as PostTab,    icon: <Trophy className="size-5 text-emerald-600" />,   title: 'Full Analytics',          desc: 'Pre · Live · Post combined with individual student data', color: 'bg-emerald-50 border-emerald-200' },
+              { tab: 'pearls' as PostTab,      icon: <Zap className="size-5 text-amber-600" />,        title: 'Knowledge Pearls',        desc: data.pearls.length > 0 ? `${data.pearls.length} pearl${data.pearls.length === 1 ? '' : 's'} from this session` : 'No pearls yet — generate from session', color: 'bg-amber-50 border-amber-200' },
+              { tab: 'reels' as PostTab,        icon: <Play className="size-5 text-rose-600" />,        title: 'Content Reels',           desc: data.recordings.length > 0 ? 'Generate reels from the recording' : 'No recording to clip yet', color: 'bg-rose-50 border-rose-200' },
+              { tab: 'doubts' as PostTab,       icon: <MessageCircle className="size-5 text-sky-600" />, title: doubtsOpen ? 'Doubts (Open)' : 'Doubts',           desc: `${data.doubtsCount} question${data.doubtsCount === 1 ? '' : 's'}`, color: 'bg-sky-50 border-sky-200' },
+              { tab: 'simulations' as PostTab,  icon: <Brain className="size-5 text-violet-600" />,     title: 'AI Simulations',          desc: data.cases.length > 0 ? `${data.cases.length} case${data.cases.length === 1 ? '' : 's'} in the bank` : 'No cases for this topic yet', color: 'bg-violet-50 border-violet-200' },
+              { tab: 'evaluation' as PostTab,   icon: <BarChart3 className="size-5 text-teal-600" />,   title: 'Evaluation Report',       desc: data.evaluations.length > 0 ? `Kirkpatrick scoring · ${data.evaluations.length} record${data.evaluations.length === 1 ? '' : 's'}` : 'No evaluations generated yet', color: 'bg-teal-50 border-teal-200' },
+              { tab: 'analytics' as PostTab,    icon: <Trophy className="size-5 text-emerald-600" />,   title: 'Full Analytics',          desc: data.analytics.length > 0 ? `${data.analytics.length} participant${data.analytics.length === 1 ? '' : 's'}` : 'No participant data yet', color: 'bg-emerald-50 border-emerald-200' },
             ].map((f) => (
               <button
                 key={f.tab}
@@ -458,180 +442,115 @@ export function PostClient({ session }: { session: SessionView }) {
 
       {/* ── PEARLS ───────────────────────────────────────────────────────── */}
       {activeTab === 'pearls' && (
-        <div className="space-y-8">
-          <div className="flex items-center justify-between">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-[17px] font-semibold">Knowledge Pearls</h2>
-              <p className="text-[12.5px] text-muted-foreground">AI-generated · edit and schedule for delivery via WhatsApp · 24h · 72h · 7 days</p>
+              <p className="text-[12.5px] text-muted-foreground">Key clinical takeaways extracted from this session&apos;s recording &amp; topic</p>
             </div>
+            <button type="button" onClick={() => triggerGeneration('Pearls')} disabled={generateBusy || !data.hasRecording}
+              title={data.hasRecording ? 'Generate pearls from the session' : 'A recording is required to generate pearls'}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500 px-3.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-amber-400 disabled:opacity-40">
+              <Sparkles className={cn('size-3.5', generateBusy && 'animate-spin')} /> {generateBusy ? 'Generating…' : 'Generate pearls'}
+            </button>
           </div>
 
-          {(['24h', '72h', '7d'] as const).map((sched) => (
-            <div key={sched}>
-              <div className="mb-3 flex items-center gap-2">
-                <div className="grid size-6 place-items-center rounded-full bg-teal-500/15 text-teal-700"><Clock3 className="size-3" /></div>
-                <span className="text-[13px] font-semibold">{scheduleLabel[sched]}</span>
-                <span className="ml-auto text-[11px] text-muted-foreground">{pearlsBySchedule(sched).filter((p) => p.sent).length}/{pearlsBySchedule(sched).length} sent</span>
-              </div>
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {pearlsBySchedule(sched).map((pearl) => (
-                  <div
-                    key={pearl.id}
-                    className={cn(
-                      'overflow-hidden rounded-2xl border',
-                      pearl.type === 'key'    ? 'border-teal-200 bg-teal-50'   :
-                      pearl.type === 'visual' ? 'border-sky-200 bg-sky-50'     :
-                                               'border-amber-200 bg-amber-50'
-                    )}
-                  >
-                    <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider',
-                          pearl.type === 'key'    ? 'bg-teal-200 text-teal-800'   :
-                          pearl.type === 'visual' ? 'bg-sky-200 text-sky-800'     :
-                                                   'bg-amber-200 text-amber-800'
-                        )}>
-                          {pearl.type === 'key' ? 'Key Pearl' : pearl.type === 'visual' ? 'Visual Card' : 'Mini Case'}
-                        </span>
-                        <span className="text-[12.5px] font-semibold">{pearl.title}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {!pearl.editing && (
-                          <>
-                            <button type="button" title="Edit" onClick={() => startEdit(pearl.id, pearl.body)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/60 hover:text-foreground">
-                              <Edit2 className="size-3.5" />
-                            </button>
-                            <button type="button" title="Regenerate" onClick={() => regeneratePearl(pearl.id)} disabled={regeneratingPearl[pearl.id]}
-                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/60 hover:text-indigo-600 disabled:opacity-40">
-                              <RefreshCw className={cn('size-3.5', regeneratingPearl[pearl.id] && 'animate-spin')} />
-                            </button>
-                            <button type="button" title="Delete" onClick={() => deletePearl(pearl.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/60 hover:text-rose-500">
-                              <X className="size-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
+          {generateMsg && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-800">{generateMsg}</div>
+          )}
 
-                    <div className="px-4 pb-3">
-                      {pearl.editing ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={pearlEditDraft[pearl.id] ?? pearl.body}
-                            onChange={(e) => setPearlEditDraft((d) => ({ ...d, [pearl.id]: e.target.value }))}
-                            rows={3}
-                            className="w-full rounded-xl border border-teal-300 bg-white px-3 py-2 text-[12.5px] text-foreground outline-none focus:ring-2 focus:ring-teal-400"
-                          />
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => saveEdit(pearl.id)} className="flex items-center gap-1.5 rounded-full bg-teal-500 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-teal-400">
-                              <Save className="size-3" /> Save
-                            </button>
-                            <button type="button" onClick={() => cancelEdit(pearl.id)} className="rounded-full border border-gray-300 px-3 py-1.5 text-[11px] text-gray-600 hover:bg-gray-50">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-[12.5px] leading-relaxed text-gray-700">{pearl.body}</p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-white/60 bg-white/40 px-4 py-2">
-                      {pearl.sent ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600">
-                          <Check className="size-3" /> Sent via WhatsApp
-                        </span>
-                      ) : (
-                        <button type="button" onClick={() => sendPearl(pearl.id)} className="inline-flex items-center gap-1.5 rounded-full bg-teal-500 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-teal-400">
-                          <Send className="size-3" /> Send Now
-                        </button>
-                      )}
-                      <span className="text-[10.5px] text-muted-foreground">Schedule: {scheduleLabel[pearl.schedule]}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {pearls.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+              <Zap className="mx-auto size-8 text-muted-foreground" />
+              <div className="mt-2 text-[13px] font-medium text-muted-foreground">No pearls yet</div>
+              <div className="text-[11.5px] text-muted-foreground">Generate pearls from the session recording to populate this library.</div>
             </div>
-          ))}
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {pearls.map((pearl) => (
+                <div key={pearl.id} className="overflow-hidden rounded-2xl border border-teal-200 bg-teal-50">
+                  <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-teal-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-teal-800">Pearl</span>
+                      <span className="text-[12.5px] font-semibold">{pearl.title}</span>
+                    </div>
+                    {pearl.extractedByAi && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[9px] font-semibold text-teal-700"><Sparkles className="size-2.5" /> AI</span>
+                    )}
+                  </div>
+                  <div className="px-4 pb-3">
+                    <p className="text-[12.5px] leading-relaxed text-gray-700">{pearl.body}</p>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-white/60 bg-white/40 px-4 py-2">
+                    {pearl.approved ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600"><Check className="size-3" /> Approved</span>
+                    ) : (
+                      <span className="text-[10.5px] text-muted-foreground">Pending approval</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── REELS ────────────────────────────────────────────────────────── */}
       {activeTab === 'reels' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-[17px] font-semibold">Content Reels</h2>
-            <p className="text-[12.5px] text-muted-foreground">AI-generated 30-second concept reels and speaker soundbites from the session</p>
-          </div>
-
-          <div>
-            <div className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">30-Second Concept Reels</div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {REELS_SEED.filter((r) => r.type === 'concept').map((r) => (
-                <div key={r.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
-                  <div className="flex h-28 items-center justify-center bg-linear-to-br from-slate-800 to-slate-900">
-                    <div className="grid size-12 place-items-center rounded-full bg-white/10 ring-2 ring-white/20">
-                      <Play className="size-5 text-white" />
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    <div className="text-[12.5px] font-semibold leading-snug">{r.title}</div>
-                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span>{r.topic}</span>
-                      <span>·</span>
-                      <span className="font-mono">{r.duration}</span>
-                    </div>
-                    <div className="mt-2 flex gap-1.5">
-                      <button type="button" className="flex flex-1 items-center justify-center gap-1 rounded-full border border-border/60 py-1.5 text-[10.5px] text-muted-foreground hover:bg-foreground/5">
-                        <Eye className="size-3" /> Preview
-                      </button>
-                      <button type="button" onClick={() => regenerateReel(r.id)} disabled={regeneratingReel[r.id]}
-                        className="flex items-center justify-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[10.5px] text-indigo-600 hover:bg-indigo-100 disabled:opacity-40">
-                        <RefreshCw className={cn('size-3', regeneratingReel[r.id] && 'animate-spin')} />
-                        {regeneratingReel[r.id] ? 'Generating…' : 'Regenerate'}
-                      </button>
-                      <button type="button" onClick={() => downloadBlob(`Reel: ${r.title}\nTopic: ${r.topic}\nDuration: ${r.duration}`, `${r.id}.txt`)}
-                        className="flex items-center justify-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
-                        <Download className="size-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-[17px] font-semibold">Content Reels</h2>
+              <p className="text-[12.5px] text-muted-foreground">Short concept reels &amp; soundbites are clipped from the session recording</p>
             </div>
-          </div>
-
-          <div>
-            <div className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Speaker Soundbites</div>
-            <div className="space-y-3">
-              {REELS_SEED.filter((r) => r.type === 'soundbite').map((r) => (
-                <div key={r.id} className="flex items-start gap-4 overflow-hidden rounded-2xl border border-border/60 bg-card p-4">
-                  <div className="grid size-10 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-500 to-emerald-600">
-                    <Mic className="size-4 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] font-semibold">{r.title}</div>
-                    <div className="text-[11px] text-muted-foreground">{r.speaker} · {r.duration}</div>
-                    {r.quote && (
-                      <blockquote className="mt-2 border-l-2 border-teal-400 pl-3 text-[12px] italic text-gray-600">{r.quote}</blockquote>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <button type="button" onClick={() => regenerateReel(r.id)} disabled={regeneratingReel[r.id]}
-                      className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[10.5px] text-indigo-600 hover:bg-indigo-100 disabled:opacity-40">
-                      <RefreshCw className={cn('size-3', regeneratingReel[r.id] && 'animate-spin')} />
-                      {regeneratingReel[r.id] ? 'Generating…' : 'Regenerate'}
-                    </button>
-                    <button type="button" onClick={() => downloadBlob(`Soundbite: ${r.title}\nSpeaker: ${r.speaker ?? ''}\n\n${r.quote ?? ''}`, `${r.id}.txt`)}
-                      className="flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
-                      <Download className="size-3" /> Download
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button type="button" className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-teal-300 py-3 text-[12px] text-teal-600 hover:border-teal-400 hover:bg-teal-50/50">
-              <RefreshCw className="size-3.5" /> Generate more reels from session
+            <button type="button" onClick={() => triggerGeneration('Reels')} disabled={generateBusy || data.recordings.length === 0}
+              title={data.recordings.length > 0 ? 'Generate reels from the recording' : 'A recording is required to generate reels'}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-500 px-3.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-rose-400 disabled:opacity-40">
+              <Sparkles className={cn('size-3.5', generateBusy && 'animate-spin')} /> {generateBusy ? 'Generating…' : 'Generate reels'}
             </button>
           </div>
+
+          {generateMsg && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-[12px] text-rose-800">{generateMsg}</div>
+          )}
+
+          {data.recordings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+              <Play className="mx-auto size-8 text-muted-foreground" />
+              <div className="mt-2 text-[13px] font-medium text-muted-foreground">No recording to clip yet</div>
+              <div className="text-[11.5px] text-muted-foreground">Reels are generated from the session recording once it is processed.</div>
+            </div>
+          ) : (
+            <div>
+              <div className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Session Recording</div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {data.recordings.map((r) => (
+                  <div key={r.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+                    <div className="flex h-28 items-center justify-center bg-linear-to-br from-slate-800 to-slate-900">
+                      {r.thumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.thumbnailUrl} alt="Recording thumbnail" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid size-12 place-items-center rounded-full bg-white/10 ring-2 ring-white/20"><Play className="size-5 text-white" /></div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <div className="text-[12.5px] font-semibold leading-snug">Session recording</div>
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="capitalize">{r.status.toLowerCase()}</span>
+                        {r.durationSec != null && (<><span>·</span><span className="font-mono">{Math.floor(r.durationSec / 60)}:{String(r.durationSec % 60).padStart(2, '0')}</span></>)}
+                      </div>
+                      {r.hlsUrl && (
+                        <a href={r.hlsUrl} target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-1 rounded-full border border-teal-200 bg-teal-50 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
+                          <Play className="size-3" /> Open recording
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -641,20 +560,25 @@ export function PostClient({ session }: { session: SessionView }) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-[17px] font-semibold">Learner Doubts &amp; Questions</h2>
-              <p className="text-[12.5px] text-muted-foreground">Open for {daysLeft} more days · Peer answers count as engagement</p>
+              <p className="text-[12.5px] text-muted-foreground">Questions raised on the session recording · peer replies are discussion</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {doubtsOpen && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-50 px-3 py-1.5 text-[11.5px] font-semibold text-amber-700">
-                  <Bell className="size-3.5" /> {daysLeft} days left
+                  <Bell className="size-3.5" /> Open
                 </span>
               )}
-              <button type="button" onClick={() => setShowAddQuestion((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-teal-500 px-3 py-1.5 text-[11.5px] font-semibold text-white hover:bg-teal-400">
+              <button type="button" disabled={!doubtsOpen} onClick={() => setShowAddQuestion((v) => !v)}
+                title={doubtsOpen ? 'Post a question' : 'A recording is required to post questions'}
+                className="inline-flex items-center gap-1.5 rounded-full bg-teal-500 px-3 py-1.5 text-[11.5px] font-semibold text-white hover:bg-teal-400 disabled:opacity-40">
                 <Plus className="size-3.5" /> Add Question
               </button>
             </div>
           </div>
+
+          {actionError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-[12px] text-rose-700">{actionError}</div>
+          )}
 
           {/* Add question form */}
           {showAddQuestion && (
@@ -724,7 +648,7 @@ export function PostClient({ session }: { session: SessionView }) {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 mb-0.5">
                               <span className="text-[10px] font-semibold text-indigo-700">{pr.author}</span>
-                              <span className="rounded-full bg-indigo-200 px-1.5 py-0.5 text-[8px] font-bold text-indigo-700">Peer reply · Engagement +1</span>
+                              <span className="rounded-full bg-indigo-200 px-1.5 py-0.5 text-[8px] font-bold text-indigo-700">Peer reply</span>
                             </div>
                             <p className="text-[11.5px] text-gray-700">{pr.text}</p>
                           </div>
@@ -738,38 +662,21 @@ export function PostClient({ session }: { session: SessionView }) {
                     <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
                       <div className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mb-1">Faculty Answer</div>
                       <p className="text-[12.5px] text-gray-700">{d.reply}</p>
-                      {d.voiceNote && (
-                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-teal-300 bg-white px-3 py-1.5">
-                          <Mic className="size-3.5 text-teal-500" />
-                          <span className="text-[10.5px] text-teal-700 font-medium">Voice note attached · 0:42</span>
-                        </div>
-                      )}
-                      {d.videoUrl && (
-                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-teal-300 bg-white px-3 py-1.5">
-                          <Video className="size-3.5 text-teal-500" />
-                          <span className="flex-1 truncate text-[10.5px] text-teal-700 font-mono">{d.videoUrl}</span>
-                          <ExternalLink className="size-3 text-teal-400" />
-                        </div>
-                      )}
                     </div>
                   )}
 
                   <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <button type="button" onClick={() => setDoubts((prev) => prev.map((x) => x.id === d.id ? { ...x, endorsed: x.endorsed + 1 } : x))}
+                    <button type="button" onClick={() => endorseDoubt(d.id)}
                       className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2.5 py-1 text-[10.5px] text-muted-foreground hover:border-teal-300 hover:text-teal-600">
                       <ThumbsUp className="size-3" /> Endorse ({d.endorsed})
                     </button>
-                    <button type="button" onClick={() => setDoubts((prev) => prev.map((x) => x.id === d.id ? { ...x, pinned: !x.pinned } : x))}
+                    <button type="button" onClick={() => togglePin(d.id)}
                       className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10.5px]', d.pinned ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-border/60 text-muted-foreground hover:border-amber-300 hover:text-amber-600')}>
                       📌 {d.pinned ? 'Unpin' : 'Pin'}
                     </button>
                     <button type="button" onClick={() => setExpandedDoubt(expandedDoubt === d.id ? null : d.id)}
                       className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[10.5px] text-teal-600 hover:bg-teal-100">
                       <MessageCircle className="size-3" /> {d.answered ? 'Update answer' : 'Answer'}
-                    </button>
-                    <button type="button" onClick={() => setDoubts((prev) => prev.filter((x) => x.id !== d.id))}
-                      className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2.5 py-1 text-[10.5px] text-muted-foreground hover:border-rose-300 hover:text-rose-500">
-                      <X className="size-3" /> Dismiss
                     </button>
                   </div>
 
@@ -782,18 +689,7 @@ export function PostClient({ session }: { session: SessionView }) {
                         placeholder="Type your answer…"
                         className="w-full rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[12px] text-foreground outline-none focus:ring-2 focus:ring-teal-400"
                       />
-                      {/* Video link */}
-                      <input
-                        value={videoUrlDraft[d.id] ?? ''}
-                        onChange={(e) => setVideoUrlDraft((r) => ({ ...r, [d.id]: e.target.value }))}
-                        placeholder="Paste video link (optional)…"
-                        className="w-full rounded-xl border border-teal-200 bg-white px-4 py-2 text-[11.5px] text-muted-foreground outline-none focus:ring-2 focus:ring-teal-300"
-                      />
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => addVoiceNote(d.id)}
-                          className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10.5px] font-medium transition-colors', d.voiceNote ? 'border-teal-400 bg-teal-100 text-teal-700' : 'border-border/60 text-muted-foreground hover:border-teal-300 hover:text-teal-600')}>
-                          <Mic className="size-3" /> {d.voiceNote ? 'Voice note added' : 'Add voice note'}
-                        </button>
                         <button type="button" onClick={() => sendReply(d.id)}
                           className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-teal-500 px-4 py-1.5 text-[10.5px] font-semibold text-white hover:bg-teal-400">
                           <Send className="size-3" /> Send Answer
@@ -804,6 +700,14 @@ export function PostClient({ session }: { session: SessionView }) {
                 </div>
               </div>
             ))}
+
+            {doubts.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+                <MessageCircle className="mx-auto size-8 text-muted-foreground" />
+                <div className="mt-2 text-[13px] font-medium text-muted-foreground">No doubts yet</div>
+                <div className="text-[11.5px] text-muted-foreground">{doubtsOpen ? 'Learner questions on the recording will appear here.' : 'Questions open once the session recording is ready.'}</div>
+              </div>
+            )}
           </div>
 
           {!doubtsOpen && (
@@ -824,53 +728,63 @@ export function PostClient({ session }: { session: SessionView }) {
             <p className="text-[12.5px] text-muted-foreground">View or download only — editing is disabled for completed sessions</p>
           </div>
 
-          <div className="space-y-3">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Presentation</div>
-            {sourceFiles.map((f) => (
-              <div key={f.name} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
-                <div className={cn('grid size-9 shrink-0 place-items-center rounded-xl text-white', f.kind === 'pdf' ? 'bg-rose-500' : f.kind === 'pptx' ? 'bg-orange-500' : 'bg-blue-500')}>
-                  <FileText className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium">{f.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{f.size} · {f.kind.toUpperCase()}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1.5 text-[10.5px] text-muted-foreground hover:bg-foreground/5">
-                    <Eye className="size-3" /> View
-                  </button>
-                  <button type="button" onClick={() => downloadBlob(`File: ${f.name}`, f.name)} className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
-                    <Download className="size-3" /> Download
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {prereadFiles.length > 0 && (
-              <>
-                <div className="mb-1 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pre-Read Materials</div>
-                {prereadFiles.map((f) => (
-                  <div key={f.name} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
-                    <div className={cn('grid size-9 shrink-0 place-items-center rounded-xl text-white', f.kind === 'pdf' ? 'bg-rose-500' : f.kind === 'video' ? 'bg-violet-500' : 'bg-blue-500')}>
-                      <FileText className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-medium">{f.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{f.size} · {f.kind.toUpperCase()}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1.5 text-[10.5px] text-muted-foreground hover:bg-foreground/5">
-                        <Eye className="size-3" /> View
-                      </button>
-                      <button type="button" onClick={() => downloadBlob(`File: ${f.name}`, f.name)} className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
-                        <Download className="size-3" /> Download
-                      </button>
-                    </div>
+          {data.materials.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+              <FileText className="mx-auto size-8 text-muted-foreground" />
+              <div className="mt-2 text-[13px] font-medium text-muted-foreground">No materials linked</div>
+              <div className="text-[11.5px] text-muted-foreground">Documents linked to this session will appear here.</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sourceFiles.length > 0 && (
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Presentation &amp; Documents</div>
+              )}
+              {sourceFiles.map((f) => (
+                <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
+                  <div className={cn('grid size-9 shrink-0 place-items-center rounded-xl text-white', f.kind === 'PDF' ? 'bg-rose-500' : f.kind === 'SLIDES' ? 'bg-orange-500' : f.kind === 'VIDEO' ? 'bg-violet-500' : 'bg-blue-500')}>
+                    <FileText className="size-4" />
                   </div>
-                ))}
-              </>
-            )}
-          </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium">{f.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{formatBytes(f.sizeBytes)} · {f.kind}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => openDocument(f.documentId)} className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1.5 text-[10.5px] text-muted-foreground hover:bg-foreground/5">
+                      <Eye className="size-3" /> View
+                    </button>
+                    <button type="button" onClick={() => openDocument(f.documentId)} className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
+                      <Download className="size-3" /> Download
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {prereadFiles.length > 0 && (
+                <>
+                  <div className="mb-1 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pre-Read Materials</div>
+                  {prereadFiles.map((f) => (
+                    <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
+                      <div className={cn('grid size-9 shrink-0 place-items-center rounded-xl text-white', f.kind === 'PDF' ? 'bg-rose-500' : f.kind === 'VIDEO' ? 'bg-violet-500' : 'bg-blue-500')}>
+                        <FileText className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13px] font-medium">{f.name}</div>
+                        <div className="text-[11px] text-muted-foreground">{formatBytes(f.sizeBytes)} · {f.kind}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => openDocument(f.documentId)} className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1.5 text-[10.5px] text-muted-foreground hover:bg-foreground/5">
+                          <Eye className="size-3" /> View
+                        </button>
+                        <button type="button" onClick={() => openDocument(f.documentId)} className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[10.5px] text-teal-600 hover:bg-teal-100">
+                          <Download className="size-3" /> Download
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -878,63 +792,63 @@ export function PostClient({ session }: { session: SessionView }) {
       {activeTab === 'simulations' && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-[17px] font-semibold">AI-Evaluated Simulations</h2>
-            <p className="text-[12.5px] text-muted-foreground">Case simulations launched during the session — AI has graded and classified each response by Bloom's level</p>
+            <h2 className="text-[17px] font-semibold">Case Simulations</h2>
+            <p className="text-[12.5px] text-muted-foreground">Published case-bank scenarios for this session&apos;s topic — open the case bank to run them</p>
           </div>
 
-          {SIM_CASES.map((sc) => (
-            <div key={sc.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 p-4 text-left"
-                onClick={() => setExpandedSim(expandedSim === sc.id ? null : sc.id)}
-              >
-                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-100 text-violet-600">
-                  <Brain className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold">{sc.title}</div>
-                  <div className="mt-0.5 flex items-center gap-3 text-[11.5px] text-muted-foreground">
-                    <span>Avg score: <span className="font-semibold text-foreground">{sc.score}%</span></span>
-                    <span>{sc.correct}/{sc.total} correct on avg</span>
-                    <span>{sc.students.length} students</span>
-                  </div>
-                </div>
-                {expandedSim === sc.id ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-              </button>
+          {generateMsg && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-[12px] text-violet-800">{generateMsg}</div>
+          )}
 
-              {expandedSim === sc.id && (
-                <div className="border-t border-border/60 p-4">
-                  <div className="mb-3 rounded-xl border border-border/60 bg-foreground/[0.02] p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Scenario</div>
-                    <p className="text-[12.5px] text-foreground">{sc.scenario}</p>
-                  </div>
-                  <div className="space-y-2">
-                    {sc.students.map((s) => (
-                      <div key={s.name} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-3">
-                        <div className="grid size-7 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-400 to-emerald-500 text-[10px] font-bold text-white">
-                          {s.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}
-                        </div>
-                        <div className="flex-1 text-[12px] font-medium">{s.name}</div>
-                        <span className={cn('rounded-full px-2 py-0.5 text-[9px] font-bold',
-                          s.level === 'Analyse' || s.level === 'Apply' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-600'
-                        )}>{s.level}</span>
-                        <div className="w-24">
-                          <div className="h-1.5 overflow-hidden rounded-full bg-foreground/5">
-                            <div className={cn('h-full rounded-full', s.score >= 80 ? 'bg-emerald-500' : s.score >= 60 ? 'bg-amber-400' : 'bg-rose-500')} style={{ width: `${s.score}%` }} />
-                          </div>
-                        </div>
-                        <span className="font-mono text-[11.5px] font-semibold tabular-nums">{s.score}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {data.cases.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+              <Brain className="mx-auto size-8 text-muted-foreground" />
+              <div className="mt-2 text-[13px] font-medium text-muted-foreground">No cases for this topic yet</div>
+              <div className="text-[11.5px] text-muted-foreground">Forge a case from the session to add it to the program case bank.</div>
             </div>
-          ))}
+          ) : (
+            data.cases.map((sc) => (
+              <div key={sc.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 p-4 text-left"
+                  onClick={() => setExpandedSim(expandedSim === sc.id ? null : sc.id)}
+                >
+                  <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-100 text-violet-600">
+                    <Brain className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-semibold">{sc.title}</div>
+                    <div className="mt-0.5 flex items-center gap-3 text-[11.5px] text-muted-foreground">
+                      <span>{sc.condition}</span>
+                      <span className="capitalize">{sc.difficulty.toLowerCase()}</span>
+                      <span>Bloom L{sc.bloomsLevel}</span>
+                      <span>{sc.estimatedMinutes} min</span>
+                      <span>{sc.completions} completion{sc.completions === 1 ? '' : 's'}</span>
+                    </div>
+                  </div>
+                  {expandedSim === sc.id ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+                </button>
 
-          <button type="button" className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-300 py-3 text-[12px] text-violet-600 hover:border-violet-400 hover:bg-violet-50/50">
-            <Plus className="size-3.5" /> Add new simulation case
+                {expandedSim === sc.id && (
+                  <div className="border-t border-border/60 p-4">
+                    <div className="mb-3 rounded-xl border border-border/60 bg-foreground/[0.02] p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Scenario</div>
+                      <p className="text-[12.5px] text-foreground">{sc.description}</p>
+                    </div>
+                    <Link href={`/cases/${sc.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100">
+                      <ExternalLink className="size-3" /> Open case
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+
+          <button type="button" onClick={() => triggerGeneration('Case')} disabled={generateBusy || !data.hasRecording}
+            title={data.hasRecording ? 'Forge a new case from the session' : 'A recording is required to forge a case'}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-300 py-3 text-[12px] text-violet-600 hover:border-violet-400 hover:bg-violet-50/50 disabled:opacity-40">
+            <Sparkles className={cn('size-3.5', generateBusy && 'animate-spin')} /> {generateBusy ? 'Generating…' : 'Generate case from session'}
           </button>
         </div>
       )}
@@ -953,7 +867,7 @@ export function PostClient({ session }: { session: SessionView }) {
                   <Info className="size-4" />
                 </button>
               </div>
-              <p className="text-[12.5px] text-muted-foreground">Bloom&apos;s Taxonomy · Kirkpatrick Levels 1–4 · AI-generated personalised revision pathways</p>
+              <p className="text-[12.5px] text-muted-foreground">Kirkpatrick Levels 1–4 — learning-impact scores recorded for this session</p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <button type="button" onClick={() => setScoresVisibleToStudents((v) => !v)}
@@ -962,18 +876,12 @@ export function PostClient({ session }: { session: SessionView }) {
                 <Eye className="size-3.5" />
                 {scoresVisibleToStudents ? 'Scores visible to students' : 'Scores hidden from students'}
               </button>
-              <button type="button" onClick={() => setEvalSharedWithMod((v) => !v)}
-                className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors',
-                  evalSharedWithMod ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-border/60 text-muted-foreground hover:border-indigo-300 hover:text-indigo-600')}>
-                <Share2 className="size-3.5" />
-                {evalSharedWithMod ? 'Shared with Moderator' : 'Share with Moderator'}
-              </button>
-              <button type="button" onClick={() => downloadBlob(
-                  STUDENT_EVALS.map((s) => `${s.name}\nOverall: ${s.overall}%\nBloom's: ${Object.entries(s.bloom).map(([k,v])=>`${k}:${v}`).join(', ')}\nKirkpatrick: ${Object.entries(s.kirkpatrick).map(([k,v])=>`${k}:${v}`).join(', ')}`).join('\n\n'),
-                  'evaluation-report.pdf'
+              <button type="button" disabled={evalGroups.length === 0} onClick={() => downloadBlob(
+                  evalGroups.map((g) => `${g.name}\n${g.levels.map((l) => `${l.label}: ${l.score}`).join(', ')}`).join('\n\n'),
+                  'evaluation-report.txt'
                 )}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-teal-300 hover:text-teal-600">
-                <Download className="size-3.5" /> Download PDF
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-teal-300 hover:text-teal-600 disabled:opacity-40">
+                <Download className="size-3.5" /> Download
               </button>
             </div>
           </div>
@@ -987,93 +895,61 @@ export function PostClient({ session }: { session: SessionView }) {
                 </div>
                 <button type="button" onClick={() => setShowEvalInfo(false)} className="text-sky-400 hover:text-sky-700"><X className="size-4" /></button>
               </div>
-              <div className="grid grid-cols-1 gap-3 text-[11.5px] text-sky-900 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 text-[11.5px] text-sky-900 sm:grid-cols-2">
                 <div className="rounded-xl border border-sky-200 bg-white p-3">
-                  <div className="mb-1 font-bold text-[10px] uppercase tracking-wider text-sky-600">Bloom&apos;s Taxonomy (50%)</div>
-                  <p>Average of 6 cognitive levels — Remember, Understand, Apply, Analyse, Evaluate, Create. Each measured by quiz accuracy and response classification.</p>
+                  <div className="mb-1 font-bold text-[10px] uppercase tracking-wider text-sky-600">Kirkpatrick Framework</div>
+                  <p>L1 Reaction · L2 Learning · L3 Behaviour · L4 Results. Each level is scored 0–100 from post-session survey, quiz, and performance evidence linked to the evaluation.</p>
                 </div>
                 <div className="rounded-xl border border-sky-200 bg-white p-3">
-                  <div className="mb-1 font-bold text-[10px] uppercase tracking-wider text-sky-600">Kirkpatrick Framework (50%)</div>
-                  <p>L1 Reaction (20%) · L2 Learning (30%) · L3 Behaviour (30%) · L4 Results (20%). Weighted average across post-session survey + performance data.</p>
-                </div>
-                <div className="rounded-xl border border-sky-200 bg-white p-3">
-                  <div className="mb-1 font-bold text-[10px] uppercase tracking-wider text-sky-600">Overall Score</div>
-                  <p>(Bloom's average × 0.5) + (Kirkpatrick weighted average × 0.5). Rounded to nearest integer. Colour bands: ≥75 green · ≥55 amber · &lt;55 red.</p>
+                  <div className="mb-1 font-bold text-[10px] uppercase tracking-wider text-sky-600">Colour bands</div>
+                  <p>≥75 green · ≥55 amber · &lt;55 red. Scores are computed server-side from recorded evidence — no values are estimated here.</p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="space-y-4">
-            {STUDENT_EVALS.map((s) => {
-              const bloomEntries = Object.entries(s.bloom) as [string, number][]
-              const kirkEntries = Object.entries(s.kirkpatrick) as [string, number][]
-              return (
-                <div key={s.name} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+          {evalGroups.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+              <BarChart3 className="mx-auto size-8 text-muted-foreground" />
+              <div className="mt-2 text-[13px] font-medium text-muted-foreground">No evaluations yet</div>
+              <div className="text-[11.5px] text-muted-foreground">Kirkpatrick evaluations recorded for this session will appear here.</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {evalGroups.map((s) => (
+                <div key={s.userId} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
                   <div className="flex items-center gap-3 p-4">
                     <div className="grid size-10 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-400 to-emerald-500 text-[12px] font-bold text-white">{s.initials}</div>
                     <div className="flex-1">
                       <div className="text-[14px] font-semibold">{s.name}</div>
                       <div className="flex items-center gap-2 text-[11.5px] text-muted-foreground">
-                        <span>Overall: <span className={cn('font-bold', s.overall >= 75 ? 'text-emerald-600' : s.overall >= 55 ? 'text-amber-600' : 'text-rose-600')}>{s.overall}%</span></span>
+                        {s.overall !== null && (
+                          <span>Avg: <span className={cn('font-bold', s.overall >= 75 ? 'text-emerald-600' : s.overall >= 55 ? 'text-amber-600' : 'text-rose-600')}>{s.overall}</span></span>
+                        )}
                         {scoresVisibleToStudents && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-bold text-teal-700">
                             <Eye className="size-2.5" /> Visible to student
                           </span>
                         )}
-                        {s.pathwayReady && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-bold text-teal-700">
-                            <Sparkles className="size-2.5" /> Pathway generated
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 border-t border-border/60 p-4 lg:grid-cols-2">
-                    {/* Bloom's */}
-                    <div>
-                      <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Bloom&apos;s Taxonomy</div>
-                      <div className="space-y-1">
-                        {bloomEntries.map(([level, val], i) => (
-                          <div key={level} className="flex items-center gap-2">
-                            <span className="w-16 text-[10px] capitalize text-muted-foreground">{level}</span>
-                            <div className="flex-1 overflow-hidden rounded-full bg-foreground/5 h-1.5">
-                              <div className={cn('h-full rounded-full', BLOOM_COLORS[i])} style={{ width: `${val}%` }} />
-                            </div>
-                            <span className="w-8 text-right font-mono text-[10px] text-muted-foreground">{val}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Kirkpatrick */}
-                    <div>
-                      <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kirkpatrick Levels</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {kirkEntries.map(([level, val]) => (
-                          <div key={level} className={cn('rounded-xl p-2.5', val >= 75 ? 'bg-emerald-50 border border-emerald-200' : val >= 55 ? 'bg-amber-50 border border-amber-200' : 'bg-rose-50 border border-rose-200')}>
-                            <div className="text-[9.5px] font-semibold capitalize text-muted-foreground">L{['reaction','learning','behaviour','results'].indexOf(level)+1} · {level}</div>
-                            <div className={cn('mt-0.5 text-[18px] font-bold', val >= 75 ? 'text-emerald-600' : val >= 55 ? 'text-amber-600' : 'text-rose-600')}>{val}</div>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="border-t border-border/60 p-4">
+                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kirkpatrick Levels</div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {s.levels.map((l) => (
+                        <div key={l.label} className={cn('rounded-xl p-2.5', l.score >= 75 ? 'bg-emerald-50 border border-emerald-200' : l.score >= 55 ? 'bg-amber-50 border border-amber-200' : 'bg-rose-50 border border-rose-200')}>
+                          <div className="text-[9.5px] font-semibold text-muted-foreground">{l.label}</div>
+                          <div className={cn('mt-0.5 text-[18px] font-bold', l.score >= 75 ? 'text-emerald-600' : l.score >= 55 ? 'text-amber-600' : 'text-rose-600')}>{l.score}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-
-                  {s.pathwayReady && (
-                    <div className="border-t border-border/60 bg-teal-50/50 px-4 py-3">
-                      <div className="flex items-center gap-2 text-[11.5px] text-teal-700">
-                        <Sparkles className="size-3.5" />
-                        <span className="font-semibold">Personalised revision pathway generated</span>
-                        <span className="text-teal-500">— visible to student in their post-class dashboard</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1083,97 +959,79 @@ export function PostClient({ session }: { session: SessionView }) {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-[17px] font-semibold">Full Session Analytics</h2>
-              <p className="text-[12.5px] text-muted-foreground">Pre-conference · Live · Post-conference · Combined — all students by name</p>
+              <p className="text-[12.5px] text-muted-foreground">Per-participant pre-conference readiness, attendance &amp; doubts raised</p>
             </div>
           </div>
 
-          {/* Phase tabs */}
-          <div className="flex items-center gap-1 rounded-2xl border border-border/60 bg-card p-1 w-fit">
-            {(['combined', 'pre', 'live', 'post'] as const).map((p) => (
-              <button key={p} type="button" onClick={() => setAnalyticsPhase(p)}
-                className={cn('rounded-xl px-4 py-1.5 text-[12px] font-medium capitalize transition-all', analyticsPhase === p ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:bg-foreground/5')}>
-                {p === 'combined' ? 'Combined' : p === 'pre' ? 'Pre-Conference' : p === 'live' ? 'Live Session' : 'Post-Conference'}
-              </button>
-            ))}
-          </div>
-
-          {/* Table */}
-          <div className="overflow-hidden rounded-2xl border border-border/60">
-            <div className="overflow-x-auto">
-              <table className="w-full text-[12.5px]">
-                <thead>
-                  <tr className="border-b border-border/60 bg-foreground/[0.025]">
-                    <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Student</th>
-                    <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Cohort</th>
-                    {(analyticsPhase === 'combined' || analyticsPhase === 'pre')   && <th className="px-4 py-3 text-right font-semibold text-muted-foreground">Pre</th>}
-                    {(analyticsPhase === 'combined' || analyticsPhase === 'live')  && <th className="px-4 py-3 text-right font-semibold text-muted-foreground">Live</th>}
-                    {(analyticsPhase === 'combined' || analyticsPhase === 'post')  && <th className="px-4 py-3 text-right font-semibold text-muted-foreground">Post</th>}
-                    {analyticsPhase === 'combined' && <th className="px-4 py-3 text-right font-semibold text-teal-600">Aggregate</th>}
-                    <th className="px-4 py-3 text-center font-semibold text-muted-foreground">Attended</th>
-                    <th className="px-4 py-3 text-center font-semibold text-muted-foreground">Doubts</th>
-                    <th className="px-4 py-3 text-center font-semibold text-indigo-600">Peer Eng.</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {STUDENT_ANALYTICS.map((s, i) => {
-                    const liveNorm = Math.round(s.liveScore / 840 * 100)
-                    const agg = Math.round((s.preScore + liveNorm + s.postScore) / 3)
-                    return (
-                      <tr key={s.name} className={cn('transition-colors hover:bg-foreground/[0.02]', i % 2 === 0 ? '' : 'bg-foreground/[0.01]')}>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="grid size-7 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-400 to-emerald-500 text-[10px] font-bold text-white">{s.initials}</div>
-                            <span className="font-medium">{s.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{s.cohort}</td>
-                        {(analyticsPhase === 'combined' || analyticsPhase === 'pre')  && <td className="px-4 py-3 text-right font-mono font-semibold">{s.preScore}%</td>}
-                        {(analyticsPhase === 'combined' || analyticsPhase === 'live') && <td className="px-4 py-3 text-right font-mono font-semibold">{liveNorm}%</td>}
-                        {(analyticsPhase === 'combined' || analyticsPhase === 'post') && <td className="px-4 py-3 text-right font-mono font-semibold">{s.postScore}%</td>}
-                        {analyticsPhase === 'combined' && (
+          {data.analytics.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-foreground/[0.02] p-10 text-center">
+              <Trophy className="mx-auto size-8 text-muted-foreground" />
+              <div className="mt-2 text-[13px] font-medium text-muted-foreground">No participant data yet</div>
+              <div className="text-[11.5px] text-muted-foreground">Once learners join this session, their analytics appear here.</div>
+            </div>
+          ) : (
+            <>
+              {/* Table */}
+              <div className="overflow-hidden rounded-2xl border border-border/60">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12.5px]">
+                    <thead>
+                      <tr className="border-b border-border/60 bg-foreground/[0.025]">
+                        <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Student</th>
+                        {data.analytics.some((s) => s.cohort) && <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Cohort</th>}
+                        <th className="px-4 py-3 text-right font-semibold text-teal-600">Readiness (pre)</th>
+                        <th className="px-4 py-3 text-center font-semibold text-muted-foreground">Attended</th>
+                        <th className="px-4 py-3 text-center font-semibold text-muted-foreground">Doubts</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {data.analytics.map((s, i) => (
+                        <tr key={s.userId} className={cn('transition-colors hover:bg-foreground/[0.02]', i % 2 === 0 ? '' : 'bg-foreground/[0.01]')}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="grid size-7 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-400 to-emerald-500 text-[10px] font-bold text-white">{s.initials}</div>
+                              <span className="font-medium">{s.name}</span>
+                            </div>
+                          </td>
+                          {data.analytics.some((x) => x.cohort) && <td className="px-4 py-3 text-muted-foreground">{s.cohort || '—'}</td>}
                           <td className="px-4 py-3 text-right">
                             <span className={cn('rounded-full px-2 py-0.5 font-mono text-[11.5px] font-bold',
-                              agg >= 75 ? 'bg-emerald-100 text-emerald-700' : agg >= 55 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700')}>
-                              {agg}%
+                              s.readinessScore >= 75 ? 'bg-emerald-100 text-emerald-700' : s.readinessScore >= 55 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700')}>
+                              {s.readinessScore}%
                             </span>
                           </td>
-                        )}
-                        <td className="px-4 py-3 text-center">
-                          {s.attendance ? <Check className="mx-auto size-4 text-emerald-500" /> : <X className="mx-auto size-4 text-rose-500" />}
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-muted-foreground">{s.doubts}</td>
-                        <td className="px-4 py-3 text-center">
-                          {s.peerEngagement > 0
-                            ? <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[9.5px] font-bold text-indigo-700">{s.peerEngagement} reply</span>
-                            : <span className="text-[11px] text-muted-foreground">—</span>}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Top performers */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {STUDENT_ANALYTICS.slice(0, 3).map((s, i) => (
-              <div key={s.name} className={cn('rounded-2xl border p-4', i === 0 ? 'border-amber-200 bg-amber-50' : i === 1 ? 'border-slate-200 bg-slate-50' : 'border-orange-200 bg-orange-50')}>
-                <div className="flex items-center gap-2">
-                  <div className={cn('grid size-7 place-items-center rounded-full text-[10px] font-bold', i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-400 text-white' : 'bg-orange-500 text-white')}>
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-                  </div>
-                  <div className="grid size-7 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-400 to-emerald-500 text-[10px] font-bold text-white">{s.initials}</div>
-                  <div className="min-w-0">
-                    <div className="truncate text-[12px] font-semibold">{s.name}</div>
-                    <div className="text-[10.5px] text-muted-foreground">{s.cohort}</div>
-                  </div>
+                          <td className="px-4 py-3 text-center">
+                            {s.attended ? <Check className="mx-auto size-4 text-emerald-500" /> : <X className="mx-auto size-4 text-rose-500" />}
+                          </td>
+                          <td className="px-4 py-3 text-center font-mono text-muted-foreground">{s.doubts}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="mt-2 text-[22px] font-bold tabular-nums">{s.liveScore}</div>
-                <div className="text-[10.5px] text-muted-foreground">Live session score</div>
               </div>
-            ))}
-          </div>
+
+              {/* Top by readiness */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {[...data.analytics].sort((a, b) => b.readinessScore - a.readinessScore).slice(0, 3).map((s, i) => (
+                  <div key={s.userId} className={cn('rounded-2xl border p-4', i === 0 ? 'border-amber-200 bg-amber-50' : i === 1 ? 'border-slate-200 bg-slate-50' : 'border-orange-200 bg-orange-50')}>
+                    <div className="flex items-center gap-2">
+                      <div className={cn('grid size-7 place-items-center rounded-full text-[10px] font-bold', i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-400 text-white' : 'bg-orange-500 text-white')}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                      </div>
+                      <div className="grid size-7 shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-400 to-emerald-500 text-[10px] font-bold text-white">{s.initials}</div>
+                      <div className="min-w-0">
+                        <div className="truncate text-[12px] font-semibold">{s.name}</div>
+                        <div className="text-[10.5px] text-muted-foreground">{s.cohort || ''}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[22px] font-bold tabular-nums">{s.readinessScore}%</div>
+                    <div className="text-[10.5px] text-muted-foreground">Pre-conference readiness</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1187,17 +1045,24 @@ export function PostClient({ session }: { session: SessionView }) {
 
           {/* Share link */}
           <div className="rounded-2xl border border-border/60 bg-card p-5">
-            <div className="mb-3 text-[13px] font-semibold">Session Link</div>
+            <div className="mb-3 text-[13px] font-semibold">Recording Share Link</div>
             <div className="flex items-center gap-2">
               <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/60 bg-foreground/[0.025] px-3 py-2">
                 <Link2 className="size-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate font-mono text-[12px] text-muted-foreground">{shareLink}</span>
+                <span className="flex-1 truncate font-mono text-[12px] text-muted-foreground">
+                  {shareLink ?? (data.hasRecording ? 'Generate a secure share link →' : 'No recording to share yet')}
+                </span>
               </div>
-              <button type="button" onClick={copyLink} className={cn('inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12px] font-semibold transition-colors', linkCopied ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600')}>
+              <button type="button" onClick={copyLink} disabled={shareBusy || !data.hasRecording}
+                className={cn('inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12px] font-semibold transition-colors disabled:opacity-40', linkCopied ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600')}>
                 {linkCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                {linkCopied ? 'Copied!' : 'Copy link'}
+                {linkCopied ? 'Copied!' : shareBusy ? 'Creating…' : shareLink ? 'Copy link' : 'Create link'}
               </button>
             </div>
+            {shareError && <div className="mt-2 text-[11.5px] text-rose-600">{shareError}</div>}
+            {data.shares.length > 0 && !shareLink && (
+              <div className="mt-2 text-[11px] text-muted-foreground">{data.shares.length} active share link{data.shares.length === 1 ? '' : 's'} exist — create a fresh one to copy the URL.</div>
+            )}
           </div>
 
           {/* What to include */}
