@@ -160,6 +160,13 @@ export async function loadPostData(
   const recordingId = sessionRow?.recording?.id ?? null
   const cohortName = sessionRow?.cohort?.name ?? ''
 
+  // AI-extracted pearls/Q&A are keyed to the session's live-caption transcript
+  // (generatePostSessionPack writes Pearl.sourceSessionTranscriptId), so we load
+  // the transcript ids to match them precisely on the Pearls tab.
+  const transcriptIds = (
+    await db.sessionTranscript.findMany({ where: { sessionId }, select: { id: true } })
+  ).map((t) => t.id)
+
   // ── Participants (attendance + names) ──────────────────────────────────────
   const participants = await db.sessionParticipant.findMany({
     where: { sessionId },
@@ -297,6 +304,8 @@ export async function loadPostData(
       where: {
         programId,
         OR: [
+          // Primary: pearls the AI extracted from THIS session's transcript.
+          ...(transcriptIds.length ? [{ sourceSessionTranscriptId: { in: transcriptIds } }] : []),
           ...(recordingId ? [{ sourceRecordingId: recordingId }] : []),
           ...(topicId ? [{ topicId }] : []),
         ],
