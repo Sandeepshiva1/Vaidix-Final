@@ -13,6 +13,18 @@ export interface CreateSessionFormInput {
   sessionType: SessionType;
   expectedLearners?: number;
   learnerLevel?: string;
+  // ── Schedule-wizard fields (Classroom + Board Room) ──
+  description?: string;
+  /** Real cohort id (Classroom). Validated against the proposer's program. */
+  cohortId?: string;
+  specialty?: string;
+  subSpecialty?: string;
+  /** Board Room: free-text "emails or names, comma-separated". */
+  participants?: string;
+  /** Classroom: role assignments. Each name is a real user picked from search. */
+  roles?: { role: string; userId?: string; name?: string }[];
+  /** True for the Board Room variant (quick meeting, 30-day TTL). */
+  isBoardRoom?: boolean;
 }
 
 export type CreateSessionResult =
@@ -57,9 +69,83 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
   const duration = Math.max(15, Math.min(360, input.durationMinutes));
   const end = new Date(start.getTime() + duration * 60_000);
 
+  // ── Cohort (optional, Classroom) — must belong to the proposer's program ──
+  let cohortId: string | null = null;
+  if (input.cohortId) {
+    const cohort = await db.cohort.findUnique({
+      where: { id: input.cohortId },
+      select: { id: true, programId: true, deletedAt: true },
+    });
+    if (!cohort || cohort.deletedAt) return { ok: false, error: 'Selected cohort no longer exists.' };
+    if (cohort.programId !== user.activeProgramId) return { ok: false, error: 'Cohort belongs to a different program.' };
+    cohortId = cohort.id;
+  }
+
+  // ── Board Room participants — resolve "email, email" tokens to real users ──
+  const participantTokens = (input.participants ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const emailTokens = participantTokens.filter((t) => t.includes('@'));
+  const inviteeUserIds: string[] = [];
+  const matchedEmails = new Set<string>();
+  if (emailTokens.length > 0) {
+    // Match exact + lowercased so "Dr@X.org" still finds a lowercase-stored row.
+    const candidates = Array.from(new Set(emailTokens.flatMap((e) => [e, e.toLowerCase()])));
+    const matched = await db.user.findMany({
+      where: { email: { in: candidates }, status: 'ACTIVE' },
+      select: { id: true, email: true },
+    });
+    for (const m of matched) {
+      matchedEmails.add(m.email.toLowerCase());
+      if (m.id !== user.id) inviteeUserIds.push(m.id);
+    }
+  }
+  const unresolvedParticipants = participantTokens.filter(
+    (t) => !t.includes('@') || !matchedEmails.has(t.toLowerCase()),
+  );
+
+  // ── Classroom role assignments — each name is a real user picked from search ──
+  const roleUserIds = (input.roles ?? [])
+    .map((r) => r.userId)
+    .filter((id): id is string => Boolean(id));
+  let roleInviteeIds: string[] = [];
+  if (roleUserIds.length > 0) {
+    // Picker only surfaces real program users, but validate to guard the FK
+    // against a stale/forged payload before createMany.
+    const existing = await db.user.findMany({
+      where: { id: { in: roleUserIds }, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    roleInviteeIds = existing.map((e) => e.id).filter((id) => id !== user.id);
+  }
+  const allInviteeIds = Array.from(new Set([...inviteeUserIds, ...roleInviteeIds]));
+
+  // ── Fields with no dedicated column are preserved in metadata ──
+  const metadata: Record<string, unknown> = {};
+  if (input.isBoardRoom) {
+    metadata.kind = 'BOARD_ROOM';
+    // Board rooms auto-delete 30 days after creation (sweep job is a follow-up).
+    metadata.autoDeleteAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  }
+  if (input.specialty) metadata.specialty = input.specialty;
+  if (input.subSpecialty) metadata.subSpecialty = input.subSpecialty;
+  const namedRoles = (input.roles ?? []).filter((r) => r.userId);
+  if (namedRoles.length > 0) metadata.roles = namedRoles;
+  if (participantTokens.length > 0) {
+    metadata.participants = participantTokens;
+    if (unresolvedParticipants.length > 0) metadata.unresolvedParticipants = unresolvedParticipants;
+  }
+
+  const description = input.description?.trim() ? input.description.trim() : null;
+  const tags = Array.from(
+    new Set([input.learnerLevel, input.specialty, input.subSpecialty].filter(Boolean) as string[]),
+  );
+
   const created = await db.teachingSession.create({
     data: {
       title,
+      description,
       sessionType: input.sessionType,
       hostId: user.id,
       proposedBy: user.id,
@@ -70,14 +156,28 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
       approvedAt: new Date(),
       scheduledStart: start,
       scheduledEnd: end,
+      cohortId,
       maxParticipants: input.expectedLearners ? Math.max(1, input.expectedLearners) : 100,
       recordingEnabled: true,
       consentRequired: true,
-      tags: input.learnerLevel ? [input.learnerLevel] : [],
-      metadata: Prisma.JsonNull,
+      tags,
+      metadata: Object.keys(metadata).length > 0 ? (metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
     select: { id: true },
   });
+
+  // Board Room participants + Classroom role users → real SessionInvite rows
+  // (idempotent on [session, user]).
+  if (allInviteeIds.length > 0) {
+    await db.sessionInvite.createMany({
+      data: allInviteeIds.map((uid) => ({
+        sessionId: created.id,
+        userId: uid,
+        invitedBy: user.id,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   revalidatePath('/dashboard');
   return { ok: true, sessionId: created.id };

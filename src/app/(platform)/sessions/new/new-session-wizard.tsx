@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils'
 import { SessionType } from '@prisma/client'
 import { createTeachingSessionAction } from '@/components/medlearn/actions'
+import { UserPicker, type PickableUser } from '@/components/user-picker'
 
 type Mode = 'choose' | 'classroom' | 'boardroom'
 
@@ -49,8 +50,6 @@ const SUB_SPECIALTIES: Record<string, string[]> = {
   Imaging: ['OCT', 'FFA', 'OCT-A', 'Wide-field Imaging'],
   'Refractive Surgery': ['LASIK', 'SMILE', 'ICL', 'Surface Ablation'],
 }
-
-const COHORTS = ['DNB 2024', 'DNB 2023', 'Fellowship Batch A', 'Fellowship Batch B', 'Postgraduate', 'All Learners']
 
 const CLASSROOM_TYPES: { value: SessionTypeLabel; description: string; icon: React.ReactNode }[] = [
   { value: 'Webinar', description: 'Lecture-style, online audience', icon: <Presentation className="size-5" /> },
@@ -90,12 +89,17 @@ function defaultDate(offsetDays = 3): string {
   return d.toISOString().slice(0, 10)
 }
 
-export function NewSessionWizard() {
+export interface WizardCohort {
+  id: string
+  name: string
+}
+
+export function NewSessionWizard({ cohorts }: { cohorts: WizardCohort[] }) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('choose')
 
   if (mode === 'choose') return <ChoiceScreen onChoose={setMode} />
-  if (mode === 'classroom') return <ClassroomForm router={router} onBack={() => setMode('choose')} />
+  if (mode === 'classroom') return <ClassroomForm router={router} cohorts={cohorts} onBack={() => setMode('choose')} />
   return <BoardRoomForm router={router} onBack={() => setMode('choose')} />
 }
 
@@ -185,9 +189,11 @@ function ChoiceScreen({ onChoose }: { onChoose: (mode: Mode) => void }) {
 // ─── Classroom form ────────────────────────────────────────────────────────────
 function ClassroomForm({
   router,
+  cohorts,
   onBack,
 }: {
   router: ReturnType<typeof useRouter>
+  cohorts: WizardCohort[]
   onBack: () => void
 }) {
   const [submitting, setSubmitting] = useState(false)
@@ -200,13 +206,13 @@ function ClassroomForm({
   const [time, setTime] = useState('17:00')
   const [duration, setDuration] = useState('60')
   const [type, setType] = useState<SessionTypeLabel>('Webinar')
-  const [roles, setRoles] = useState<{ role: Role; name: string }[]>([{ role: 'Presenter', name: 'Dr. Avinash Pathengay' }])
+  const [roles, setRoles] = useState<{ role: Role; user: PickableUser | null }[]>([{ role: 'Presenter', user: null }])
 
   const subSpecs = SUB_SPECIALTIES[specialty] ?? []
   const valid = title.trim().length >= 3 && description.trim().length > 0
 
-  const addRole = () => setRoles((r) => [...r, { role: 'Panelist', name: '' }])
-  const updateRole = (i: number, patch: Partial<{ role: Role; name: string }>) =>
+  const addRole = () => setRoles((r) => [...r, { role: 'Panelist', user: null }])
+  const updateRole = (i: number, patch: Partial<{ role: Role; user: PickableUser | null }>) =>
     setRoles((r) => r.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
   const removeRole = (i: number) => setRoles((r) => r.filter((_, idx) => idx !== i))
 
@@ -224,6 +230,13 @@ function ClassroomForm({
         durationMinutes: Number(duration),
         sessionType: mapSessionType(type),
         learnerLevel: subSpecialty || specialty,
+        description: description.trim() || undefined,
+        cohortId: cohort || undefined,
+        specialty,
+        subSpecialty: subSpecialty || undefined,
+        roles: roles
+          .filter((r) => r.user)
+          .map((r) => ({ role: r.role, userId: r.user!.id, name: r.user!.name })),
       })
       if (result.ok) {
         router.push(`/session/${result.sessionId}/pre`)
@@ -283,7 +296,7 @@ function ClassroomForm({
             <div className="relative">
               <select value={cohort} onChange={(e) => setCohort(e.target.value)} className="vfx-input appearance-none pr-9">
                 <option value="">All learners</option>
-                {COHORTS.map((c) => <option key={c} value={c}>{c}</option>)}
+                {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <ChevronIcon />
             </div>
@@ -346,7 +359,15 @@ function ClassroomForm({
                   </select>
                   <ChevronIcon small />
                 </div>
-                <input value={r.name} onChange={(e) => updateRole(i, { name: e.target.value })} placeholder="Faculty name or email" className="h-9 flex-1 rounded-xl border border-current/20 bg-white/50 px-3 text-[12.5px] outline-none placeholder:text-current/40 dark:bg-black/20" />
+                <div className="flex-1">
+                  <UserPicker
+                    single
+                    purpose="invite"
+                    selected={r.user ? [r.user] : []}
+                    onChange={(next) => updateRole(i, { user: next[0] ?? null })}
+                    placeholder="Search users by name or email"
+                  />
+                </div>
                 <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Approval pending</span>
                 {i > 0 && (
                   <button type="button" onClick={() => removeRole(i)} className="text-current/50 hover:text-current">
@@ -404,6 +425,9 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
         scheduledStart: new Date(`${date}T${time}`).toISOString(),
         durationMinutes: Number(duration),
         sessionType: SessionType.CASE_CONFERENCE,
+        description: description.trim() || undefined,
+        participants: participants.trim() || undefined,
+        isBoardRoom: true,
       })
       if (result.ok) {
         router.push(`/session/${result.sessionId}/pre`)
