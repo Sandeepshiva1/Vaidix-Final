@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   ArrowLeft,
@@ -43,6 +43,7 @@ import {
   useTracks,
   useLocalParticipant,
   useParticipants,
+  useDataChannel,
 } from '@livekit/components-react'
 import { Track, type Participant } from 'livekit-client'
 import '@livekit/components-styles'
@@ -52,9 +53,12 @@ import { WhiteboardPanel } from '@/components/classroom/whiteboard-panel'
 import type { SessionView } from '@/lib/medlearn/session-view'
 import {
   useLiveToken, useEngagement, useLiveHooks, useLeaderboard, useBreakouts,
-  useCaptions, usePresenterAlerts, suggestHooks,
+  useCaptions, usePresenterAlerts, suggestHooks, muteAllParticipants,
   type TokenState, type ApiHookKind, type SuggestedPoll,
 } from './live-data'
+
+const reactionEnc = new TextEncoder()
+const reactionDec = new TextDecoder()
 
 type ViewMode = 'gallery' | 'presentation'
 type RightTab = 'hooks' | 'transcript' | 'ai' | 'breakout'
@@ -188,6 +192,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
   const [newGroupCount, setNewGroupCount]   = useState(2)
   const [reactionOpen, setReactionOpen]   = useState(false)
   const [myReaction, setMyReaction]       = useState<string | null>(null)
+  const [remoteReactions, setRemoteReactions] = useState<{ id: number; emoji: string; name: string }[]>([])
 
   void role
 
@@ -218,6 +223,20 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
     const t = setTimeout(() => setMediaError(null), 7000)
     return () => clearTimeout(t)
   }, [mediaError])
+
+  // Show a peer's reaction as a floating badge that self-removes after 4s.
+  const addRemoteReaction = useCallback((emoji: string, name: string) => {
+    const id = Date.now() + Math.random()
+    setRemoteReactions((prev) => [...prev, { id, emoji, name }].slice(-12))
+    setTimeout(() => setRemoteReactions((prev) => prev.filter((r) => r.id !== id)), 4000)
+  }, [])
+
+  // "Mute all" — optimistic local indicator, plus the real server-side mute of
+  // every other participant's mic when the room is connected.
+  const muteAll = async () => {
+    setMutedAll(true)
+    if (connected) await muteAllParticipants(session.id)
+  }
 
   const approveHook = async (hid: string, approved: boolean) => {
     if (approved) {
@@ -321,6 +340,17 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-950 text-slate-100">
+      {connected && <ReactionsChannel reaction={myReaction} onRemote={addRemoteReaction} />}
+      {remoteReactions.length > 0 && (
+        <div className="pointer-events-none fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 flex-col-reverse items-center gap-1.5">
+          {remoteReactions.map((r) => (
+            <div key={r.id} className="flex animate-in fade-in slide-in-from-bottom-2 items-center gap-1.5 rounded-full border border-white/10 bg-black/70 px-3 py-1 shadow-lg backdrop-blur">
+              <span className="text-lg leading-none">{r.emoji}</span>
+              <span className="text-[11px] font-medium text-slate-200">{r.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── TOP STATUS BAR ─────────────────────────────────────────────── */}
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-gray-600 bg-gray-700 px-4 backdrop-blur-sm">
@@ -404,7 +434,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                 <div className="mb-1.5 text-[9px] font-semibold tracking-widest text-gray-400 uppercase">Mod tools</div>
                 <button
                   type="button"
-                  onClick={() => setMutedAll(true)}
+                  onClick={muteAll}
                   className={cn('mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[10.5px] transition-colors hover:bg-gray-100', mutedAll ? 'text-rose-600 font-medium' : 'text-gray-600 hover:text-gray-900')}
                 >
                   <MicOff className="size-3" />
@@ -1237,6 +1267,40 @@ function mediaErrorMessage(e: unknown, device: 'microphone' | 'camera' | 'screen
 function isUserCancelledShare(e: unknown): boolean {
   const name = (e as { name?: string } | null)?.name
   return name === 'NotAllowedError' || name === 'AbortError'
+}
+
+// Broadcasts the local reaction over the LiveKit data channel and surfaces other
+// participants' reactions. Rendered only inside a connected room (it uses room
+// hooks); returns null — it's purely a transport bridge. Reactions were
+// previously local-only (you saw your own emoji, nobody else did).
+function ReactionsChannel({ reaction, onRemote }: {
+  reaction: string | null
+  onRemote: (emoji: string, name: string) => void
+}) {
+  const { localParticipant } = useLocalParticipant()
+  const { message } = useDataChannel('reaction')
+  const onRemoteRef = useRef(onRemote)
+  useEffect(() => { onRemoteRef.current = onRemote }, [onRemote])
+
+  // Publish our own reaction whenever it changes to a non-null emoji.
+  useEffect(() => {
+    if (!reaction) return
+    const name = (localParticipant.name || 'Someone').split(' ')[0]
+    localParticipant
+      .publishData(reactionEnc.encode(JSON.stringify({ emoji: reaction, name })), { topic: 'reaction', reliable: false })
+      .catch(() => {/* reactions are fire-and-forget */})
+  }, [reaction, localParticipant])
+
+  // Surface reactions from other participants.
+  useEffect(() => {
+    if (!message) return
+    try {
+      const d = JSON.parse(reactionDec.decode(message.payload)) as { emoji?: unknown; name?: unknown }
+      if (typeof d.emoji === 'string') onRemoteRef.current(d.emoji.slice(0, 8), String(d.name ?? 'Someone').slice(0, 40))
+    } catch {/* ignore malformed */}
+  }, [message])
+
+  return null
 }
 
 function LiveHookBanner({ label }: { label: string }) {

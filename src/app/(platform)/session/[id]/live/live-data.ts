@@ -239,3 +239,12 @@ export function usePresenterAlerts(sessionId: string, enabled: boolean) {
   }, [sessionId, enabled])
   return alerts
 }
+
+// ─── Moderation ───────────────────────────────────────────────────────────────
+// Server-mute every other participant's mic in the LiveKit room. Host/faculty
+// only (enforced server-side). Returns false on any error so the caller can
+// fall back to the local-only indicator.
+export async function muteAllParticipants(sessionId: string): Promise<boolean> {
+  const r = await sendJson<{ muted: number }>(`/api/classroom/sessions/${sessionId}/mute-all`, 'POST')
+  return r.ok
+}
