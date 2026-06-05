@@ -111,7 +111,17 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [prevPathname, setPrevPathname] = useState(pathname)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close the mobile drawer on every route change — nav-link taps, the browser
+  // back button, and any programmatic navigation. Adjusting state during render
+  // is React's documented alternative to a route-change effect; it avoids the
+  // extra render + paint (and the set-state-in-effect cascade).
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname)
+    setMobileNavOpen(false)
+  }
 
   const sessionIdFromPath = useMemo(() => {
     const m = pathname.match(/\/session\/([^/]+)/)
@@ -131,12 +141,6 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
-
-  // Close the mobile drawer whenever the route changes — covers nav-link taps,
-  // the browser back button, and any programmatic navigation.
-  useEffect(() => {
-    setMobileNavOpen(false)
-  }, [pathname])
 
   const avatar = (size: string, text: string) =>
     identity.avatarUrl ? (
