@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Clock3,
   Download,
-  Eraser,
   Globe,
   HelpCircle,
   Languages,
@@ -23,13 +22,10 @@ import {
   MicOff,
   Minus,
   Monitor,
-  Palette,
   Pencil,
   Plus,
-  Settings,
   SmilePlus,
   Sparkles,
-  Square,
   Trophy,
   Users2,
   Video,
@@ -52,6 +48,7 @@ import { Track, type Participant } from 'livekit-client'
 import '@livekit/components-styles'
 import { isAgentParticipant } from '@/lib/livekit-helpers'
 import { cn } from '@/lib/utils'
+import { WhiteboardPanel } from '@/components/classroom/whiteboard-panel'
 import type { SessionView } from '@/lib/medlearn/session-view'
 import {
   useLiveToken, useEngagement, useLiveHooks, useLeaderboard, useBreakouts,
@@ -149,9 +146,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
   const [rightTab, setRightTab]             = useState<RightTab>('hooks')
   const [showWhiteboard, setShowWhiteboard] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
-  const [wbColor, setWbColor]               = useState('#ffffff')
-  const [wbSize, setWbSize]                 = useState(3)
-  const [wbTool, setWbTool]                 = useState<'pen' | 'eraser' | 'shape' | 'text'>('pen')
+  const [mediaError, setMediaError]         = useState<string | null>(null)
   const [showSubtitles, setShowSubtitles]   = useState(false)
   const [newHookOpen, setNewHookOpen]       = useState(false)
   const [newHookKind, setNewHookKind]       = useState<'tf' | 'oneword' | 'concept' | 'dilemma'>('tf')
@@ -193,7 +188,6 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
   const [newGroupCount, setNewGroupCount]   = useState(2)
   const [reactionOpen, setReactionOpen]   = useState(false)
   const [myReaction, setMyReaction]       = useState<string | null>(null)
-  const [drawTool, setDrawTool]           = useState<'draw' | 'laser' | 'annotate' | null>(null)
 
   void role
 
@@ -217,6 +211,13 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
       return () => clearTimeout(t)
     }
   }, [myReaction])
+
+  // Auto-dismiss the media (camera/mic) error toast after a few seconds.
+  useEffect(() => {
+    if (!mediaError) return
+    const t = setTimeout(() => setMediaError(null), 7000)
+    return () => clearTimeout(t)
+  }, [mediaError])
 
   const approveHook = async (hid: string, approved: boolean) => {
     if (approved) {
@@ -319,7 +320,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
   const engColor   = engagement === null ? 'text-slate-500' : engagement >= 75 ? 'text-emerald-400' : engagement >= 55 ? 'text-amber-400' : 'text-rose-400'
 
   return (
-    <div className="-mx-6 -my-8 flex h-[calc(100vh-56px)] flex-col overflow-hidden bg-gray-950 text-slate-100">
+    <div className="flex h-full flex-col overflow-hidden bg-gray-950 text-slate-100">
 
       {/* ── TOP STATUS BAR ─────────────────────────────────────────────── */}
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-gray-600 bg-gray-700 px-4 backdrop-blur-sm">
@@ -425,13 +426,6 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                   <Monitor className="size-3" />
                   Spotlight
                 </button>
-                <button
-                  type="button"
-                  className="mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[10.5px] text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                >
-                  <Settings className="size-3" />
-                  Settings
-                </button>
               </div>
             </div>
           )}
@@ -446,8 +440,6 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
               hostId={session.hostId}
               viewMode={viewMode}
               mutedAll={mutedAll}
-              drawTool={drawTool}
-              onDrawTool={setDrawTool}
               myReaction={myReaction}
               liveHookLabel={liveHook?.prompt ?? null}
               caption={subtitleCaption}
@@ -746,12 +738,12 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
       {/* ── BOTTOM DOCK ────────────────────────────────────────────────── */}
       <div className="relative flex h-[68px] shrink-0 items-center justify-center gap-2 border-t border-gray-600 bg-gray-700 px-4 backdrop-blur-sm">
         {connected ? (
-          <MediaControls onSharingChange={setSharingScreen} canShare={role === 'HOST' || role === 'CO_HOST'} onPresent={() => setViewMode('presentation')} />
+          <MediaControls onSharingChange={setSharingScreen} canShare={role === 'HOST' || role === 'CO_HOST'} onPresent={() => setViewMode('presentation')} onError={setMediaError} />
         ) : (
           <>
-            <DockBtn active={undefined} icon={<MicOff className="size-5" />}   label="Mic"          onClick={undefined} />
-            <DockBtn active={undefined} icon={<VideoOff className="size-5" />} label="Camera"       onClick={undefined} />
-            <DockBtn active={undefined} icon={<Monitor className="size-5" />}  label="Share Screen" onClick={undefined} />
+            <DockBtn disabled icon={<MicOff className="size-5" />}   label="Mic"          />
+            <DockBtn disabled icon={<VideoOff className="size-5" />} label="Camera"       />
+            <DockBtn disabled icon={<Monitor className="size-5" />}  label="Share Screen" />
           </>
         )}
 
@@ -789,59 +781,42 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
         </Link>
       </div>
 
-      {/* ── FULL-SCREEN WHITEBOARD ─────────────────────────────────────── */}
-      {showWhiteboard && (
-        <div className="fixed inset-0 z-[70] flex flex-col bg-white">
-          {/* Toolbar */}
-          <div className="flex h-14 shrink-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 shadow-sm">
-            <span className="mr-2 text-[13px] font-semibold text-gray-800">Whiteboard</span>
-            {/* Tools */}
-            <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
-              {([
-                { key: 'pen'    as const, icon: <Pencil className="size-4" />,  label: 'Pen' },
-                { key: 'eraser' as const, icon: <Eraser className="size-4" />,  label: 'Eraser' },
-                { key: 'shape'  as const, icon: <Square className="size-4" />,  label: 'Shape' },
-                { key: 'text'   as const, icon: <Minus className="size-4" />,   label: 'Text' },
-              ]).map((t) => (
-                <button key={t.key} type="button" title={t.label} onClick={() => setWbTool(t.key)}
-                  className={cn('grid size-8 place-items-center rounded-lg transition-colors', wbTool === t.key ? 'bg-teal-500 text-white' : 'text-gray-500 hover:bg-gray-100')}>
-                  {t.icon}
-                </button>
-              ))}
-            </div>
-            {/* Size */}
-            <div className="flex items-center gap-1.5">
-              <button onClick={() => setWbSize((s) => Math.max(1, s - 1))} className="grid size-6 place-items-center rounded-full border border-gray-200 bg-white text-gray-500 hover:bg-gray-100"><Minus className="size-3" /></button>
-              <span className="w-5 text-center text-[11px] font-mono font-semibold text-gray-700">{wbSize}</span>
-              <button onClick={() => setWbSize((s) => Math.min(16, s + 1))} className="grid size-6 place-items-center rounded-full border border-gray-200 bg-white text-gray-500 hover:bg-gray-100"><Plus className="size-3" /></button>
-            </div>
-            {/* Colors */}
-            <div className="flex items-center gap-1">
-              {['#111827','#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#6366f1','#ffffff'].map((c) => (
-                <button key={c} type="button" onClick={() => setWbColor(c)}
-                  className={cn('size-6 rounded-full border-2 transition-transform hover:scale-110', wbColor === c ? 'border-teal-500 scale-110' : 'border-gray-300')}
-                  style={{ backgroundColor: c }} />
-              ))}
-              <label className="ml-1 flex size-6 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-gray-300 hover:border-teal-400" title="Custom colour">
-                <Palette className="size-3 text-gray-400" />
-                <input type="color" value={wbColor} onChange={(e) => setWbColor(e.target.value)} className="sr-only" />
-              </label>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="rounded-full border border-teal-500/30 bg-teal-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-teal-700">Shared with all participants</span>
-              <button type="button" onClick={() => setShowWhiteboard(false)} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 text-[12px] font-medium text-gray-600 hover:bg-gray-50">
-                <X className="size-3.5" /> Close
-              </button>
-            </div>
+      {/* ── WHITEBOARD — real tldraw canvas. Persists to /whiteboard and
+            broadcasts every change to all participants over the LiveKit data
+            channel. It needs the live room context, so it's available only when
+            connected; otherwise we say so honestly instead of faking a canvas. */}
+      {showWhiteboard && connected && (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-zinc-900">
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-zinc-950 px-4">
+            <span className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-white">
+              <Pencil className="size-3.5 text-teal-400" /> Shared whiteboard
+            </span>
+            <button type="button" onClick={() => setShowWhiteboard(false)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 text-[12px] font-medium text-slate-200 transition-colors hover:bg-white/10">
+              <X className="size-3.5" /> Close
+            </button>
           </div>
-          {/* Canvas area */}
-          <div className="relative flex-1 overflow-hidden bg-white" style={{ cursor: wbTool === 'eraser' ? 'cell' : 'crosshair' }}>
-            <div className="pointer-events-none absolute inset-0"
-              style={{ backgroundImage: 'radial-gradient(circle, #d1d5db 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[13px] font-medium text-gray-300 select-none">Draw freely · {wbTool === 'pen' ? 'Pen' : wbTool === 'eraser' ? 'Eraser' : wbTool === 'shape' ? 'Shape' : 'Text'} selected · Size {wbSize}</span>
-            </div>
+          <div className="relative min-h-0 flex-1">
+            <WhiteboardPanel
+              sessionId={session.id}
+              isHostish={isHost}
+              fullscreen={false}
+              onFullscreenChange={(v) => { if (!v) setShowWhiteboard(false) }}
+            />
           </div>
+        </div>
+      )}
+      {showWhiteboard && !connected && (
+        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-3 bg-zinc-900 px-6 text-center">
+          <Pencil className="size-7 text-slate-500" />
+          <div className="text-[14px] font-semibold text-slate-200">The whiteboard needs the live room</div>
+          <p className="max-w-sm text-[12px] leading-relaxed text-slate-500">
+            The shared whiteboard syncs to every participant over the live connection. It becomes available the moment the room connects.
+          </p>
+          <button type="button" onClick={() => setShowWhiteboard(false)}
+            className="mt-1 inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 text-[12px] text-slate-200 hover:bg-white/10">
+            <X className="size-3.5" /> Close
+          </button>
         </div>
       )}
 
@@ -932,6 +907,22 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
             <div className="mt-0.5 text-[12px] text-slate-200">{alertText}</div>
           </div>
           <button type="button" onClick={() => setAlertText(null)} className="mt-0.5 text-slate-500 hover:text-slate-200">
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── MEDIA (camera / mic) ERROR ──────────────────────────────────────
+          getUserMedia rejections used to fail silently, so a denied-permission
+          or busy-device looked like a dead button. Surface the real reason. */}
+      {mediaError && (
+        <div className="fixed bottom-[84px] left-1/2 z-50 flex w-[min(92vw,420px)] -translate-x-1/2 animate-in slide-in-from-bottom-4 items-start gap-3 rounded-2xl border border-rose-500/30 bg-black/80 px-4 py-3 shadow-2xl backdrop-blur-md">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-400" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[9.5px] font-bold tracking-widest text-rose-400 uppercase">Device problem</div>
+            <div className="mt-0.5 text-[12px] leading-snug text-slate-200">{mediaError}</div>
+          </div>
+          <button type="button" onClick={() => setMediaError(null)} className="mt-0.5 text-slate-500 hover:text-slate-200">
             <X className="size-4" />
           </button>
         </div>
@@ -1069,17 +1060,19 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
 }
 
 function DockBtn({
-  icon, label, onClick, active,
+  icon, label, onClick, active, disabled,
 }: {
-  icon: React.ReactNode; label: string; onClick?: () => void; active?: boolean
+  icon: React.ReactNode; label: string; onClick?: () => void; active?: boolean; disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      title={label}
+      disabled={disabled}
+      title={disabled ? `${label} — available once the room connects` : label}
       className={cn(
         'flex h-12 flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 transition-colors',
+        disabled && 'cursor-not-allowed opacity-40',
         active === false
           ? 'border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
           : active === true
@@ -1161,41 +1154,89 @@ function FacultyPanelLive({ hostId, mutedAll }: { hostId: string; mutedAll: bool
 }
 
 // Mic / camera / screen-share dock buttons driven by the local LiveKit participant.
-function MediaControls({ onSharingChange, canShare, onPresent }: {
+function MediaControls({ onSharingChange, canShare, onPresent, onError }: {
   onSharingChange: (v: boolean) => void
   canShare: boolean
   onPresent: () => void
+  onError: (msg: string) => void
 }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant()
   useEffect(() => { onSharingChange(!!isScreenShareEnabled) }, [isScreenShareEnabled, onSharingChange])
+
+  const toggleMic = async () => {
+    try { await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) }
+    catch (e) { onError(mediaErrorMessage(e, 'microphone')) }
+  }
+  const toggleCamera = async () => {
+    try { await localParticipant.setCameraEnabled(!isCameraEnabled) }
+    catch (e) { onError(mediaErrorMessage(e, 'camera')) }
+  }
+  const toggleShare = async () => {
+    const next = !isScreenShareEnabled
+    try { await localParticipant.setScreenShareEnabled(next) }
+    catch (e) {
+      // Dismissing the browser's screen-picker also rejects (NotAllowedError /
+      // AbortError) — that's a cancel, not a failure. Only surface real errors.
+      if (!isUserCancelledShare(e)) onError(mediaErrorMessage(e, 'screen'))
+      return
+    }
+    if (next) onPresent()
+  }
+
   return (
     <>
       <DockBtn
         active={isMicrophoneEnabled}
-        onClick={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+        onClick={toggleMic}
         icon={isMicrophoneEnabled ? <Mic className="size-5" /> : <MicOff className="size-5" />}
         label={isMicrophoneEnabled ? 'Mute' : 'Unmute'}
       />
       <DockBtn
         active={isCameraEnabled}
-        onClick={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
+        onClick={toggleCamera}
         icon={isCameraEnabled ? <Video className="size-5" /> : <VideoOff className="size-5" />}
         label="Camera"
       />
       {canShare && (
         <DockBtn
           active={isScreenShareEnabled ? true : undefined}
-          onClick={async () => {
-            const next = !isScreenShareEnabled
-            try { await localParticipant.setScreenShareEnabled(next) } catch { /* user cancelled picker */ }
-            if (next) onPresent()
-          }}
+          onClick={toggleShare}
           icon={<Monitor className="size-5" />}
           label="Share Screen"
         />
       )}
     </>
   )
+}
+
+// Translate a getUserMedia / getDisplayMedia rejection into a clear, actionable
+// message. These previously rejected silently, so a denied permission or a
+// device held by another app looked like a button that simply did nothing.
+function mediaErrorMessage(e: unknown, device: 'microphone' | 'camera' | 'screen'): string {
+  const name = (e as { name?: string } | null)?.name
+  const label = device === 'screen' ? 'screen sharing' : `your ${device}`
+  switch (name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+      return device === 'screen'
+        ? 'Screen sharing was blocked. Allow it in your browser and try again.'
+        : `Access to ${label} was blocked. Click the camera/mic icon in the browser address bar, choose Allow, then try again.`
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return `No ${device} was found. Connect one and try again.`
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return `${device[0].toUpperCase()}${device.slice(1)} is in use by another app. Close it (Zoom/Teams/etc.) and try again.`
+    case 'OverconstrainedError':
+      return `Your ${device} doesn't support the requested settings.`
+    default:
+      return `Couldn't start ${label}. Check it's connected and permitted in your browser, then try again.`
+  }
+}
+
+function isUserCancelledShare(e: unknown): boolean {
+  const name = (e as { name?: string } | null)?.name
+  return name === 'NotAllowedError' || name === 'AbortError'
 }
 
 function LiveHookBanner({ label }: { label: string }) {
@@ -1259,18 +1300,10 @@ function ParticipantStageTile({ participant, track, big, presenterBadge, mutedAl
   )
 }
 
-const DRAW_TOOLS = [
-  { key: 'draw' as const, icon: <Pencil className="size-3" />, label: 'Draw' },
-  { key: 'laser' as const, icon: <Wand2 className="size-3" />, label: 'Laser' },
-  { key: 'annotate' as const, icon: <HelpCircle className="size-3" />, label: 'Annotate' },
-]
-
-function CenterStageLive({ hostId, viewMode, mutedAll, drawTool, onDrawTool, myReaction, liveHookLabel, caption }: {
+function CenterStageLive({ hostId, viewMode, mutedAll, myReaction, liveHookLabel, caption }: {
   hostId: string
   viewMode: ViewMode
   mutedAll: boolean
-  drawTool: 'draw' | 'laser' | 'annotate' | null
-  onDrawTool: (t: 'draw' | 'laser' | 'annotate' | null) => void
   myReaction: string | null
   liveHookLabel: string | null
   caption: string | null
@@ -1313,19 +1346,6 @@ function CenterStageLive({ hostId, viewMode, mutedAll, drawTool, onDrawTool, myR
         <ParticipantStageTile participant={presenter} track={presenter ? trackFor(presenter) : undefined} big presenterBadge mutedAll={mutedAll} />
         {myReaction && <div className="absolute top-3 left-3 z-10 animate-in zoom-in-50 text-3xl">{myReaction}</div>}
         {liveHookLabel && <LiveHookBanner label={liveHookLabel} />}
-        <div className="absolute bottom-10 left-3 z-10 flex items-center gap-1 rounded-xl border border-white/[0.08] bg-black/40 p-1 backdrop-blur">
-          {DRAW_TOOLS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              title={t.label}
-              onClick={() => onDrawTool(drawTool === t.key ? null : t.key)}
-              className={cn('rounded-lg p-1.5 transition-colors', drawTool === t.key ? 'bg-teal-500/30 text-teal-300' : 'text-slate-400 hover:bg-white/10 hover:text-white')}
-            >
-              {t.icon}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Up to 8 more participant tiles fill the remaining cells; empty cells stay blank. */}

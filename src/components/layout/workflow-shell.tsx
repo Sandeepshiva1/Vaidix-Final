@@ -142,6 +142,14 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
+  // Immersive routes (the live conference) take the full viewport — no sidebar,
+  // no topbar; the room UI carries its own chrome. Every hook above runs
+  // unconditionally, so this early return is Rules-of-Hooks safe.
+  const isImmersive = /\/session\/[^/]+\/live(?:\/|$)/.test(pathname)
+  if (isImmersive) {
+    return <div className="h-dvh w-full overflow-hidden bg-gray-950">{children}</div>
+  }
+
   const avatar = (size: string, text: string) =>
     identity.avatarUrl ? (
       // eslint-disable-next-line @next/next/no-img-element

@@ -46,10 +46,39 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
 
 # ─── Required env ─────────────────────────────────────────────────────────
 # LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET are read by livekit-agents
-# automatically.
-INGEST_URL = os.environ["VAIDIX_INGEST_URL"].rstrip("/")
-INGEST_SECRET = os.environ["LIVE_CAPTIONS_INGEST_SECRET"]
-DEEPGRAM_API_KEY = os.environ["DEEPGRAM_API_KEY"]
+# automatically. The three below are ours. We validate them explicitly and
+# fail fast with an actionable message: docker-compose passes an *unset* var as
+# an empty string (not absent), so a bare `os.environ["X"]` would hand us "" and
+# the agent would then run forever producing no captions — the exact silent
+# failure that makes the live transcript sit on "Waiting for captions…". Crash
+# loudly instead, so the misconfiguration is obvious in `docker logs`.
+def _require_env(name: str, hint: str) -> str:
+    val = os.environ.get(name, "").strip()
+    if not val:
+        logger.error(
+            "FATAL: %s is not set. %s Captions cannot run without it. Set it in "
+            "the deployment .env and recreate this service:\n"
+            "  docker compose -f docker-compose.prod.yml --env-file .env "
+            "up -d --force-recreate vaidix-captions-agent",
+            name, hint,
+        )
+        raise SystemExit(1)
+    return val
+
+
+INGEST_URL = _require_env(
+    "VAIDIX_INGEST_URL",
+    "It is the internal URL of the Next.js app (e.g. http://app:3000).",
+).rstrip("/")
+INGEST_SECRET = _require_env(
+    "LIVE_CAPTIONS_INGEST_SECRET",
+    "It is the 32+ char secret shared with the app's env of the same name.",
+)
+DEEPGRAM_API_KEY = _require_env(
+    "DEEPGRAM_API_KEY",
+    "It is the Deepgram speech-to-text API key (get one at "
+    "https://console.deepgram.com).",
+)
 DEEPGRAM_MODEL = os.environ.get("DEEPGRAM_MODEL", "nova-3")
 LANGUAGE = os.environ.get("VAIDIX_CAPTIONS_LANG", "en")
 

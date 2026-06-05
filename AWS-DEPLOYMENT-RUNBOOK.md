@@ -86,7 +86,32 @@ grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD)=' .env
 ```
 All real secrets live ONLY in `~/Vaidix-Final/.env`. Copy it somewhere safe (a password manager / private S3). **It is gitignored and exists on no other machine.**
 
-## 8. ⚠ BACKUPS — currently NONE (this is the top risk)
+## 8. Live captions (Deepgram)
+
+The live **Captions** tab stays on *“Waiting for captions…”* until the
+`vaidix-captions-agent` container has a real **`DEEPGRAM_API_KEY`**. Symptom in
+the logs: `WARN The "DEEPGRAM_API_KEY" variable is not set. Defaulting to a
+blank string.` — and (after the fail-fast fix) the agent now logs a clear
+`FATAL: DEEPGRAM_API_KEY is not set …` and exits instead of running uselessly.
+
+Fix:
+```bash
+cd ~/Vaidix-Final
+# 1. Put a real key in .env (get one at https://console.deepgram.com)
+grep -q '^DEEPGRAM_API_KEY=' .env && \
+  sed -i 's#^DEEPGRAM_API_KEY=.*#DEEPGRAM_API_KEY=<your-deepgram-key>#' .env || \
+  echo 'DEEPGRAM_API_KEY=<your-deepgram-key>' >> .env
+# 2. Recreate ONLY the agent (restart does NOT re-read .env)
+docker compose -f docker-compose.prod.yml --env-file .env up -d \
+  --force-recreate vaidix-captions-agent
+# 3. Verify it stayed up (no FATAL) and registered with LiveKit
+docker logs vaidix-captions-agent --tail 30
+```
+The agent auto-joins every LIVE room as a hidden participant; one Deepgram
+stream opens per **unmuted speaker**, not per viewer. Captions then fan out to
+all viewers over the existing SSE — no per-seat cost.
+
+## 9. ⚠ BACKUPS — currently NONE (this is the top risk)
 
 The 2026‑06‑05 wipe was unrecoverable because nothing was backed up. Add, in order of priority:
 1. **Move the DB to RDS** (`DATABASE_URL` → the RDS endpoint). RDS has automated daily backups + point‑in‑time recovery, and lives outside `/var/lib/docker`, so a docker mistake can't touch it.
