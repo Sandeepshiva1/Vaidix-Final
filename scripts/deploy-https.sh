@@ -33,7 +33,7 @@
 set -euo pipefail
 
 : "${APP_HOST:?APP_HOST required, e.g. APP_HOST=vaidix.arthivaa.com}"
-: "${ADMIN_EMAIL:?ADMIN_EMAIL required for Let's Encrypt notifications}"
+: "${ADMIN_EMAIL:?ADMIN_EMAIL required for Lets Encrypt notifications}"
 
 LK_HOST="livekit.${APP_HOST}"
 S3_HOST="s3.${APP_HOST}"
@@ -68,7 +68,7 @@ docker compose version >/dev/null 2>&1 || die "docker compose plugin not install
 
 # ── 2. DNS verification ────────────────────────────────────────────────────
 PUBLIC_IP="$(curl -fsS --max-time 5 https://api.ipify.org || curl -fsS --max-time 5 https://ifconfig.me)"
-log "This host's public IP: ${PUBLIC_IP}"
+log "This host public IP: ${PUBLIC_IP}"
 
 command -v dig >/dev/null || apt-get install -y dnsutils
 for H in "$APP_HOST" "$LK_HOST" "$S3_HOST"; do
@@ -96,7 +96,7 @@ docker compose -f docker-compose.dev.yml down 2>/dev/null || true
 docker compose -f docker-compose.prod.yml stop nginx 2>/dev/null || true
 
 # ── 5. Issue / renew certificates ──────────────────────────────────────────
-log "Requesting Let's Encrypt cert for ${APP_HOST}, ${LK_HOST}, ${S3_HOST}..."
+log "Requesting Lets Encrypt cert for ${APP_HOST}, ${LK_HOST}, ${S3_HOST}..."
 certbot certonly --standalone --non-interactive --agree-tos --keep-until-expiring \
   --email "${ADMIN_EMAIL}" \
   -d "${APP_HOST}" \
