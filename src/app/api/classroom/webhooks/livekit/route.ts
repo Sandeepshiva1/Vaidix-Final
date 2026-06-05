@@ -65,12 +65,27 @@ function pickEgressFile(info: NonNullable<EgressEventPayload['egressInfo']>): { 
   // Strip the bucket prefix if Egress was configured with a leading slash.
   const key = fname ? fname.replace(/^\//, '') : null;
   const sizeRaw = fr?.size;
-  const sizeBytes = sizeRaw == null ? null : BigInt(typeof sizeRaw === 'string' ? sizeRaw : Math.round(sizeRaw));
+  // LiveKit reports size/duration as int64 → a *bigint* in current SDKs (older
+  // ones used string/number). Math.round() throws on a bigint ("Cannot convert
+  // a BigInt value to a number"), which is what broke every egress_ended
+  // webhook. Handle all three shapes.
+  const sizeBytes = sizeRaw == null
+    ? null
+    : typeof sizeRaw === 'bigint'
+      ? sizeRaw
+      : BigInt(typeof sizeRaw === 'string' ? sizeRaw : Math.round(sizeRaw));
   const durationRaw = fr?.duration;
-  // duration is reported in nanoseconds as a string in some LiveKit versions
+  // Duration is nanoseconds when it's a bigint (int64) or a long numeric string;
+  // older builds occasionally report whole seconds as a short string.
   const durationSec = durationRaw == null
     ? null
-    : Math.round(Number(durationRaw) / (typeof durationRaw === 'string' && durationRaw.length > 7 ? 1_000_000_000 : 1));
+    : Math.round(
+        Number(durationRaw) /
+          (typeof durationRaw === 'bigint' ||
+          (typeof durationRaw === 'string' && durationRaw.length > 7)
+            ? 1_000_000_000
+            : 1),
+      );
   return { key, sizeBytes, durationSec };
 }
 

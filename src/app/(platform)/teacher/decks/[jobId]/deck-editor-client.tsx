@@ -776,20 +776,54 @@ export function DeckEditorClient({
                   <span>
                     Slide {activeIndex + 1} of {slides.length}
                   </span>
-                  {savingId === active.id && (
-                    <span className="text-[11.5px] text-muted-foreground">Saving…</span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {/* Original | Editable — only when this slide has a faithful
+                        original (VERBATIM imports). Lets faculty compare the
+                        uploaded slide against the editable Vaidix copy. */}
+                    {active.sourceImageUrl && (
+                      <div className="inline-flex rounded-lg border border-border/60 p-0.5 text-[11px]">
+                        {(['original', 'editable'] as const).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setViewMode(m)}
+                            className={cn(
+                              'rounded-md px-2 py-0.5 font-medium capitalize transition-colors',
+                              viewMode === m
+                                ? 'bg-foreground text-background'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {savingId === active.id && (
+                      <span className="text-[11.5px] text-muted-foreground">Saving…</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="overflow-hidden rounded-3xl border border-border/60 bg-white shadow-[0_30px_60px_-30px_oklch(0.45_0.15_165/0.25)] dark:bg-card">
-                  <SlideCanvas
-                    slide={active}
-                    index={activeIndex}
-                    total={slides.length}
-                    deckTitle={deckTitle}
-                    themeId={themeId}
-                    backgroundHex={backgroundHex}
-                  />
+                  {viewMode === 'original' && active.sourceImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={active.sourceImageUrl}
+                      alt={active.title}
+                      className="block w-full"
+                      style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
+                    />
+                  ) : (
+                    <SlideCanvas
+                      slide={active}
+                      index={activeIndex}
+                      total={slides.length}
+                      deckTitle={deckTitle}
+                      themeId={themeId}
+                      backgroundHex={backgroundHex}
+                    />
+                  )}
                 </div>
 
                 {active.speakerNotes && (

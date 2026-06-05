@@ -146,11 +146,17 @@ export function StudioClient({
   initialAnalysis,
   initialTheme,
   initialBackgroundHex,
+  initialImportMode,
 }: Props) {
   const [slides, setSlides] = useState<SlideViewModel[]>(initialSlides);
   const [activeId, setActiveId] = useState<string | null>(initialSlides[0]?.id ?? null);
   const [themeId, setThemeId] = useState<string>(initialTheme ?? 'deep-space');
   const [backgroundHex, setBackgroundHex] = useState<string | null>(initialBackgroundHex ?? null);
+  // VERBATIM decks default to the pixel-faithful "Original" view; toggleable to
+  // the editable Vaidix canvas. Only shown when a slide has an original image.
+  const [viewMode, setViewMode] = useState<'original' | 'editable'>(
+    initialImportMode === 'VERBATIM' ? 'original' : 'editable',
+  );
   const [analysis, setAnalysis] = useState<DeckAnalysisResult | null>(initialAnalysis);
   const [rightTab, setRightTab] = useState<RightTab>('analysis');
   const [currentStatus, setCurrentStatus] = useState<DeckForgeStatus>(status);
@@ -559,6 +565,8 @@ export function StudioClient({
           deckTitle={deckTitle}
           themeId={themeId}
           backgroundHex={backgroundHex}
+          viewMode={viewMode}
+          onViewMode={setViewMode}
           activeSuggestions={activeSuggestions}
           onPrev={goPrev}
           onNext={goNext}
@@ -890,6 +898,8 @@ function SlideEditorCanvas({
   deckTitle,
   themeId,
   backgroundHex,
+  viewMode,
+  onViewMode,
   activeSuggestions,
   onPrev,
   onNext,
@@ -903,6 +913,8 @@ function SlideEditorCanvas({
   deckTitle: string;
   themeId: string;
   backgroundHex: string | null;
+  viewMode: 'original' | 'editable';
+  onViewMode: (m: 'original' | 'editable') => void;
   activeSuggestions: DeckSuggestion[];
   onPrev: () => void;
   onNext: () => void;
@@ -923,15 +935,43 @@ function SlideEditorCanvas({
   return (
     <section className="relative flex min-h-0 flex-col items-center justify-center bg-muted/40 p-8">
       <div className="relative w-full max-w-3xl">
-        <SlideCanvas
-          slide={slide}
-          index={index}
-          total={total}
-          deckTitle={deckTitle}
-          themeId={themeId}
-          backgroundHex={backgroundHex}
-          mode="preview"
-        />
+        {viewMode === 'original' && slide.sourceImageUrl ? (
+          // Faithful import: the uploaded slide exactly as-is.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={slide.sourceImageUrl}
+            alt={slide.title}
+            className="block w-full rounded-xl"
+            style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
+          />
+        ) : (
+          <SlideCanvas
+            slide={slide}
+            index={index}
+            total={total}
+            deckTitle={deckTitle}
+            themeId={themeId}
+            backgroundHex={backgroundHex}
+            mode="preview"
+          />
+        )}
+        {/* Original | Editable — only when this slide has a faithful original. */}
+        {slide.sourceImageUrl && (
+          <div className="absolute left-2 top-2 inline-flex rounded-md bg-white/10 p-0.5 text-[10px] font-medium text-white backdrop-blur">
+            {(['original', 'editable'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onViewMode(m)}
+                className={`rounded px-2 py-1 capitalize transition ${
+                  viewMode === m ? 'bg-white/25' : 'hover:bg-white/15'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Annotation pins — fixed corners by suggestion kind */}
         {activeSuggestions.slice(0, 4).map((s, i) => (
           <AnnotationPin key={s.id} suggestion={s} cornerIndex={i} />
