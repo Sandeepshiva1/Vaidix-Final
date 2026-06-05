@@ -26,7 +26,14 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: https:${devS3}`,
   `media-src 'self' blob: https:${devS3}`,
-  "font-src 'self' data:",
+  // The shared whiteboard (tldraw) loads its UI + drawing fonts from its
+  // versioned CDN. img-src/connect-src already permit https: so tldraw's icon
+  // sprite + asset fetches resolve; fonts are the one class still blocked,
+  // which left the whiteboard toolbar glyphs + drawn text in fallback fonts.
+  // Scope the exception to tldraw's host instead of opening font-src to all
+  // https. (Self-hosting tldraw assets under /public is the zero-external-
+  // dependency hardening if a future review wants no third-party origin.)
+  "font-src 'self' data: https://cdn.tldraw.com",
   `connect-src 'self' https: wss:${devConnect}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
