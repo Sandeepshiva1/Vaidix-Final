@@ -157,8 +157,11 @@ if [ "$NEEDS_APP" -eq 1 ]; then
     docker logs vaidix-app --tail 20 2>&1 >&2 || true
     exit 1
   fi
-  echo "[deploy] recreating app container"
-  $COMPOSE up -d --force-recreate app
+  # Recreate BOTH app and workers — they run the SAME vaidix-app:latest image,
+  # so recreating only `app` leaves workers executing the OLD code (background
+  # jobs like deck-forge / raster / post-session would drift from the web tier).
+  echo "[deploy] recreating app + workers (shared image — must run the same code)"
+  $COMPOSE up -d --force-recreate app workers
 fi
 
 # ─── 5. Recreate livekit/coturn/livekit-egress when their templates changed ─
