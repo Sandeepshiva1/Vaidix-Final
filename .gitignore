@@ -1,5 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Local debug / probe scratch — one-off scripts + their screenshots, never shipped
+/_*.mjs
+/_*.cjs
+/learners*.mjs
+scripts/_*
+scripts/probe-*
+
 # dependencies
 /node_modules
 /.pnp
