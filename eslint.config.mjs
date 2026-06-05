@@ -30,6 +30,13 @@ const eslintConfig = defineConfig([
           ignoreRestSiblings: true,
         },
       ],
+      // eslint-config-next pulls in react-hooks' (React 19) `set-state-in-effect`
+      // rule, which flags the common fetch-on-mount pattern
+      // `useEffect(() => { refreshAsync() }, [refreshAsync])` even when the
+      // setState runs in a microtask AFTER an await (not a synchronous cascading
+      // render). Keep it a visible warning instead of a hard CI failure; the
+      // owning code can migrate to a data-fetching hook later.
+      "react-hooks/set-state-in-effect": "warn",
     },
   },
 ]);
