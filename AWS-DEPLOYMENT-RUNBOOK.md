@@ -111,13 +111,33 @@ The agent auto-joins every LIVE room as a hidden participant; one Deepgram
 stream opens per **unmuted speaker**, not per viewer. Captions then fan out to
 all viewers over the existing SSE — no per-seat cost.
 
-## 9. ⚠ BACKUPS — currently NONE (this is the top risk)
+## 9. ⚠ BACKUPS — the system EXISTS; ENABLE it on this instance
 
-The 2026‑06‑05 wipe was unrecoverable because nothing was backed up. Add, in order of priority:
-1. **Move the DB to RDS** (`DATABASE_URL` → the RDS endpoint). RDS has automated daily backups + point‑in‑time recovery, and lives outside `/var/lib/docker`, so a docker mistake can't touch it.
-2. **Daily `pg_dump`** of postgres → a file + upload to S3.
-3. **Daily `mc mirror`** of the MinIO bucket → another bucket / disk.
-4. **Snapshot the EBS volume** of the instance periodically (AWS Backup).
+Correction to earlier notes: a full encrypted backup + restore system already
+ships in the repo — **`scripts/backup.sh`** (nightly `pg_dump` + MinIO
+`mc mirror`, age‑encrypted, rclone offsite, retention) and
+**`scripts/restore.sh`**, documented in
+[docs/RUNBOOK-BACKUP.md](docs/RUNBOOK-BACKUP.md) (HARDENING‑PLAN item #5). The
+2026‑06‑05 wipe was unrecoverable **not because no system exists, but because
+the operator one‑time setup was never run on this instance** — nothing was
+actually being dumped.
+
+**Enable it now** (full steps in RUNBOOK‑BACKUP.md → "Initial setup"):
+1. `age-keygen` → install the private key `0600` at `/etc/vaidix/backup.key` and
+   the public key at `/etc/vaidix/backup.pub`. Keep a copy of the PRIVATE key
+   **off the instance** — without it the encrypted backups are unrecoverable.
+2. `rclone config` an offsite remote named `vaidix-offsite` (S3 / B2 / NAS).
+3. Cron it **from the repo** so `backup.sh` self‑loads `.env`:
+   `30 2 * * * cd ~/Vaidix-Final && ./scripts/backup.sh >> /var/log/vaidix-backup.log 2>&1`
+4. Run `./scripts/backup.sh` once by hand to confirm it works — don't wait for 02:30.
+5. Restore drill: `./scripts/restore.sh /backup/<date>` on a second host; log the
+   RTO in RUNBOOK‑BACKUP.md (target < 30 min).
+
+Stronger still (recommended, complementary — not either/or):
+- **Move the DB to RDS** (`DATABASE_URL` → the existing `vaidix-db` RDS) for
+  automated PITR backups that live outside `/var/lib/docker` entirely.
+- **Migrate object storage to AWS S3** (§10) — durable + off the EC2 disk.
+- **AWS Backup EBS snapshots** of the instance volume as a coarse safety net.
 
 ## 10. Move object storage to AWS S3 (off the EC2 disk)
 

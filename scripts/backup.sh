@@ -5,6 +5,18 @@
 
 set -euo pipefail
 
+# Cron runs with no inherited shell env, but this script needs DATABASE_URL +
+# S3_* (the original cron entry ran the script bare, so a scheduled backup would
+# exit 2 before doing anything — a silently-failing backup is worse than none).
+# Self-load the deployment .env when those vars aren't already present. Manual
+# runs that sourced ./scripts/load-env.sh first are unaffected.
+if [ -z "${DATABASE_URL:-}" ]; then
+  ENV_FILE="${BACKUP_ENV_FILE:-$(cd "$(dirname "$0")/.." && pwd)/.env}"
+  if [ -f "$ENV_FILE" ]; then
+    set -a; . "$ENV_FILE"; set +a
+  fi
+fi
+
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 DEST_LOCAL="/backup/$STAMP"
 RECIPIENT="$(cat /etc/vaidix/backup.pub | tr -d '\n\r')"
