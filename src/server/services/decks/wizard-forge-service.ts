@@ -34,6 +34,8 @@ import {
   AiUnparseableError,
 } from '@/server/services/ai/router';
 import { PptxDocument, PptxParseError } from '@/server/services/pptx/pptx-document';
+import { classifySource } from './source-classifier';
+import { importVerbatimDeck } from './verbatim-import-service';
 import { loadPrompt } from '@/server/prompts/loader';
 import { getFacultyHistoryContext } from './faculty-analytics-history';
 import {
@@ -770,6 +772,31 @@ export async function wizardForgeDeck(input: WizardForgeInput): Promise<WizardFo
   });
 
   try {
+    // ── Verbatim short-circuit ───────────────────────────────────────────────
+    // If the deck's primary source already IS a slide deck, import it as-is
+    // (1:1 editable copy + rasterised "Original") instead of EXTRACT→DRAFT.
+    // Candidate = the PRIMARY_PPTX (ENHANCE) or, when there's a single input,
+    // that lone doc. AI suggestions remain available on demand in the studio.
+    const verbatimCandidate =
+      loaded.find((d) => d.role === 'PRIMARY_PPTX') ?? (loaded.length === 1 ? loaded[0] : null);
+    if (verbatimCandidate) {
+      const blob = await fetchBytes(verbatimCandidate.s3Key);
+      // The DB-stamped mimeType is authoritative (S3 ContentType can be octet).
+      const verdict = await classifySource({
+        mimeType: verbatimCandidate.mimeType,
+        buffer: blob.buffer,
+      });
+      if (verdict.mode === 'VERBATIM') {
+        const { slideCount } = await importVerbatimDeck({
+          jobId: created.id,
+          requestedById: input.requestedById,
+          buffer: blob.buffer,
+          mimeType: verbatimCandidate.mimeType,
+        });
+        return { jobId: created.id, deckTitle: verbatimCandidate.title, slideCount };
+      }
+    }
+
     // 2. EXTRACT — Gemini multimodal
     const extraction = await extractFromSources(loaded);
 

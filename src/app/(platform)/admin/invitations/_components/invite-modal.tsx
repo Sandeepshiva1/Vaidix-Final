@@ -73,8 +73,8 @@ const ROLE_OPTIONS: Array<{
   description: string;
   icon: typeof UserCircle;
 }> = [
-  { value: Role.RESIDENT,         label: 'Student',          description: 'Ophthalmology student in training',  icon: GraduationCap },
-  { value: Role.FACULTY,          label: 'Teacher',          description: 'Consultant / teaching staff',        icon: Stethoscope },
+  { value: Role.RESIDENT,         label: 'Resident',         description: 'Ophthalmology resident in training', icon: GraduationCap },
+  { value: Role.FACULTY,          label: 'Faculty',          description: 'Consultant / teaching staff',        icon: Stethoscope },
   { value: Role.PROGRAM_DIRECTOR, label: 'HOD',              description: 'Head of Department / program lead',  icon: BookOpen },
   { value: Role.ADMIN,            label: 'Admin',            description: 'Platform administrator',             icon: Settings },
   { value: Role.EXTERNAL_LEARNER, label: 'External Learner', description: 'Non-LVPEI invited learner',          icon: Users },

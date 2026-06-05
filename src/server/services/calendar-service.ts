@@ -24,6 +24,14 @@ export interface CalendarEvent {
   openToAll: boolean;
   sessionType: string;
   host: { id: string; name: string; role: string } | null;
+  /**
+   * The VIEWER's role on this session — drives the calendar badge. 'HOST' when
+   * the viewer hosts it, otherwise their SessionParticipant.role
+   * ('CO_HOST' | 'PARTICIPANT' | 'VIEWER'), or null when they're neither
+   * (e.g. an openToAll session they can see but haven't joined). Never the
+   * host's role — that conflation was the "everyone is PRESENTER" bug.
+   */
+  userRole: 'HOST' | 'CO_HOST' | 'PARTICIPANT' | 'VIEWER' | null;
   isRecurring: boolean;
   isOccurrence: boolean;       // true when expanded from an RRULE
   cohortId: string | null;
@@ -67,7 +75,11 @@ function expandOccurrences(
   session: Pick<
     TeachingSession,
     'id' | 'title' | 'sessionType' | 'scheduledStart' | 'scheduledEnd' | 'recurrenceRule' | 'recurrenceUntil' | 'status' | 'approvalStatus' | 'openToAll' | 'cohortId'
-  > & { host: { id: string; name: string; role: string } | null; cohortName: string | null },
+  > & {
+    host: { id: string; name: string; role: string } | null;
+    cohortName: string | null;
+    userRole: CalendarEvent['userRole'];
+  },
   from: Date,
   to: Date
 ): CalendarEvent[] {
@@ -88,6 +100,7 @@ function expandOccurrences(
         openToAll: session.openToAll,
         sessionType: session.sessionType,
         host: session.host,
+        userRole: session.userRole,
         isRecurring: false,
         isOccurrence: false,
         cohortId: session.cohortId,
@@ -122,6 +135,7 @@ function expandOccurrences(
       openToAll: session.openToAll,
       sessionType: session.sessionType,
       host: session.host,
+      userRole: session.userRole,
       isRecurring: true,
       isOccurrence: true,
       cohortId: session.cohortId,
@@ -177,8 +191,9 @@ export async function listCalendarEvents(
 
   const hostIds = Array.from(new Set(sessions.map((s) => s.hostId)));
   const cohortIds = Array.from(new Set(sessions.map((s) => s.cohortId).filter((id): id is string => !!id)));
+  const sessionIds = sessions.map((s) => s.id);
 
-  const [hosts, cohorts] = await Promise.all([
+  const [hosts, cohorts, myParticipations] = await Promise.all([
     hostIds.length
       ? db.user.findMany({
           where: { id: { in: hostIds } },
@@ -191,10 +206,28 @@ export async function listCalendarEvents(
           select: { id: true, name: true },
         })
       : [],
+    // The VIEWER's own participation rows for the visible sessions — drives the
+    // per-event role badge so an invitee no longer inherits the host's role.
+    sessionIds.length
+      ? db.sessionParticipant.findMany({
+          where: { userId, sessionId: { in: sessionIds } },
+          select: { sessionId: true, role: true },
+        })
+      : [],
   ]);
 
   const hostById = new Map(hosts.map((h) => [h.id, h]));
   const cohortById = new Map(cohorts.map((c) => [c.id, c]));
+  const myRoleBySession = new Map(myParticipations.map((p) => [p.sessionId, p.role]));
+
+  // Resolve the viewer's role for a session: hosting wins over any participant
+  // row; otherwise use their SessionParticipant.role; null when neither.
+  const VALID_ROLES = new Set(['HOST', 'CO_HOST', 'PARTICIPANT', 'VIEWER']);
+  const viewerRoleFor = (sessionId: string, hostId: string): CalendarEvent['userRole'] => {
+    if (hostId === userId) return 'HOST';
+    const r = myRoleBySession.get(sessionId);
+    return r && VALID_ROLES.has(r) ? (r as CalendarEvent['userRole']) : null;
+  };
 
   return sessions.flatMap((s) =>
     expandOccurrences(
@@ -202,6 +235,7 @@ export async function listCalendarEvents(
         ...s,
         host: hostById.get(s.hostId) ?? null,
         cohortName: s.cohortId ? (cohortById.get(s.cohortId)?.name ?? null) : null,
+        userRole: viewerRoleFor(s.id, s.hostId),
       },
       from,
       to

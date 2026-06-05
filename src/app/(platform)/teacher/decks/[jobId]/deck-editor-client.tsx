@@ -9,11 +9,13 @@
 // markup/Tailwind/layout changed.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  AArrowDown,
+  AArrowUp,
   ArrowLeft,
   Bold,
   CheckCircle2,
@@ -21,22 +23,41 @@ import {
   ChevronUp,
   Download,
   Eye,
-  Image as ImageIcon,
+  ImagePlus,
   Italic,
   Loader2,
   Pencil,
+  Plus,
   Sparkles,
+  Table as TableIcon,
   Trash2,
-  Type as TypeIcon,
   Underline,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SlideCanvas, type SlideViewModel } from '@/components/decks/slide-canvas';
+import {
+  SlideCanvas,
+  type SlideViewModel,
+  type SlideTable,
+} from '@/components/decks/slide-canvas';
 import { DeckAiCoach } from '@/components/decks/deck-ai-coach';
 import { ThemePicker } from '@/components/decks/theme-picker';
+import { BackgroundPicker } from '@/components/decks/background-picker';
+import { DECK_THEMES, THEME_IDS, getDeckTheme } from '@/lib/deck-themes';
 import type { DeckAnalysisResult } from '@/server/services/decks/deck-analyze-service';
-import type { DeckForgeStatus, SlideLayout } from '@prisma/client';
+import { DeckForgeStatus } from '@prisma/client';
+import type { SlideLayout } from '@prisma/client';
 import { csrfHeaders } from '@/lib/csrf-client';
+
+// Bounds mirror the slide PATCH API (TableSchema) so the client never builds a
+// table the server will reject.
+const MAX_TABLE_ROWS = 12;
+const MAX_TABLE_COLS = 8;
+const FONT_SCALE_MIN = 0.6;
+const FONT_SCALE_MAX = 1.6;
+
+function newTable(): SlideTable {
+  return { rows: [['Column 1', 'Column 2', 'Column 3'], ['', '', ''], ['', '', '']] };
+}
 
 const LAYOUT_OPTIONS: SlideLayout[] = [
   'TITLE_ONLY',
@@ -48,7 +69,7 @@ const LAYOUT_OPTIONS: SlideLayout[] = [
   'CLOSING',
 ];
 
-const RIBBON_TABS = ['Home', 'Insert', 'Draw', 'Design', 'Animations'] as const;
+const RIBBON_TABS = ['Home', 'Insert', 'Design'] as const;
 type RibbonTab = (typeof RIBBON_TABS)[number];
 
 interface Props {
@@ -59,6 +80,10 @@ interface Props {
   initialSlides: SlideViewModel[];
   initialAnalysis: DeckAnalysisResult | null;
   initialTheme?: string | null;
+  /** Per-deck background colour override (hex, no '#'); null = theme default. */
+  initialBackgroundHex?: string | null;
+  /** 'VERBATIM' when the deck was imported as-is (offers the Original view). */
+  importMode?: string;
   /**
    * When set, the editor is rendered inside the session pre-conference flow:
    * the Back link returns to /session/[id]/pre and a primary "Finalize" button
@@ -78,6 +103,8 @@ export function DeckEditorClient({
   initialSlides,
   initialAnalysis,
   initialTheme,
+  initialBackgroundHex,
+  importMode,
   backToSessionId,
 }: Props) {
   const router = useRouter();
@@ -93,18 +120,38 @@ export function DeckEditorClient({
   const [imageOfflineId, setImageOfflineId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('coach');
   const [themeId, setThemeId] = useState<string>(initialTheme ?? 'deep-space');
+  const [backgroundHex, setBackgroundHex] = useState<string | null>(initialBackgroundHex ?? null);
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('Home');
+  // Faithful-import view toggle. VERBATIM decks default to the pixel-faithful
+  // "Original" (the uploaded slide image); everyone can switch to the editable
+  // Vaidix canvas. Only meaningful when the active slide has an original image.
+  const [viewMode, setViewMode] = useState<'original' | 'editable'>(
+    importMode === 'VERBATIM' ? 'original' : 'editable',
+  );
+  // ── Present gating ────────────────────────────────────────────────────────
+  // Present is only allowed on a finalized deck with no edits since that
+  // finalize: faculty must always Finalize → then Present. `finalized` seeds
+  // from the deck status (APPROVED = previously finalized); any mutation flips
+  // `dirty` true, which re-locks Present until the next Finalize.
+  const [finalized, setFinalized] = useState(status === DeckForgeStatus.APPROVED);
+  const [dirty, setDirty] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const active = useMemo(
     () => slides.find((s) => s.id === activeId) ?? slides[0] ?? null,
     [slides, activeId],
   );
 
+  // Any persisted change since the last finalize re-locks Present.
+  const markDirty = useCallback(() => setDirty(true), []);
+  const canPresent = finalized && !dirty;
+
   const updateLocal = useCallback((id: string, patch: Partial<SlideViewModel>) => {
     setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }, []);
 
   async function persistSlide(id: string, body: Partial<SlideViewModel>) {
+    markDirty();
     setSavingId(id);
     setError(null);
     try {
@@ -125,6 +172,7 @@ export function DeckEditorClient({
   }
 
   async function persistTheme(id: string) {
+    markDirty();
     setThemeId(id);
     try {
       const res = await fetch(`/api/decks/${jobId}`, {
@@ -141,7 +189,27 @@ export function DeckEditorClient({
     }
   }
 
+  // Persist a background override (hex, no '#') or null to reset to the theme.
+  async function persistBackground(hex: string | null) {
+    markDirty();
+    setBackgroundHex(hex);
+    try {
+      const res = await fetch(`/api/decks/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify({ backgroundHex: hex }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(j?.error?.message ?? `Background save failed (${res.status})`);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   function move(id: string, delta: -1 | 1) {
+    markDirty();
     setSlides((prev) => {
       const idx = prev.findIndex((s) => s.id === id);
       const next = idx + delta;
@@ -153,6 +221,7 @@ export function DeckEditorClient({
   }
 
   async function persistOrder() {
+    markDirty();
     setError(null);
     try {
       const res = await fetch(`/api/decks/${jobId}/reorder`, {
@@ -171,6 +240,7 @@ export function DeckEditorClient({
   }
 
   async function generateImage(id: string) {
+    markDirty();
     setImageBusyId(id);
     setImageOfflineId(null);
     setError(null);
@@ -200,6 +270,7 @@ export function DeckEditorClient({
   }
 
   async function removeImage(id: string) {
+    markDirty();
     setImageBusyId(id);
     setImageOfflineId(null);
     setError(null);
@@ -218,6 +289,79 @@ export function DeckEditorClient({
     } finally {
       setImageBusyId(null);
     }
+  }
+
+  // Upload an image file (Insert > Image). Multipart PUT — we deliberately omit
+  // Content-Type so the browser sets the multipart boundary itself.
+  async function uploadImage(id: string, file: File) {
+    markDirty();
+    setImageBusyId(id);
+    setImageOfflineId(null);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/decks/${jobId}/slides/${id}/image`, {
+        method: 'PUT',
+        headers: { ...csrfHeaders() },
+        body: form,
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(j?.error?.message ?? `Upload failed (${res.status})`);
+      }
+      const j = (await res.json()) as {
+        data: { imageS3Key: string | null; imageUrl: string | null };
+      };
+      updateLocal(id, { imageS3Key: j.data.imageS3Key, imageUrl: j.data.imageUrl });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setImageBusyId(null);
+    }
+  }
+
+  // Opens the OS file picker; the hidden <input> in the center pane handles the
+  // selected file. Shared by the Insert ribbon and the Edit panel.
+  function pickImage() {
+    if (!active) return;
+    fileInputRef.current?.click();
+  }
+
+  // ── Ribbon Home: slide-level text formatting ──────────────────────────────
+  function toggleFmt(field: 'bold' | 'italic' | 'underline') {
+    if (!active) return;
+    const patch = { [field]: !active[field] } as Partial<SlideViewModel>;
+    updateLocal(active.id, patch);
+    void persistSlide(active.id, patch);
+  }
+
+  function changeFontScale(delta: number) {
+    if (!active) return;
+    const cur = active.fontScale ?? 1;
+    const next = Math.min(
+      FONT_SCALE_MAX,
+      Math.max(FONT_SCALE_MIN, Math.round((cur + delta) * 100) / 100),
+    );
+    if (next === cur) return;
+    updateLocal(active.id, { fontScale: next });
+    void persistSlide(active.id, { fontScale: next });
+  }
+
+  // ── Ribbon Insert: table ──────────────────────────────────────────────────
+  function insertTable() {
+    if (!active) return;
+    setRightTab('edit'); // jump to the table editor either way
+    if (active.tableJson) return; // already has one — just reveal the editor
+    const tableJson = newTable();
+    updateLocal(active.id, { tableJson });
+    void persistSlide(active.id, { tableJson });
+  }
+
+  function removeTable() {
+    if (!active) return;
+    updateLocal(active.id, { tableJson: null });
+    void persistSlide(active.id, { tableJson: null });
   }
 
   async function exportPptx() {
@@ -243,11 +387,12 @@ export function DeckEditorClient({
     }
   }
 
-  // Session-flow only: lock the deck (APPROVED) then return to the pre-conf hub.
-  // If finalize fails we still navigate back — the hub derives the step as done
-  // once a deck exists, so the faculty isn't trapped in the editor.
-  async function finalizeForSession() {
-    if (!backToSessionId) return;
+  // Lock the deck (APPROVED) and mark it clean so Present unlocks. We stay in
+  // the editor so faculty can immediately Present (the "Back to session" link
+  // still returns to the pre-conf hub, which derives the step as done once a
+  // deck is approved). Any later edit flips `dirty` and re-locks Present until
+  // the next Finalize.
+  async function finalizeDeck() {
     setFinalizing(true);
     setError(null);
     try {
@@ -259,9 +404,12 @@ export function DeckEditorClient({
         const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
         throw new Error(j?.error?.message ?? `Finalize failed (${res.status})`);
       }
-      router.push(`/session/${backToSessionId}/pre`);
+      setFinalized(true);
+      setDirty(false);
+      router.refresh();
     } catch (err) {
       setError((err as Error).message);
+    } finally {
       setFinalizing(false);
     }
   }
@@ -288,6 +436,12 @@ export function DeckEditorClient({
 
         <div className="flex items-center gap-3">
           <ThemePicker value={themeId} onChange={persistTheme} />
+          <BackgroundPicker
+            value={backgroundHex}
+            themeDefault={getDeckTheme(themeId).bg}
+            onChange={persistBackground}
+            onReset={() => persistBackground(null)}
+          />
 
           <span className="h-5 w-px bg-border/60" />
 
@@ -308,18 +462,44 @@ export function DeckEditorClient({
             <Download className="size-3.5" />
             {exporting ? 'Exporting…' : 'Export .pptx'}
           </button>
-          <Link
-            href={`/teacher/decks/${jobId}/present`}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-700 px-5 text-[12.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] dark:bg-slate-700"
-          >
-            <Eye className="size-3.5" />
-            Present
-          </Link>
-          {backToSessionId && (
+          {/* Present is gated on a finalized + unedited deck — Finalize first. */}
+          {canPresent ? (
+            <Link
+              href={`/teacher/decks/${jobId}/present`}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-700 px-5 text-[12.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] dark:bg-slate-700"
+            >
+              <Eye className="size-3.5" />
+              Present
+            </Link>
+          ) : (
             <button
               type="button"
-              onClick={finalizeForSession}
-              disabled={finalizing}
+              disabled
+              aria-disabled="true"
+              title={
+                finalized
+                  ? 'Finalize your latest edits to present'
+                  : 'Finalize the deck to present'
+              }
+              className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-full bg-foreground/10 px-5 text-[12.5px] font-medium text-muted-foreground"
+            >
+              <Eye className="size-3.5" />
+              Present
+            </button>
+          )}
+
+          {/* Finalize locks the deck and unlocks Present; shows a done state
+              while the deck stays clean, and re-arms after any edit. */}
+          {canPresent ? (
+            <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 text-[12.5px] font-medium text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="size-3.5" />
+              Finalized
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={finalizeDeck}
+              disabled={finalizing || slides.length === 0}
               className="inline-flex h-9 items-center gap-1.5 rounded-full bg-linear-to-r from-teal-600 to-emerald-600 px-5 text-[12.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] disabled:opacity-60"
             >
               {finalizing ? (
@@ -390,6 +570,7 @@ export function DeckEditorClient({
                               total={slides.length}
                               deckTitle={deckTitle}
                               themeId={themeId}
+                              backgroundHex={backgroundHex}
                             />
                           </div>
                         </div>
@@ -446,16 +627,45 @@ export function DeckEditorClient({
                 </button>
               ))}
             </div>
-            {ribbonTab === 'Home' ? (
+            {ribbonTab === 'Home' && (
               <div className="flex items-center gap-1.5 px-3 py-1.5">
                 <div className="flex items-center gap-0.5 border-r border-border/60 pr-2">
-                  <RibbonBtn icon={<Bold className="size-3.5" />} label="Bold" />
-                  <RibbonBtn icon={<Italic className="size-3.5" />} label="Italic" />
-                  <RibbonBtn icon={<Underline className="size-3.5" />} label="Underline" />
+                  <RibbonBtn
+                    icon={<Bold className="size-3.5" />}
+                    label="Bold"
+                    active={!!active?.bold}
+                    onClick={() => toggleFmt('bold')}
+                  />
+                  <RibbonBtn
+                    icon={<Italic className="size-3.5" />}
+                    label="Italic"
+                    active={!!active?.italic}
+                    onClick={() => toggleFmt('italic')}
+                  />
+                  <RibbonBtn
+                    icon={<Underline className="size-3.5" />}
+                    label="Underline"
+                    active={!!active?.underline}
+                    onClick={() => toggleFmt('underline')}
+                  />
                 </div>
                 <div className="flex items-center gap-0.5 border-r border-border/60 pr-2">
-                  <RibbonBtn icon={<TypeIcon className="size-3.5" />} label="Font" />
-                  <RibbonBtn icon={<ImageIcon className="size-3.5" />} label="Image" />
+                  <RibbonBtn
+                    icon={<AArrowDown className="size-4" />}
+                    label="Decrease font size"
+                    onClick={() => changeFontScale(-0.1)}
+                  />
+                  <span
+                    className="min-w-[36px] text-center text-[11px] tabular-nums text-muted-foreground"
+                    title="Font size"
+                  >
+                    {Math.round((active?.fontScale ?? 1) * 100)}%
+                  </span>
+                  <RibbonBtn
+                    icon={<AArrowUp className="size-4" />}
+                    label="Increase font size"
+                    onClick={() => changeFontScale(0.1)}
+                  />
                 </div>
                 <div className="ml-auto flex items-center gap-1.5">
                   <RibbonBtn
@@ -472,12 +682,91 @@ export function DeckEditorClient({
                   />
                 </div>
               </div>
-            ) : (
-              <div className="flex h-9 items-center px-3 text-[11.5px] text-muted-foreground">
-                {ribbonTab} tools coming soon
+            )}
+
+            {ribbonTab === 'Insert' && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5">
+                <button
+                  type="button"
+                  onClick={insertTable}
+                  disabled={!active}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2.5 text-[11.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-40"
+                >
+                  <TableIcon className="size-3.5" />
+                  Table
+                </button>
+                <button
+                  type="button"
+                  onClick={pickImage}
+                  disabled={!active || imageBusyId === active?.id}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2.5 text-[11.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-40"
+                >
+                  {imageBusyId === active?.id ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="size-3.5" />
+                  )}
+                  Image
+                </button>
+                {active?.tableJson && (
+                  <button
+                    type="button"
+                    onClick={removeTable}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5"
+                  >
+                    <Trash2 className="size-3" />
+                    Remove table
+                  </button>
+                )}
+              </div>
+            )}
+
+            {ribbonTab === 'Design' && (
+              <div className="flex items-center gap-2 overflow-x-auto px-3 py-1.5">
+                <span className="pr-1 text-[11px] font-medium text-muted-foreground">
+                  Templates
+                </span>
+                {THEME_IDS.map((id) => {
+                  const t = DECK_THEMES[id];
+                  const activeTheme = themeId === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => persistTheme(id)}
+                      title={`Apply ${t.label} to the whole deck`}
+                      className={cn(
+                        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-medium transition-colors',
+                        activeTheme
+                          ? 'border-teal-500/60 bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                          : 'border-border/60 hover:bg-foreground/5',
+                      )}
+                    >
+                      <span
+                        className="size-3 rounded-sm border border-border/40"
+                        style={{ background: t.swatch }}
+                      />
+                      {t.label}
+                      {activeTheme && <CheckCircle2 className="size-3" />}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
+
+          {/* Shared hidden picker for Insert > Image (ribbon + Edit panel). */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f && active) void uploadImage(active.id, f);
+              e.target.value = ''; // let the same file be re-picked later
+            }}
+          />
 
           {/* Canvas */}
           <div className="min-h-0 flex-1 overflow-auto p-8">
@@ -499,6 +788,7 @@ export function DeckEditorClient({
                     total={slides.length}
                     deckTitle={deckTitle}
                     themeId={themeId}
+                    backgroundHex={backgroundHex}
                   />
                 </div>
 
@@ -567,25 +857,29 @@ export function DeckEditorClient({
             </button>
           </div>
 
-          {/* Tab body */}
+          {/* Tab body — BOTH panels stay mounted; we only toggle visibility.
+              Unmounting the AI Coach on every tab switch would drop its
+              in-memory analysis and re-trigger a full (paid) analyze pass when
+              the faculty came back. Keeping it mounted means analyze runs once,
+              on demand, and its result is reused for free. */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            {rightTab === 'edit' ? (
-              <div className="h-full overflow-y-auto p-4">
-                {active ? (
-                  <SlideEditPanel
-                    key={active.id}
-                    slide={active}
-                    saving={savingId === active.id}
-                    onChange={(patch) => updateLocal(active.id, patch)}
-                    onCommit={(patch) => persistSlide(active.id, patch)}
-                    imageBusy={imageBusyId === active.id}
-                    imageOffline={imageOfflineId === active.id}
-                    onGenerateImage={() => generateImage(active.id)}
-                    onRemoveImage={() => removeImage(active.id)}
-                  />
-                ) : null}
-              </div>
-            ) : (
+            <div className={cn('h-full overflow-y-auto p-4', rightTab !== 'edit' && 'hidden')}>
+              {active ? (
+                <SlideEditPanel
+                  key={active.id}
+                  slide={active}
+                  saving={savingId === active.id}
+                  onChange={(patch) => updateLocal(active.id, patch)}
+                  onCommit={(patch) => persistSlide(active.id, patch)}
+                  imageBusy={imageBusyId === active.id}
+                  imageOffline={imageOfflineId === active.id}
+                  onGenerateImage={() => generateImage(active.id)}
+                  onUploadImage={pickImage}
+                  onRemoveImage={() => removeImage(active.id)}
+                />
+              ) : null}
+            </div>
+            <div className={cn('h-full', rightTab !== 'coach' && 'hidden')}>
               <DeckAiCoach
                 jobId={jobId}
                 initialAnalysis={initialAnalysis}
@@ -607,7 +901,7 @@ export function DeckEditorClient({
                   });
                 }}
               />
-            )}
+            </div>
           </div>
         </aside>
       </div>
@@ -651,6 +945,7 @@ function SlideEditPanel({
   imageBusy,
   imageOffline,
   onGenerateImage,
+  onUploadImage,
   onRemoveImage,
 }: {
   slide: SlideViewModel;
@@ -660,8 +955,43 @@ function SlideEditPanel({
   imageBusy: boolean;
   imageOffline: boolean;
   onGenerateImage: () => void;
+  onUploadImage: () => void;
   onRemoveImage: () => void;
 }) {
+  const table = slide.tableJson ?? null;
+
+  // Persist a whole-table change (add/remove row or column). Empties clear it.
+  function commitTable(rows: string[][]) {
+    const next = rows.length ? { rows } : null;
+    onChange({ tableJson: next });
+    onCommit({ tableJson: next });
+  }
+  function setCell(r: number, c: number, value: string) {
+    if (!table) return;
+    const rows = table.rows.map((row) => row.slice());
+    rows[r][c] = value;
+    onChange({ tableJson: { rows } }); // local only; commit on blur
+  }
+  function addRow() {
+    if (!table || table.rows.length >= MAX_TABLE_ROWS) return;
+    const cols = table.rows[0]?.length ?? 1;
+    commitTable([...table.rows.map((r) => r.slice()), Array(cols).fill('')]);
+  }
+  function addCol() {
+    if (!table || (table.rows[0]?.length ?? 0) >= MAX_TABLE_COLS) return;
+    commitTable(table.rows.map((r) => [...r, '']));
+  }
+  function deleteRow(idx: number) {
+    if (!table) return;
+    commitTable(table.rows.filter((_, i) => i !== idx));
+  }
+  function deleteCol(idx: number) {
+    if (!table) return;
+    commitTable(
+      table.rows.map((r) => r.filter((_, i) => i !== idx)).filter((r) => r.length > 0),
+    );
+  }
+
   return (
     <div className="space-y-4 text-sm">
       <header className="flex items-center justify-between">
@@ -804,6 +1134,16 @@ function SlideEditPanel({
           )}
         </button>
 
+        <button
+          type="button"
+          onClick={onUploadImage}
+          disabled={imageBusy}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-[12.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-50"
+        >
+          <ImagePlus className="size-3.5" />
+          Upload image…
+        </button>
+
         {slide.imageUrl && !imageBusy && (
           <button
             type="button"
@@ -819,6 +1159,107 @@ function SlideEditPanel({
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11.5px] text-amber-700 dark:text-amber-300">
             AI image builder offline — please try again shortly.
           </p>
+        )}
+      </div>
+
+      {/* ── Table ─────────────────────────────────────────────────────────── */}
+      <div className="space-y-2 border-t border-border/60 pt-4">
+        <div className="flex items-center justify-between">
+          <span className="text-[11.5px] text-muted-foreground">Table</span>
+          {table && (
+            <button
+              type="button"
+              onClick={() => commitTable([])}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              <Trash2 className="size-3" />
+              Remove
+            </button>
+          )}
+        </div>
+
+        {table ? (
+          <>
+            <div className="overflow-x-auto rounded-xl border border-border/60">
+              <table className="w-full border-collapse">
+                <tbody>
+                  {table.rows.map((row, r) => (
+                    <tr key={r}>
+                      {row.map((cell, c) => (
+                        <td key={c} className="border border-border/40 p-0">
+                          <input
+                            type="text"
+                            value={cell}
+                            onChange={(e) => setCell(r, c, e.target.value)}
+                            onBlur={() => table && onCommit({ tableJson: { rows: table.rows } })}
+                            placeholder={r === 0 ? `Col ${c + 1}` : ''}
+                            className={cn(
+                              'w-full min-w-20 bg-transparent px-2 py-1.5 text-[12px] outline-none focus:bg-teal-500/5',
+                              r === 0 && 'font-semibold',
+                            )}
+                          />
+                        </td>
+                      ))}
+                      <td className="w-7 text-center align-middle">
+                        <button
+                          type="button"
+                          aria-label={`Delete row ${r + 1}`}
+                          onClick={() => deleteRow(r)}
+                          className="grid size-6 place-items-center rounded text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-destructive"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr>
+                    {(table.rows[0] ?? []).map((_, c) => (
+                      <td key={c} className="text-center">
+                        <button
+                          type="button"
+                          aria-label={`Delete column ${c + 1}`}
+                          onClick={() => deleteCol(c)}
+                          className="grid h-6 w-full place-items-center rounded text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-destructive"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    ))}
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={addRow}
+                disabled={table.rows.length >= MAX_TABLE_ROWS}
+                className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border/60 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:bg-foreground/5 disabled:opacity-40"
+              >
+                <Plus className="size-3" />
+                Row
+              </button>
+              <button
+                type="button"
+                onClick={addCol}
+                disabled={(table.rows[0]?.length ?? 0) >= MAX_TABLE_COLS}
+                className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border/60 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:bg-foreground/5 disabled:opacity-40"
+              >
+                <Plus className="size-3" />
+                Column
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => commitTable(newTable().rows)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-[12.5px] font-medium text-foreground transition-colors hover:bg-foreground/5"
+          >
+            <TableIcon className="size-3.5" />
+            Add table
+          </button>
         )}
       </div>
     </div>

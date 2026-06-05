@@ -9,7 +9,7 @@ import {
   Globe, UsersRound, UserCheck, Lock, Repeat, AlertCircle,
   GraduationCap, Activity, FolderOpen, BookMarked, Wrench, ClipboardCheck,
   ChevronRight, ChevronLeft, CalendarDays, Clock, Sparkles, Zap,
-  ChevronDown, Plus, X,
+  ChevronDown, Plus, X, Link2,
 } from 'lucide-react'
 import type { PrereqConfig } from '@/lib/validation/session'
 import { cn } from '@/lib/utils'
@@ -251,7 +251,12 @@ export function NewSessionForm({
   const [endDate, setEndDate]         = useState(initialRecurrence?.until ?? '')
   const [excludedDates]               = useState<string[]>([]) // kept for API payload; UI removed
 
-  const [genLink]                     = useState(false)
+  // Optional shareable invite link, minted right after the session is created
+  // (POST /share-link). Was previously frozen to `false` with the toggle UI
+  // removed, so the link was never generated and nothing in the app surfaced
+  // one — hosts had no way to copy an invite link. Re-wired to a real toggle
+  // on the review step.
+  const [genLink, setGenLink]         = useState(false)
   const [linkTtl]                     = useState(48)
   const [createdLink, setCreatedLink] = useState<{ url: string; expiresAt: string } | null>(null)
   const [copied, setCopied]           = useState(false)
@@ -557,6 +562,7 @@ export function NewSessionForm({
                   repeats={repeats} count={count} freq={freq} repeatEvery={repeatEvery} endMode={endMode}
                   description={description} setDesc={setDesc}
                   submitting={submitting}
+                  genLink={genLink} setGenLink={setGenLink} isEditing={isEditing}
                 />
               )}
             </div>
@@ -1140,12 +1146,14 @@ function StepDetails({
   title, sessionType, selectedHost, start, end, audience,
   repeats, count, freq,
   description, setDesc,
+  genLink, setGenLink, isEditing,
 }: {
   title: string; sessionType: SessionType; selectedHost?: Faculty
   start: string; end: string; audience: Set<AudienceAxis>
   repeats: boolean; count: number; freq: string; repeatEvery: number; endMode: EndMode
   description: string; setDesc: (v: string) => void
   submitting: boolean
+  genLink: boolean; setGenLink: (v: boolean) => void; isEditing: boolean
 }) {
   const [materials, setMaterials] = useState<File[]>([])
   const typeConfig = SESSION_TYPES.find((t) => t.value === sessionType)!
@@ -1228,6 +1236,27 @@ function StepDetails({
           </div>
         )}
       </div>
+
+      {/* ── Shareable invite link (create flow only) ── */}
+      {!isEditing && (
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border-2 border-input p-3 transition-colors hover:border-primary/30">
+          <input
+            type="checkbox"
+            checked={genLink}
+            onChange={(e) => setGenLink(e.target.checked)}
+            className="mt-0.5 size-4 rounded accent-primary"
+          />
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <Link2 className="size-3.5 text-primary" /> Generate a shareable invite link
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              After scheduling, get a copy-paste link anyone can use to open and join this session —
+              handy for invitees outside a cohort. Expires in 48&nbsp;hours.
+            </p>
+          </div>
+        </label>
+      )}
     </div>
   )
 }

@@ -30,6 +30,8 @@ export default async function PresentPage({
       inputTitle: true,
       requestedById: true,
       template: true,
+      backgroundHex: true,
+      importMode: true,
       slides: { orderBy: { order: 'asc' } },
     },
   });
@@ -47,6 +49,8 @@ export default async function PresentPage({
       jobId={job.id}
       deckTitle={job.inputTitle ?? 'Untitled Deck'}
       themeId={job.template ?? undefined}
+      backgroundHex={job.backgroundHex}
+      importMode={job.importMode}
       slides={await Promise.all(
         job.slides.map(async (s) => ({
           id: s.id,
@@ -56,8 +60,14 @@ export default async function PresentPage({
           bullets: s.bullets,
           speakerNotes: s.speakerNotes,
           accentHex: s.accentHex,
+          bold: s.bold,
+          italic: s.italic,
+          underline: s.underline,
+          fontScale: s.fontScale,
+          tableJson: s.tableJson as unknown as { rows: string[][] } | null,
           imageS3Key: s.imageS3Key,
           imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
+          sourceImageUrl: s.sourceImageS3Key ? await presignDownload(s.sourceImageS3Key, 1800) : null,
         })),
       )}
     />

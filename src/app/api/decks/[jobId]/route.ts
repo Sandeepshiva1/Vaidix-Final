@@ -1,5 +1,6 @@
 // GET /api/decks/[jobId] — read a deck (job + slides) for the editor.
-// PATCH /api/decks/[jobId] — update deck-level fields (currently: template/theme).
+// PATCH /api/decks/[jobId] — update deck-level fields: template/theme and/or
+//   backgroundHex (per-deck background colour override).
 // DELETE /api/decks/[jobId] — soft-discard (status=REJECTED, slides remain for audit).
 
 import { Role, DeckForgeStatus } from '@prisma/client';
@@ -59,14 +60,36 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ jobId: string
   if (!FACULTY_LIKE.includes(auth.user.role)) return jsonError('FORBIDDEN', 'Insufficient role', 403);
   const { jobId } = await ctx.params;
   try {
-    const body = (await req.json()) as { template?: string };
-    if (!body.template || !(THEME_IDS as string[]).includes(body.template)) {
-      return jsonError('BAD_REQUEST', 'Invalid template value', 400);
+    const body = (await req.json()) as { template?: string; backgroundHex?: string | null };
+    const data: { template?: string; backgroundHex?: string | null } = {};
+
+    if (body.template !== undefined) {
+      if (!(THEME_IDS as string[]).includes(body.template)) {
+        return jsonError('BAD_REQUEST', 'Invalid template value', 400);
+      }
+      data.template = body.template;
     }
+
+    if (body.backgroundHex !== undefined) {
+      // null or empty string resets to the theme default; otherwise require a
+      // bare 6-digit hex (no '#') to match the stored format.
+      if (body.backgroundHex === null || body.backgroundHex === '') {
+        data.backgroundHex = null;
+      } else if (/^[0-9a-fA-F]{6}$/.test(body.backgroundHex)) {
+        data.backgroundHex = body.backgroundHex.toLowerCase();
+      } else {
+        return jsonError('BAD_REQUEST', 'backgroundHex must be a 6-digit hex colour (no #)', 400);
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      return jsonError('BAD_REQUEST', 'Nothing to update', 400);
+    }
+
     const job = await loadJobForActor(jobId, auth.user.id, auth.user.role);
     if (!job) return jsonError('NOT_FOUND', 'Deck not found', 404);
     if (job === 'forbidden') return jsonError('FORBIDDEN', 'Not your deck', 403);
-    await db.deckForgeJob.update({ where: { id: jobId }, data: { template: body.template } });
+    await db.deckForgeJob.update({ where: { id: jobId }, data });
     return jsonOk({ ok: true });
   } catch (err) {
     return handleUnexpected(err);

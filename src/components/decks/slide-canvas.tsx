@@ -7,9 +7,15 @@
 // export so on-screen and exported decks read the same.
 // ════════════════════════════════════════════════════════════════════════════
 
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import type { SlideLayout } from '@prisma/client';
 import { getDeckTheme, type DeckTheme } from '@/lib/deck-themes';
+
+/** An inserted table: a rectangular grid of cell strings (row 0 = header). */
+export interface SlideTable {
+  rows: string[][];
+}
 
 export interface SlideViewModel {
   id: string;
@@ -21,6 +27,20 @@ export interface SlideViewModel {
   accentHex: string | null;
   imageS3Key: string | null;
   imageUrl: string | null;
+  /**
+   * Faithful-import original: presigned URL of the rasterised ORIGINAL slide
+   * (PPTX/PDF page) for VERBATIM decks. Null on AI-generated slides. The editor
+   * shows this in the "Original" view; SlideCanvas itself ignores it.
+   */
+  sourceImageUrl?: string | null;
+  // ── Ribbon text formatting (optional; default to unformatted) ─────────────
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  /** Multiplies the computed title/body font size. 1 = theme default. */
+  fontScale?: number;
+  /** Optional table inserted via Insert > Table; null/undefined = none. */
+  tableJson?: SlideTable | null;
 }
 
 interface SlideCanvasProps {
@@ -31,6 +51,13 @@ interface SlideCanvasProps {
   /** preview = inside an editor card; present = fullscreen */
   mode?: 'preview' | 'present';
   themeId?: string;
+  /**
+   * Per-deck background override (6-char hex, no '#'). When set it replaces the
+   * theme's default slide background (root + footer fill). Null/undefined falls
+   * back to the theme. Header panel + accents stay theme-driven so the slide
+   * keeps its structure.
+   */
+  backgroundHex?: string | null;
 }
 
 const LAYOUT_LABEL: Record<SlideLayout, string> = {
@@ -50,17 +77,25 @@ export function SlideCanvas({
   deckTitle,
   mode = 'preview',
   themeId,
+  backgroundHex,
 }: SlideCanvasProps) {
   const theme = getDeckTheme(themeId);
   const isPresent = mode === 'present';
   const accentColor = slide.accentHex ? `#${slide.accentHex}` : theme.primary;
+  // Deck-wide background override (e.g. pure black) wins over the theme bg.
+  const slideBg = backgroundHex ? `#${backgroundHex}` : theme.bg;
 
   return (
     <div
       className="relative w-full overflow-hidden"
       style={{
         aspectRatio: '16 / 9',
-        background: theme.bg,
+        // Establish a container-query context so the `cqw` font units below
+        // resolve against THIS canvas's width, not the viewport. Without it a
+        // 250px thumbnail renders the same giant font as a full slide and
+        // overflows (mirrors slide-shell.tsx which already does this).
+        containerType: 'inline-size',
+        background: slideBg,
         color: theme.text,
         borderRadius: isPresent ? 0 : 12,
         border: isPresent ? 'none' : `1px solid ${theme.border}`,
@@ -122,7 +157,7 @@ export function SlideCanvas({
         className="absolute inset-x-0 bottom-0 flex items-center justify-between"
         style={{
           height: '5%',
-          background: theme.bg,
+          background: slideBg,
           borderTop: `1px solid ${theme.border}`,
           padding: '0 2.5%',
           color: theme.faint,
@@ -134,6 +169,20 @@ export function SlideCanvas({
       </div>
     </div>
   );
+}
+
+/**
+ * Build the inline style for slide-level text emphasis. Only sets a property
+ * when its toggle is on, so spreading `...fmt` AFTER a base style overrides it
+ * when toggled yet leaves an element's own defaults (e.g. the quote's italic
+ * attribution) untouched when off.
+ */
+function textFormat(slide: SlideViewModel): CSSProperties {
+  const fmt: CSSProperties = {};
+  if (slide.bold) fmt.fontWeight = 800;
+  if (slide.italic) fmt.fontStyle = 'italic';
+  if (slide.underline) fmt.textDecoration = 'underline';
+  return fmt;
 }
 
 function SlideBody({
@@ -151,8 +200,27 @@ function SlideBody({
 }) {
   const padX = '6%';
   const padTop = '11%';
-  const titleSize = isPresent ? 'clamp(28px, 4.2cqw, 64px)' : 'clamp(16px, 3.2cqw, 36px)';
-  const bodySize = isPresent ? 'clamp(16px, 1.9cqw, 28px)' : 'clamp(11px, 1.5cqw, 18px)';
+  // Font-size stepper: multiply the theme's clamp() tokens via calc() — valid
+  // CSS (calc accepts a clamp() operand) so the stepper scales title + body
+  // uniformly without re-deriving every breakpoint.
+  const scale = slide.fontScale && slide.fontScale > 0 ? slide.fontScale : 1;
+  const baseTitle = isPresent ? 'clamp(28px, 4.2cqw, 64px)' : 'clamp(16px, 3.2cqw, 36px)';
+  const baseBody = isPresent ? 'clamp(16px, 1.9cqw, 28px)' : 'clamp(11px, 1.5cqw, 18px)';
+  const titleSize = `calc((${baseTitle}) * ${scale})`;
+  const bodySize = `calc((${baseBody}) * ${scale})`;
+  const fmt = textFormat(slide);
+
+  // A table (if inserted) renders below the slide body in every layout.
+  const tableNode =
+    slide.tableJson && Array.isArray(slide.tableJson.rows) && slide.tableJson.rows.length > 0 ? (
+      <SlideTableBlock
+        rows={slide.tableJson.rows}
+        theme={theme}
+        accent={accentColor}
+        fontSize={bodySize}
+        fmt={fmt}
+      />
+    ) : null;
 
   switch (slide.layout) {
     case 'TITLE_ONLY':
@@ -172,11 +240,12 @@ function SlideBody({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="font-bold leading-[1.05]"
-            style={{ fontSize: titleSize, color: theme.text }}
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
             {slide.title}
           </motion.h1>
           <div style={{ width: '14%', height: '0.5%', background: accentColor }} />
+          {tableNode}
         </div>
       );
 
@@ -191,13 +260,16 @@ function SlideBody({
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
             className="font-bold leading-[1.05]"
-            style={{ fontSize: titleSize, color: theme.text }}
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
             {slide.title}
           </motion.h1>
           {slide.bullets.length > 0 && (
-            <p style={{ color: theme.subtle, fontSize: bodySize }}>{slide.bullets.join(' · ')}</p>
+            <p style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}>
+              {slide.bullets.join(' · ')}
+            </p>
           )}
+          {tableNode}
         </div>
       );
 
@@ -215,15 +287,16 @@ function SlideBody({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="font-medium"
-            style={{ fontSize: bodySize, color: theme.text, lineHeight: 1.4 }}
+            style={{ fontSize: bodySize, color: theme.text, lineHeight: 1.4, ...fmt }}
           >
             {slide.title}
           </motion.p>
           {slide.bullets[0] && (
-            <span style={{ color: theme.subtle, fontSize: bodySize, fontStyle: 'italic' }}>
+            <span style={{ color: theme.subtle, fontSize: bodySize, fontStyle: 'italic', ...fmt }}>
               — {slide.bullets[0]}
             </span>
           )}
+          {tableNode}
         </div>
       );
 
@@ -247,11 +320,11 @@ function SlideBody({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="font-bold leading-tight"
-            style={{ fontSize: titleSize, color: theme.text }}
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
             {slide.title}
           </motion.h2>
-          <ul className="grid gap-3" style={{ color: theme.subtle, fontSize: bodySize }}>
+          <ul className="grid gap-3" style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}>
             {slide.bullets.map((b, i) => (
               <motion.li
                 key={i}
@@ -266,6 +339,7 @@ function SlideBody({
               </motion.li>
             ))}
           </ul>
+          {tableNode}
         </div>
       );
 
@@ -282,13 +356,17 @@ function SlideBody({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="font-bold leading-tight"
-            style={{ fontSize: titleSize, color: theme.text }}
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
             {slide.title}
           </motion.h2>
           <div className="grid grid-cols-2 gap-6">
             {[left, right].map((col, ci) => (
-              <ul key={ci} className="grid gap-2" style={{ color: theme.subtle, fontSize: bodySize }}>
+              <ul
+                key={ci}
+                className="grid gap-2"
+                style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}
+              >
                 {col.map((b, i) => (
                   <motion.li
                     key={i}
@@ -304,6 +382,7 @@ function SlideBody({
               </ul>
             ))}
           </div>
+          {tableNode}
         </div>
       );
     }
@@ -318,7 +397,7 @@ function SlideBody({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="font-bold leading-tight"
-            style={{ fontSize: titleSize, color: theme.text }}
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
             {slide.title}
           </motion.h2>
@@ -351,8 +430,9 @@ function SlideBody({
             </div>
           )}
           {slide.bullets[0] && (
-            <p style={{ color: theme.subtle, fontSize: bodySize }}>{slide.bullets[0]}</p>
+            <p style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}>{slide.bullets[0]}</p>
           )}
+          {tableNode}
         </div>
       );
 
@@ -367,7 +447,7 @@ function SlideBody({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="font-bold leading-tight"
-            style={{ fontSize: titleSize, color: theme.text }}
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
             {slide.title}
           </motion.h2>
@@ -375,7 +455,10 @@ function SlideBody({
           {/* When an AI image is present, give bullets the left half and the
               image the right half; otherwise bullets span full width. */}
           <div className={slide.imageUrl ? 'grid min-h-0 flex-1 grid-cols-2 gap-6' : ''}>
-            <ul className="grid gap-3 self-start" style={{ color: theme.subtle, fontSize: bodySize }}>
+            <ul
+              className="grid gap-3 self-start"
+              style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}
+            >
               {slide.bullets.map((b, i) => (
                 <motion.li
                   key={i}
@@ -406,7 +489,75 @@ function SlideBody({
               </motion.div>
             )}
           </div>
+          {tableNode}
         </div>
       );
   }
+}
+
+/**
+ * Renders an inserted table. Row 0 is the header. Mirrors the .pptx export's
+ * table styling (header band in the theme panel colour, accent underline,
+ * subtle body text) so the on-screen and exported decks read the same.
+ */
+function SlideTableBlock({
+  rows,
+  theme,
+  accent,
+  fontSize,
+  fmt,
+}: {
+  rows: string[][];
+  theme: DeckTheme;
+  accent: string;
+  fontSize: string;
+  fmt: CSSProperties;
+}) {
+  if (rows.length === 0) return null;
+  const [head, ...body] = rows;
+  return (
+    <div className="min-h-0 overflow-auto rounded-lg" style={{ border: `1px solid ${theme.border}` }}>
+      <table
+        className="w-full border-collapse text-left"
+        style={{ fontSize, color: theme.subtle, ...fmt }}
+      >
+        <thead>
+          <tr>
+            {head.map((cell, i) => (
+              <th
+                key={i}
+                className="px-2 py-1 font-semibold"
+                style={{
+                  background: theme.panel,
+                  color: theme.text,
+                  borderBottom: `2px solid ${accent}`,
+                  borderRight: `1px solid ${theme.border}`,
+                }}
+              >
+                {cell}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((row, ri) => (
+            <tr key={ri}>
+              {row.map((cell, ci) => (
+                <td
+                  key={ci}
+                  className="px-2 py-1 align-top"
+                  style={{
+                    borderTop: `1px solid ${theme.border}`,
+                    borderRight: `1px solid ${theme.border}`,
+                  }}
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

@@ -322,8 +322,8 @@ export default function InvitationsPage() {
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
         >
           <option value="">All roles</option>
-          <option value="RESIDENT">Student</option>
-          <option value="FACULTY">Teacher</option>
+          <option value="RESIDENT">Resident</option>
+          <option value="FACULTY">Faculty</option>
           <option value="PROGRAM_DIRECTOR">HOD</option>
           <option value="ADMIN">Admin</option>
           <option value="EXTERNAL_LEARNER">External Learner</option>

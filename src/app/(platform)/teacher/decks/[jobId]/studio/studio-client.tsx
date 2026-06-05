@@ -11,12 +11,13 @@
 //
 // State management:
 //   - All cross-pane state lives in StudioClient
-//   - Analyze auto-fires on mount when analysisResult is null
+//   - Analyze is on-demand only (user clicks "Run analysis") — never auto-run,
+//     since a pass costs Opus+Sonnet tokens; persisted results show for free
 //   - Slide edits debounce-persist to PATCH /slides/[id]
 //   - Suggestion apply opens DeckDiffModal (reused from legacy)
 //   - Finalize → POST /api/decks/[jobId]/finalize (Phase 1C new endpoint)
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -47,6 +48,8 @@ import { csrfHeaders } from '@/lib/csrf-client';
 import { SlideCanvas, type SlideViewModel } from '@/components/decks/slide-canvas';
 import { DeckDiffModal, type DiffProposal } from '@/components/decks/deck-diff-modal';
 import { ThemePicker } from '@/components/decks/theme-picker';
+import { BackgroundPicker } from '@/components/decks/background-picker';
+import { getDeckTheme } from '@/lib/deck-themes';
 import type {
   DeckAnalysisResult,
   DeckSuggestion,
@@ -63,6 +66,10 @@ interface Props {
   initialSlides: SlideViewModel[];
   initialAnalysis: DeckAnalysisResult | null;
   initialTheme?: string | null;
+  /** Per-deck background colour override (hex, no '#'); null = theme default. */
+  initialBackgroundHex?: string | null;
+  /** How the deck was created (AI_GENERATED / VERBATIM / …). */
+  initialImportMode?: string | null;
 }
 
 type RightTab = 'analysis' | 'suggestions' | 'interactions';
@@ -138,15 +145,17 @@ export function StudioClient({
   initialSlides,
   initialAnalysis,
   initialTheme,
+  initialBackgroundHex,
 }: Props) {
   const [slides, setSlides] = useState<SlideViewModel[]>(initialSlides);
   const [activeId, setActiveId] = useState<string | null>(initialSlides[0]?.id ?? null);
   const [themeId, setThemeId] = useState<string>(initialTheme ?? 'deep-space');
+  const [backgroundHex, setBackgroundHex] = useState<string | null>(initialBackgroundHex ?? null);
   const [analysis, setAnalysis] = useState<DeckAnalysisResult | null>(initialAnalysis);
   const [rightTab, setRightTab] = useState<RightTab>('analysis');
   const [currentStatus, setCurrentStatus] = useState<DeckForgeStatus>(status);
 
-  // ─── Analyze: auto-fire on mount + manual re-run ─────────────────────────
+  // ─── Analyze: on-demand only (never auto-fired — costs Opus+Sonnet tokens) ─
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
@@ -175,18 +184,10 @@ export function StudioClient({
     }
   }, [jobId]);
 
-  // Auto-analyze on mount if we don't have an analysisResult yet.
-  useEffect(() => {
-    if (!analysis && !analyzing) {
-      // Bootstrap CSRF defensively before the POST.
-      if (!document.cookie.match(/(?:^|;\s*)vaidix-csrf=/)) {
-        fetch('/api/csrf', { credentials: 'include', cache: 'no-store' }).finally(runAnalyze);
-      } else {
-        runAnalyze();
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Analysis is NOT auto-run on mount. A pass is Opus (review) + Sonnet
+  // (design) over the whole deck and costs real tokens, so the faculty must
+  // click "Analyze". Any persisted result arrives via `initialAnalysis` and
+  // shows for free; running analyze persists it so revisits reuse it.
 
   // ─── Active slide derivation ─────────────────────────────────────────────
   const active = useMemo(
@@ -228,6 +229,31 @@ export function StudioClient({
             | { error?: { message?: string } }
             | null;
           throw new Error(j?.error?.message ?? `Theme save failed (${res.status})`);
+        }
+      } catch (err) {
+        setSaveError((err as Error).message);
+      }
+    },
+    [jobId],
+  );
+
+  // Per-deck background override (hex, no '#') or null to reset to the theme.
+  // Same PATCH route/column as the legacy editor so the two stay in sync.
+  const persistBackground = useCallback(
+    async (hex: string | null) => {
+      setBackgroundHex(hex);
+      setSaveError(null);
+      try {
+        const res = await fetch(`/api/decks/${jobId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+          body: JSON.stringify({ backgroundHex: hex }),
+        });
+        if (!res.ok) {
+          const j = (await res.json().catch(() => null)) as
+            | { error?: { message?: string } }
+            | null;
+          throw new Error(j?.error?.message ?? `Background save failed (${res.status})`);
         }
       } catch (err) {
         setSaveError((err as Error).message);
@@ -503,6 +529,8 @@ export function StudioClient({
         isFinalized={isFinalized}
         themeId={themeId}
         onThemeChange={persistTheme}
+        backgroundHex={backgroundHex}
+        onBackgroundChange={persistBackground}
       />
 
       {/* ─── Toolbar ───────────────────────────────────────────────────── */}
@@ -530,6 +558,7 @@ export function StudioClient({
           total={slides.length}
           deckTitle={deckTitle}
           themeId={themeId}
+          backgroundHex={backgroundHex}
           activeSuggestions={activeSuggestions}
           onPrev={goPrev}
           onNext={goNext}
@@ -602,6 +631,8 @@ function Topbar({
   isFinalized,
   themeId,
   onThemeChange,
+  backgroundHex,
+  onBackgroundChange,
 }: {
   deckTitle: string;
   sourceLabel: string;
@@ -612,6 +643,8 @@ function Topbar({
   isFinalized: boolean;
   themeId: string;
   onThemeChange: (id: string) => void;
+  backgroundHex: string | null;
+  onBackgroundChange: (hex: string | null) => void;
 }) {
   return (
     <header className="flex h-12 items-center justify-between border-b border-border bg-card px-4">
@@ -633,6 +666,12 @@ function Topbar({
       </div>
       <div className="flex items-center gap-2">
         <ThemePicker value={themeId} onChange={onThemeChange} />
+        <BackgroundPicker
+          value={backgroundHex}
+          themeDefault={getDeckTheme(themeId).bg}
+          onChange={onBackgroundChange}
+          onReset={() => onBackgroundChange(null)}
+        />
         <span className="h-4 w-px bg-border" />
         <SaveIndicator savingId={savingId} />
         {isFinalized ? (
@@ -850,6 +889,7 @@ function SlideEditorCanvas({
   total,
   deckTitle,
   themeId,
+  backgroundHex,
   activeSuggestions,
   onPrev,
   onNext,
@@ -862,6 +902,7 @@ function SlideEditorCanvas({
   total: number;
   deckTitle: string;
   themeId: string;
+  backgroundHex: string | null;
   activeSuggestions: DeckSuggestion[];
   onPrev: () => void;
   onNext: () => void;
@@ -888,6 +929,7 @@ function SlideEditorCanvas({
           total={total}
           deckTitle={deckTitle}
           themeId={themeId}
+          backgroundHex={backgroundHex}
           mode="preview"
         />
         {/* Annotation pins — fixed corners by suggestion kind */}

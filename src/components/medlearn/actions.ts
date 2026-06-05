@@ -25,6 +25,10 @@ export interface CreateSessionFormInput {
   roles?: { role: string; userId?: string; name?: string }[];
   /** True for the Board Room variant (quick meeting, 30-day TTL). */
   isBoardRoom?: boolean;
+  /** RFC-5545 RRULE body (no DTSTART), e.g. "FREQ=WEEKLY;BYDAY=MO,WE". Optional. */
+  recurrenceRule?: string;
+  /** Cutoff date for recurrence expansion (ISO). Used by the classroom feed. */
+  recurrenceUntil?: string;
 }
 
 export type CreateSessionResult =
@@ -142,6 +146,19 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
     new Set([input.learnerLevel, input.specialty, input.subSpecialty].filter(Boolean) as string[]),
   );
 
+  // Recurrence (Classroom wizard). The client builds a validated RRULE body via
+  // the rrule lib; we sanity-check the shape before persisting so a malformed
+  // payload can never reach the calendar expander. `recurrenceUntil` mirrors the
+  // UNTIL inside the rule and is read by the classroom feed's occurrence cutoff.
+  const rawRule = input.recurrenceRule?.trim();
+  const recurrenceRule =
+    rawRule && /^FREQ=/.test(rawRule) && rawRule.length <= 500 ? rawRule : null;
+  let recurrenceUntil: Date | null = null;
+  if (recurrenceRule && input.recurrenceUntil) {
+    const until = new Date(input.recurrenceUntil);
+    if (!Number.isNaN(until.getTime())) recurrenceUntil = until;
+  }
+
   const created = await db.teachingSession.create({
     data: {
       title,
@@ -156,6 +173,8 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
       approvedAt: new Date(),
       scheduledStart: start,
       scheduledEnd: end,
+      recurrenceRule,
+      recurrenceUntil,
       cohortId,
       maxParticipants: input.expectedLearners ? Math.max(1, input.expectedLearners) : 100,
       recordingEnabled: true,

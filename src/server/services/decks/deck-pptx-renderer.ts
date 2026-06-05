@@ -30,6 +30,13 @@ interface SlideRow {
   bullets: string[];
   speakerNotes: string | null;
   accentHex: string | null;
+  // ── Ribbon text formatting (mirrors the web SlideCanvas) ──────────────────
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  fontScale: number;
+  /** Optional inserted table (row 0 = header); null when none. */
+  table: { rows: string[][] } | null;
   /**
    * Pre-resolved image data URL (e.g. `data:image/png;base64,...`). Populated
    * by renderDeckPptxBuffer before per-slide render; null when generation was
@@ -42,6 +49,27 @@ interface SlideRow {
 
 function accentOf(s: SlideRow, c: PptxColors): string {
   return s.accentHex && /^[0-9a-fA-F]{6}$/.test(s.accentHex) ? s.accentHex : c.primary;
+}
+
+/**
+ * Text options for the slide's title/body that honour the ribbon formatting:
+ * `fontScale` multiplies the base point size, and bold/italic/underline merge
+ * in (a layout can force bold/italic — e.g. a title — via `force`). Spread the
+ * result into an addText() options object after the static props.
+ */
+function fmtText(
+  s: SlideRow,
+  basePt: number,
+  force?: { bold?: boolean; italic?: boolean },
+): Partial<PptxGenJS.TextPropsOptions> {
+  const scale = s.fontScale && s.fontScale > 0 ? s.fontScale : 1;
+  const o: Partial<PptxGenJS.TextPropsOptions> = {
+    fontSize: Math.round(basePt * scale * 10) / 10,
+  };
+  if (force?.bold || s.bold) o.bold = true;
+  if (force?.italic || s.italic) o.italic = true;
+  if (s.underline) o.underline = { style: 'sng' };
+  return o;
 }
 
 function addHeader(slide: PptxGenJS.Slide, n: number, total: number, c: PptxColors) {
@@ -103,7 +131,7 @@ function renderTitleOnly(
   });
   s.addText(slide.title, {
     x: 0.7, y: 1.85, w: 11.9, h: 3,
-    fontSize: 56, bold: true, color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.05,
+    ...fmtText(slide, 56, { bold: true }), color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.05,
   });
   s.addShape('rect', {
     x: 0.7, y: 5.0, w: 1.6, h: 0.045,
@@ -115,12 +143,12 @@ function renderClosing(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: P
   s.background = { color: c.titleBg };
   s.addText(slide.title, {
     x: 0.7, y: 2.4, w: 11.9, h: 2,
-    fontSize: 64, bold: true, color: c.text, align: 'center', fontFace: 'Georgia',
+    ...fmtText(slide, 64, { bold: true }), color: c.text, align: 'center', fontFace: 'Georgia',
   });
   if (slide.bullets.length > 0) {
     s.addText(slide.bullets.join('  ·  '), {
       x: 1.5, y: 4.6, w: 10.3, h: 0.6,
-      fontSize: 16, color: c.text65, align: 'center',
+      ...fmtText(slide, 16), color: c.text65, align: 'center',
     });
   }
   s.addShape('rect', {
@@ -133,7 +161,7 @@ function renderTitleBullets(s: PptxGenJS.Slide, slide: SlideRow, accent: string,
   s.background = { color: c.contentBg };
   s.addText(slide.title, {
     x: 0.7, y: 0.95, w: 11.9, h: 1.0,
-    fontSize: 30, bold: true, color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.15,
+    ...fmtText(slide, 30, { bold: true }), color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.15,
   });
   s.addShape('rect', {
     x: 0.7, y: 2.0, w: 1.0, h: 0.04,
@@ -144,7 +172,7 @@ function renderTitleBullets(s: PptxGenJS.Slide, slide: SlideRow, accent: string,
       slide.bullets.map((b) => ({ text: b, options: { bullet: { code: '25B8' } } })),
       {
         x: 0.9, y: 2.4, w: 11.5, h: 4.2,
-        fontSize: 18, color: c.text85, lineSpacingMultiple: 1.45, valign: 'top', paraSpaceAfter: 8,
+        ...fmtText(slide, 18), color: c.text85, lineSpacingMultiple: 1.45, valign: 'top', paraSpaceAfter: 8,
       },
     );
   }
@@ -154,7 +182,7 @@ function renderTwoColumn(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c:
   s.background = { color: c.contentBg };
   s.addText(slide.title, {
     x: 0.7, y: 0.95, w: 11.9, h: 1.0,
-    fontSize: 28, bold: true, color: c.text, fontFace: 'Georgia',
+    ...fmtText(slide, 28, { bold: true }), color: c.text, fontFace: 'Georgia',
   });
   s.addShape('rect', {
     x: 0.7, y: 2.0, w: 1.0, h: 0.04,
@@ -166,13 +194,13 @@ function renderTwoColumn(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c:
   if (left.length > 0) {
     s.addText(
       left.map((b) => ({ text: b, options: { bullet: { code: '25B8' } } })),
-      { x: 0.9, y: 2.4, w: 5.7, h: 4.2, fontSize: 16, color: c.text85, lineSpacingMultiple: 1.4 },
+      { x: 0.9, y: 2.4, w: 5.7, h: 4.2, ...fmtText(slide, 16), color: c.text85, lineSpacingMultiple: 1.4 },
     );
   }
   if (right.length > 0) {
     s.addText(
       right.map((b) => ({ text: b, options: { bullet: { code: '25B8' } } })),
-      { x: 6.9, y: 2.4, w: 5.7, h: 4.2, fontSize: 16, color: c.text85, lineSpacingMultiple: 1.4 },
+      { x: 6.9, y: 2.4, w: 5.7, h: 4.2, ...fmtText(slide, 16), color: c.text85, lineSpacingMultiple: 1.4 },
     );
   }
 }
@@ -185,12 +213,12 @@ function renderQuote(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: Ppt
   });
   s.addText(slide.title, {
     x: 1.5, y: 2.6, w: 10.5, h: 2.5,
-    fontSize: 26, color: c.text, italic: true, fontFace: 'Georgia', lineSpacingMultiple: 1.4,
+    ...fmtText(slide, 26, { italic: true }), color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.4,
   });
   if (slide.bullets[0]) {
     s.addText(`— ${slide.bullets[0]}`, {
       x: 1.5, y: 5.2, w: 10.5, h: 0.5,
-      fontSize: 14, color: c.text65, italic: true,
+      ...fmtText(slide, 14, { italic: true }), color: c.text65,
     });
   }
 }
@@ -207,7 +235,7 @@ function renderInteraction(s: PptxGenJS.Slide, slide: SlideRow, accent: string, 
   });
   s.addText(slide.title, {
     x: 0.7, y: 1.55, w: 11.9, h: 1.4,
-    fontSize: 28, bold: true, color: c.text, fontFace: 'Georgia',
+    ...fmtText(slide, 28, { bold: true }), color: c.text, fontFace: 'Georgia',
   });
   for (let i = 0; i < slide.bullets.length; i++) {
     const y = 3.2 + i * 0.7;
@@ -221,7 +249,7 @@ function renderInteraction(s: PptxGenJS.Slide, slide: SlideRow, accent: string, 
     });
     s.addText(slide.bullets[i], {
       x: 1.55, y, w: 10.7, h: 0.6,
-      fontSize: 14, color: c.text85, valign: 'middle',
+      ...fmtText(slide, 14), color: c.text85, valign: 'middle',
     });
   }
 }
@@ -230,7 +258,7 @@ function renderImageFocus(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c
   s.background = { color: c.contentBg };
   s.addText(slide.title, {
     x: 0.7, y: 0.95, w: 11.9, h: 0.9,
-    fontSize: 26, bold: true, color: c.text, fontFace: 'Georgia',
+    ...fmtText(slide, 26, { bold: true }), color: c.text, fontFace: 'Georgia',
   });
   if (slide.imageDataUrl) {
     // Wizard-forge generated image (Gemini 2.5 Flash Image). The slot is
@@ -255,9 +283,41 @@ function renderImageFocus(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c
   if (slide.bullets[0]) {
     s.addText(slide.bullets[0], {
       x: 0.9, y: 6.3, w: 11.5, h: 0.5,
-      fontSize: 14, color: c.text85,
+      ...fmtText(slide, 14), color: c.text85,
     });
   }
+}
+
+// Inserted table — drawn in the lower band of the content area (above the
+// footer), mirroring the web canvas where the table renders below the body.
+function renderTable(s: PptxGenJS.Slide, slide: SlideRow, c: PptxColors) {
+  const t = slide.table;
+  if (!t || t.rows.length === 0) return;
+  const scale = slide.fontScale && slide.fontScale > 0 ? slide.fontScale : 1;
+  const rows: PptxGenJS.TableRow[] = t.rows.map((row, ri) =>
+    row.map((cell) => ({
+      text: cell,
+      options: {
+        bold: ri === 0 || slide.bold,
+        italic: slide.italic,
+        ...(slide.underline ? { underline: { style: 'sng' as const } } : {}),
+        color: ri === 0 ? c.text : c.text85,
+        fill: { color: ri === 0 ? c.panelBg : c.contentBg },
+        align: 'left' as const,
+        valign: 'middle' as const,
+      },
+    })),
+  );
+  s.addTable(rows, {
+    x: 0.7,
+    y: 4.55,
+    w: 11.93,
+    border: { type: 'solid', pt: 0.5, color: c.panelBg },
+    fontSize: Math.round(12 * scale * 10) / 10,
+    color: c.text85,
+    valign: 'middle',
+    autoPage: false,
+  });
 }
 
 function renderSlide(
@@ -280,6 +340,7 @@ function renderSlide(
     case 'TITLE_BULLETS':
     default:              renderTitleBullets(s, slide, accent, c);
   }
+  renderTable(s, slide, c);
   addHeader(s, index + 1, total, c);
   addFooter(s, deckTitle, c);
   if (slide.speakerNotes) s.addNotes(slide.speakerNotes);
@@ -331,13 +392,20 @@ export async function renderDeckPptxBuffer(opts: {
       inputTitle: true,
       requestedById: true,
       template: true,
+      backgroundHex: true,
       slides: { orderBy: { order: 'asc' } },
     },
   });
   if (!job || job.slides.length === 0) return null;
 
   const theme = getDeckTheme(job.template);
-  const c = theme.pptx;
+  // A per-deck background override replaces every slide-body fill (title +
+  // content + base), matching the web canvas. Header/footer panels and accents
+  // stay theme-driven so the deck keeps its structure. PptxGenJS wants hex
+  // without '#'; the column already stores it that way.
+  const c: PptxColors = job.backgroundHex
+    ? { ...theme.pptx, bg: job.backgroundHex, titleBg: job.backgroundHex, contentBg: job.backgroundHex }
+    : theme.pptx;
 
   // Pre-resolve image data URLs in parallel before rendering. pptxgenjs is
   // synchronous from this point on, and re-fetching per slide would serialise
@@ -365,6 +433,11 @@ export async function renderDeckPptxBuffer(opts: {
         bullets: s.bullets,
         speakerNotes: s.speakerNotes,
         accentHex: s.accentHex,
+        bold: s.bold,
+        italic: s.italic,
+        underline: s.underline,
+        fontScale: s.fontScale,
+        table: s.tableJson as unknown as { rows: string[][] } | null,
         imageDataUrl: imageDataUrls[i],
       },
       i, total, deckTitle, c,

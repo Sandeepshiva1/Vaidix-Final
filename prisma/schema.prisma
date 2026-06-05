@@ -288,6 +288,18 @@ enum DeckForgeInputRole {
   PRIOR_TRANSCRIPT // A previous session transcript — "I've taught this before."
 }
 
+// How a deck's slides were produced — drives whether the editor shows the
+// faithful "Original" view alongside the editable copy.
+//   AI_GENERATED — slides authored by the model from source text (default;
+//                  text PDFs, DOCX, notes, typed topic).
+//   VERBATIM     — the upload already WAS a slide deck (PPTX, or a PDF the
+//                  classifier judged to be slides); imported 1:1 and each
+//                  original slide rasterised for the pixel-faithful pane.
+enum DeckImportMode {
+  AI_GENERATED
+  VERBATIM
+}
+
 enum SlideLayout {
   TITLE_ONLY // hero / section divider — large title, no bullets
   TITLE_BULLETS // standard content slide
@@ -2061,6 +2073,16 @@ model DeckForgeJob {
   status          DeckForgeStatus  @default(QUEUED)
   inputTitle      String?
   template        String?
+  // Per-deck background colour override (hex, no leading '#'). Null = use the
+  // theme's default background. Lets faculty force e.g. pure black regardless
+  // of the chosen theme; honoured by both the web canvas and the PPTX export.
+  backgroundHex   String?
+  // How the slides were produced. VERBATIM = the upload already was a slide
+  // deck (PPTX, or a PDF the classifier judged to be slides) and we imported it
+  // 1:1 + rasterised each original slide; the editor then offers an "Original"
+  // (pixel-faithful) view alongside the editable copy. AI_GENERATED = authored
+  // from source text (default — preserves all existing/legacy jobs).
+  importMode      DeckImportMode   @default(AI_GENERATED)
   outputS3Key     String?
   extractedPearls Json?
   analysisResult  Json? // W4 C10: { readabilityScore, slideDensityScore, visualBalanceScore, suggestions: [{ slideIdx, kind, message }] }
@@ -2119,6 +2141,20 @@ model Slide {
   sourceCitations Json?
   // Optional accent color override (hex, no '#'); else inherits theme.
   accentHex       String?
+  // ── Slide-level text formatting (applied to title + body) ────────────────
+  // Toggled from the editor's PowerPoint-style ribbon (Home tab) and the
+  // font-size stepper. `fontScale` multiplies the computed title/body font
+  // sizes (1 = theme default; clamped 0.6–1.6 in the UI + API). Honoured by
+  // both the web SlideCanvas and the .pptx export renderer.
+  bold            Boolean     @default(false)
+  italic          Boolean     @default(false)
+  underline       Boolean     @default(false)
+  fontScale       Float       @default(1)
+  // Optional table inserted via the ribbon's Insert tab. Shape:
+  // { rows: string[][] } — a rectangular grid of cell strings, first row = the
+  // header. Null when the slide has no table. Rendered below the body by the
+  // web canvas and the .pptx export.
+  tableJson       Json?
   // Wizard-forge image asset (populated post-draft by aiGenerateImageForSlide).
   // Null when generation was skipped (non-IMAGE_FOCUS layout) or failed
   // (best-effort — a missing image never blocks the deck). The deck-pptx
@@ -2128,6 +2164,11 @@ model Slide {
   // The prompt aiGenerateImagePrompt produced — kept for audit and so
   // faculty can regenerate with a tweaked prompt from the Studio later.
   imagePrompt     String?     @db.Text
+  // Faithful-import asset: a PNG rasterisation of the ORIGINAL uploaded slide
+  // (PPTX/PDF page) backing this row, for the editor's pixel-faithful
+  // "Original" view. Only set on VERBATIM-import decks; null for AI-generated
+  // slides. Distinct from imageS3Key (an AI illustration painted INTO a slide).
+  sourceImageS3Key String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 

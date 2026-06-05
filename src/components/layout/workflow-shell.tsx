@@ -19,7 +19,6 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  Bell,
   BookOpen,
   BotMessageSquare,
   Building2,
@@ -42,6 +41,7 @@ import {
   Users2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { NotificationBell } from '@/components/layout/notification-bell'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import type { UserRole } from '@/lib/types'
 
@@ -245,14 +245,14 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
               </Link>
 
               <div className="ml-auto flex items-center gap-3">
-                <button type="button" title="Teaching &amp; Reflection Bot" className="relative grid size-9 place-items-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
+                <Link href="/bot" title="Teaching &amp; Reflection Bot" aria-label="Teaching & Reflection Bot" className="relative grid size-9 place-items-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                   <BotMessageSquare className="size-4" />
-                </button>
+                </Link>
 
-                <button type="button" aria-label="Notifications" className="relative grid size-9 place-items-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
-                  <Bell className="size-4" />
-                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-rose-500 ring-2 ring-background" />
-                </button>
+                {/* Notifications — real popover backed by /api/notifications
+                    (polls unread count, opens a list, marks rows read). Replaces
+                    the earlier static demo bell that never fetched anything. */}
+                <NotificationBell />
 
                 {/* User chip → dropdown (Profile / Sign out) */}
                 <div className="relative" ref={menuRef}>

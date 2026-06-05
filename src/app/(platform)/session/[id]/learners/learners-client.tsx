@@ -25,6 +25,7 @@ import {
   Trophy,
   Unlock,
   Upload,
+  Wand2,
   WifiOff,
   X,
 } from 'lucide-react'
@@ -46,6 +47,16 @@ export interface PrereadDoc {
 type Mcq = { id: string; q: string; options: string[]; correct: number }
 type OpenEnded = { id: string; q: string }
 type StudyArtifacts = NonNullable<LearnerPrepConfig['artifacts']>
+
+// Mind-Map artifacts can each be generated independently.
+type ArtifactKind = 'flashcards' | 'microlearning' | 'infographics'
+type TileState = 'idle' | 'loading' | 'offline'
+const ARTIFACT_KINDS: ArtifactKind[] = ['flashcards', 'microlearning', 'infographics']
+const ARTIFACT_LABELS: Record<ArtifactKind, string> = {
+  flashcards: 'Flashcards',
+  microlearning: 'Microlearning',
+  infographics: 'Infographics',
+}
 
 interface PrereadKind {
   kind: 'pdf' | 'video' | 'docx' | 'notes'
@@ -92,23 +103,36 @@ export function LearnersClient({
   const [uploadKind, setUploadKind] = useState<PrereadKind | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Real AI-generated study artifacts. Seeded from persisted config; one POST
-  // regenerates all three. `offline` is set only when the AI backend 503s.
+  // Real AI-generated study artifacts. Seeded from persisted config. Each kind
+  // can be generated independently; `genState` tracks per-tile status so one
+  // tile can be loading/offline without affecting the others. `offline` is set
+  // only when the AI backend 503s.
   const [artifacts, setArtifacts] = useState<StudyArtifacts | undefined>(config.artifacts)
-  const [genState, setGenState] = useState<'idle' | 'loading' | 'offline'>('idle')
+  const [genState, setGenState] = useState<Record<ArtifactKind, TileState>>({
+    flashcards: 'idle',
+    microlearning: 'idle',
+    infographics: 'idle',
+  })
 
-  const generateArtifacts = async () => {
-    setGenState('loading')
+  const generateArtifacts = async (scope: ArtifactKind | 'all' = 'all') => {
+    const targets: ArtifactKind[] = scope === 'all' ? ARTIFACT_KINDS : [scope]
+    const settle = (state: TileState) =>
+      setGenState((s) => {
+        const next = { ...s }
+        for (const k of targets) next[k] = state
+        return next
+      })
+    settle('loading')
     try {
       const csrf = await ensureCsrfHeaders()
       const res = await fetch(`/api/classroom/sessions/${session.id}/learners`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...csrf },
         credentials: 'include',
-        body: JSON.stringify({ kind: 'all' }),
+        body: JSON.stringify({ kind: scope }),
       })
       if (res.status === 503) {
-        setGenState('offline')
+        settle('offline')
         return
       }
       const json = (await res.json()) as {
@@ -118,14 +142,82 @@ export function LearnersClient({
       }
       if (!res.ok || !json.ok || !json.data) {
         // No real generated content to show — never fabricate; degrade to offline.
-        setGenState('offline')
+        settle('offline')
         return
       }
       setArtifacts(json.data.artifacts)
-      setGenState('idle')
-      toast.success('Study artifacts generated')
+      settle('idle')
+      toast.success(scope === 'all' ? 'Study artifacts generated' : `${ARTIFACT_LABELS[scope]} generated`)
     } catch {
-      setGenState('offline')
+      settle('offline')
+    }
+  }
+
+  const anyArtifactLoading = Object.values(genState).some((s) => s === 'loading')
+
+  // AI quiz-question generation — gated on uploaded preread material. Returns
+  // editable MCQ/open-ended drafts that are appended to the editor and persisted
+  // via the existing PATCH save (this POST does not persist on its own).
+  const [quizGenState, setQuizGenState] = useState<'idle' | 'loading' | 'offline'>('idle')
+
+  const generateQuiz = async () => {
+    if (!prereadsDone) {
+      toast.error('Upload preread material first to generate questions')
+      return
+    }
+    setQuizGenState('loading')
+    try {
+      const csrf = await ensureCsrfHeaders()
+      const res = await fetch(`/api/classroom/sessions/${session.id}/learners/quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrf },
+        credentials: 'include',
+      })
+      if (res.status === 503) {
+        setQuizGenState('offline')
+        return
+      }
+      const json = (await res.json()) as {
+        ok: boolean
+        data?: {
+          quiz: {
+            mcqs: Array<{ q: string; options: string[]; correct: number }>
+            openEnded: Array<{ q: string }>
+          }
+        }
+        error?: { code?: string; message: string }
+      }
+      // 422 = no material linked. Honest message, keep the button enabled.
+      if (res.status === 422) {
+        toast.error(json.error?.message ?? 'Upload preread material first')
+        setQuizGenState('idle')
+        return
+      }
+      if (!res.ok || !json.ok || !json.data) {
+        setQuizGenState('offline')
+        return
+      }
+      const { mcqs: genMcqs, openEnded: genOpen } = json.data.quiz
+      const newMcqs: Mcq[] = genMcqs.map((m) => ({
+        id: newId('mcq'),
+        q: m.q,
+        options: m.options,
+        correct: m.correct,
+      }))
+      const newOpen: OpenEnded[] = genOpen.map((e) => ({ id: newId('oe'), q: e.q }))
+      setMcqs((arr) => [...arr, ...newMcqs])
+      setOpenEnded((arr) => [...arr, ...newOpen])
+      setQuizGenState('idle')
+      if (newMcqs.length + newOpen.length === 0) {
+        toast.message('No questions were generated — try adding more material')
+      } else {
+        toast.success(
+          `Added ${newMcqs.length} MCQ${newMcqs.length === 1 ? '' : 's'} and ` +
+            `${newOpen.length} open-ended question${newOpen.length === 1 ? '' : 's'} — review & save`,
+        )
+      }
+    } catch {
+      setQuizGenState('offline')
     }
   }
 
@@ -279,10 +371,10 @@ export function LearnersClient({
             <ContentTile
               icon={<Layers className="size-4" />}
               label="Flashcards"
-              count={artifacts?.flashcards.length}
+              count={artifacts?.flashcards.length || undefined}
               locked={!advancedUnlocked}
             >
-              {artifacts ? (
+              {artifacts && artifacts.flashcards.length > 0 ? (
                 <ul className="space-y-1.5">
                   {artifacts.flashcards.map((c, i) => (
                     <li
@@ -298,8 +390,8 @@ export function LearnersClient({
                 <GenerateArtifact
                   label="Flashcards"
                   disabled={!advancedUnlocked}
-                  state={genState}
-                  onGenerate={generateArtifacts}
+                  state={genState.flashcards}
+                  onGenerate={() => generateArtifacts('flashcards')}
                 />
               )}
             </ContentTile>
@@ -307,10 +399,10 @@ export function LearnersClient({
             <ContentTile
               icon={<Film className="size-4" />}
               label="Microlearning"
-              count={artifacts?.microlearning.length}
+              count={artifacts?.microlearning.length || undefined}
               locked={!advancedUnlocked}
             >
-              {artifacts ? (
+              {artifacts && artifacts.microlearning.length > 0 ? (
                 <ul className="space-y-1.5">
                   {artifacts.microlearning.map((m, i) => (
                     <li
@@ -329,8 +421,8 @@ export function LearnersClient({
                 <GenerateArtifact
                   label="Microlearning"
                   disabled={!advancedUnlocked}
-                  state={genState}
-                  onGenerate={generateArtifacts}
+                  state={genState.microlearning}
+                  onGenerate={() => generateArtifacts('microlearning')}
                 />
               )}
             </ContentTile>
@@ -338,10 +430,10 @@ export function LearnersClient({
             <ContentTile
               icon={<ImageIcon className="size-4" />}
               label="Infographics"
-              count={artifacts?.infographics.length}
+              count={artifacts?.infographics.length || undefined}
               locked={!advancedUnlocked}
             >
-              {artifacts ? (
+              {artifacts && artifacts.infographics.length > 0 ? (
                 <ul className="space-y-1.5">
                   {artifacts.infographics.map((g, i) => (
                     <li
@@ -357,8 +449,8 @@ export function LearnersClient({
                 <GenerateArtifact
                   label="Infographics"
                   disabled={!advancedUnlocked}
-                  state={genState}
-                  onGenerate={generateArtifacts}
+                  state={genState.infographics}
+                  onGenerate={() => generateArtifacts('infographics')}
                 />
               )}
             </ContentTile>
@@ -367,12 +459,12 @@ export function LearnersClient({
           {artifacts && advancedUnlocked && (
             <button
               type="button"
-              onClick={() => void generateArtifacts()}
-              disabled={genState === 'loading'}
+              onClick={() => void generateArtifacts('all')}
+              disabled={anyArtifactLoading}
               className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3.5 py-1.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-teal-500/40 hover:bg-teal-500/5 hover:text-teal-700 disabled:opacity-50 dark:hover:text-teal-300"
             >
-              {genState === 'loading' ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-              Regenerate with AI
+              {anyArtifactLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+              Regenerate all with AI
             </button>
           )}
 
@@ -426,6 +518,39 @@ export function LearnersClient({
                 <Metric icon={<HelpCircle className="size-3.5" />} label="MCQs" value={mcqs.length.toString()} />
               </div>
             )}
+          </div>
+
+          {/* AI question generation — gated on uploaded preread material. */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/60 px-3.5 py-3">
+            <div className="flex items-start gap-2">
+              <Wand2 className="mt-0.5 size-4 shrink-0 text-teal-700 dark:text-teal-300" />
+              <div>
+                <div className="text-[12.5px] font-semibold">Generate questions from material</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {prereadsDone
+                    ? 'AI drafts MCQs & open-ended questions from your uploaded prereads — edit, then save.'
+                    : 'Upload preread material above to enable AI question generation.'}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {quizGenState === 'offline' && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                  <WifiOff className="size-3.5" /> AI builder offline
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void generateQuiz()}
+                disabled={!prereadsDone || quizGenState === 'loading'}
+                data-testid="quiz-generate-ai"
+                title={prereadsDone ? undefined : 'Upload preread material to enable'}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-teal-500/40 bg-teal-500/5 px-3.5 py-1.5 text-[12px] font-semibold text-teal-700 transition-colors hover:bg-teal-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:text-teal-300"
+              >
+                {quizGenState === 'loading' ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                {quizGenState === 'loading' ? 'Generating…' : 'Generate with AI'}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 space-y-2.5">
@@ -679,9 +804,9 @@ function PrereadUploadModal({
 }
 
 // ─── AI study-artifact generation (real Gemini-backed; offline on 503) ─────
-// Controlled by the parent: a single POST regenerates all three artifact kinds,
-// so the parent owns the request/state and these per-tile buttons just trigger
-// it and reflect the shared state. Never shows fabricated content.
+// Controlled by the parent: each tile triggers generation of its OWN kind only
+// and reflects that kind's per-tile state. The parent owns the request/state.
+// Never shows fabricated content.
 function GenerateArtifact({
   label,
   disabled,
@@ -707,6 +832,7 @@ function GenerateArtifact({
       type="button"
       onClick={() => void onGenerate()}
       disabled={disabled || state === 'loading'}
+      data-testid={`artifact-generate-${label.toLowerCase()}`}
       className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 bg-foreground/[0.02] px-2 py-2 text-[11.5px] font-medium text-muted-foreground hover:border-teal-500/40 hover:bg-teal-500/5 hover:text-teal-700 disabled:opacity-50 dark:hover:text-teal-300"
     >
       {state === 'loading' ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}

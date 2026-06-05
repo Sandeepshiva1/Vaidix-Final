@@ -18,7 +18,7 @@
 //   - Severity uses traffic-light: high=rose, med=amber, low=emerald
 //   - framer-motion stagger on suggestion list, layout animation on dismiss
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2,
@@ -52,7 +52,12 @@ export interface SlideForCoach {
 
 interface Props {
   jobId: string;
-  /** Initial analysis (may be null if never run; coach auto-triggers analyze on mount). */
+  /**
+   * Initial analysis (may be null if never run). Loaded from the persisted
+   * DeckForgeJob.analysisResult — showing it costs no tokens. Analysis is
+   * NEVER auto-run; the faculty clicks "Analyze" to spend tokens. The result
+   * then persists to the job, so revisiting the deck reuses it for free.
+   */
   initialAnalysis: DeckAnalysisResult | null;
   /** All slides, used to translate suggestion.slideId → slide order. */
   slides: SlideForCoach[];
@@ -120,14 +125,11 @@ export function DeckAiCoach({
   /** Suggestion id we are applying — used to commit the suggestion after PATCH. */
   const [applyingSuggestionId, setApplyingSuggestionId] = useState<string | null>(null);
 
-  // Auto-analyze on mount when we have no analysis yet.
-  useEffect(() => {
-    if (!analysis && !analyzing) {
-      void runAnalyze();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // NOTE: analysis is intentionally NOT auto-run on mount. A full pass is
+  // Opus (review) + Sonnet (design) over the whole deck and costs real tokens
+  // every time, so it must be user-initiated. Any persisted result arrives via
+  // `initialAnalysis` and is shown for free; the faculty clicks "Analyze" to
+  // generate (or re-generate) one.
   const runAnalyze = useCallback(async () => {
     setAnalyzing(true);
     setAnalyzeError(null);

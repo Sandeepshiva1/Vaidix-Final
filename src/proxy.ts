@@ -1,23 +1,43 @@
 // ════════════════════════════════════════════════════════════════════════════
-// NextAuth Proxy — auth gate + central CSRF enforcement for all routes
+// NextAuth Proxy — auth gate + CSRF enforcement + opaque-URL rewriting
 // ════════════════════════════════════════════════════════════════════════════
-// Edge-runtime safe (uses auth.config only, no bcrypt/Prisma imports).
+// Edge-runtime safe (uses auth.config + the isomorphic secure-id helpers only,
+// no bcrypt/Prisma imports).
 //
-// Two responsibilities, both centralised here so individual route handlers
+// Next 16 renamed `middleware.ts` → `proxy.ts` and allows only ONE such file,
+// so the former opaque-URL middleware is folded in here (step 3 below).
+//
+// Three responsibilities, all centralised here so individual route handlers
 // can't forget them:
-//   1. Auth gate — non-public routes require a session (mirrors the
-//      `authorized` callback's decision via the shared isPublicPath predicate).
-//   2. CSRF — every mutating (POST/PUT/PATCH/DELETE) request to a session-based
+//   1. CSRF — every mutating (POST/PUT/PATCH/DELETE) request to a session-based
 //      API route must carry a `x-csrf-token` header matching the `vaidix-csrf`
 //      cookie (double-submit). Public token/guest/webhook/auth endpoints are
 //      exempt — they don't rely on the session cookie and carry their own
 //      token/signature/rate-limit protection.
+//   2. Auth gate — non-public routes require a session (mirrors the
+//      `authorized` callback's decision via the shared isPublicPath predicate).
+//   3. Opaque-URL rewriting — keeps database ids out of the address bar for the
+//      id-bearing route families (obfuscation + tamper-evidence, NOT authz).
 
 import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authConfig, isPublicPath } from './auth.config';
+import { decodeId, encodeId } from '@/lib/secure-id';
 
 const { auth } = NextAuth(authConfig);
+
+// ── Opaque-URL config (merged from the former src/middleware.ts) ──────────────
+// Shape of a Prisma cuid() — used to tell "this segment is a real id worth
+// canonicalising to opaque" from route literals like `new`, `pending`, `bulk`.
+const CUID = /^c[a-z0-9]{20,32}$/;
+
+// seg = 0-based index of the id within pathname.split('/'); api routes are
+// rewrite-only (never redirect — clients expect a direct response).
+const ID_ROUTES: { test: RegExp; seg: number; api: boolean }[] = [
+  { test: /^\/session\//, seg: 2, api: false },                    // /session/<id>/...
+  { test: /^\/classroom\//, seg: 2, api: false },                  // /classroom/<id>/...
+  { test: /^\/api\/classroom\/sessions\//, seg: 4, api: true },    // /api/classroom/sessions/<id>/...
+];
 
 const CSRF_COOKIE_NAME = 'vaidix-csrf';
 const CSRF_HEADER_NAME = 'x-csrf-token';
@@ -87,6 +107,37 @@ export default auth((req) => {
     signInUrl.pathname = '/login';
     signInUrl.searchParams.set('callbackUrl', req.nextUrl.href);
     return NextResponse.redirect(signInUrl);
+  }
+
+  // 3. Opaque-URL rewriting (merged from the former src/middleware.ts). For the
+  //    id-bearing route families:
+  //      • valid opaque token  → rewrite INTERNALLY to the real id (URL stays opaque)
+  //      • raw cuid on a page  → 307-redirect to the opaque form (GET only)
+  //      • tampered token      → passes through verbatim; the route's lookup 404s
+  for (const route of ID_ROUTES) {
+    if (!route.test.test(pathname)) continue;
+    const parts = pathname.split('/');
+    const seg = parts[route.seg];
+    if (!seg) break;
+
+    const decoded = decodeId(seg);
+    if (decoded !== seg) {
+      // valid opaque token → serve the real id, keep the URL opaque
+      parts[route.seg] = decoded;
+      const url = req.nextUrl.clone();
+      url.pathname = parts.join('/');
+      return NextResponse.rewrite(url);
+    }
+
+    // raw id on a navigable page route → bounce to the opaque URL. GET only,
+    // so POSTs / Server Actions are never redirected mid-flight.
+    if (!route.api && req.method === 'GET' && CUID.test(seg)) {
+      parts[route.seg] = encodeId(seg);
+      const url = req.nextUrl.clone();
+      url.pathname = parts.join('/');
+      return NextResponse.redirect(url);
+    }
+    break;
   }
 
   return NextResponse.next();

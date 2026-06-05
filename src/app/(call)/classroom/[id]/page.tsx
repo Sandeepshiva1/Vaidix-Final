@@ -22,7 +22,7 @@
 
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { Pencil, BookOpen } from 'lucide-react'
+import { Pencil, BookOpen, MessageCircleQuestion } from 'lucide-react'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { LiveSession } from '@/components/classroom/live-session'
@@ -214,6 +214,10 @@ export default async function ClassroomSessionPage({ params, searchParams }: Pag
   return (
     <>
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {/* Shared Q&A — open before AND after class so every cohort member /
+            invitee can ask a question and answer anyone else's, not just the
+            host. Shown in all stages (SCHEDULED / LIVE / ENDED). */}
+        <QnaLink sessionId={s.id} />
         {showStudyHubLink && <StudyHubLink sessionId={s.id} isCurator={isCurator} />}
         {canEdit && <EditSessionLink sessionId={s.id} />}
       </div>
@@ -259,6 +263,18 @@ function EditSessionLink({ sessionId }: { sessionId: string }) {
     >
       <Pencil className="size-3.5" />
       Edit session
+    </Link>
+  )
+}
+
+function QnaLink({ sessionId }: { sessionId: string }) {
+  return (
+    <Link
+      href={`/classroom/${sessionId}/pre-questions`}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-700 shadow-sm transition hover:bg-violet-500/20 dark:text-violet-400"
+    >
+      <MessageCircleQuestion className="size-3.5" />
+      Q&amp;A — ask &amp; answer
     </Link>
   )
 }

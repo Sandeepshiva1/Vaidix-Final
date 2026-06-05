@@ -21,6 +21,10 @@ export interface StudyArtifacts {
   infographics: Array<{ title: string; sub: string }>;
 }
 
+/** The three independently-generatable study-artifact kinds. */
+export type ArtifactKind = 'flashcards' | 'microlearning' | 'infographics';
+export const ALL_ARTIFACT_KINDS: ArtifactKind[] = ['flashcards', 'microlearning', 'infographics'];
+
 const SYSTEM_PROMPT = `You are an ophthalmology medical educator at LV Prasad Eye Institute building
 pre-session self-study artifacts for residents. You produce a compact set of
 study aids for ONE clinical teaching topic, grounded only in the session context
@@ -118,8 +122,11 @@ function readObjectives(objectives: unknown): string[] {
  */
 export async function generateStudyArtifacts({
   sessionId,
+  kinds = ALL_ARTIFACT_KINDS,
 }: {
   sessionId: string;
+  /** Which artifact kinds to (re)generate. Defaults to all three. */
+  kinds?: ArtifactKind[];
 }): Promise<StudyArtifacts> {
   const session = await db.teachingSession.findUnique({
     where: { id: sessionId },
@@ -170,6 +177,12 @@ export async function generateStudyArtifacts({
     contextLines.push('Linked preread titles (for grounding — file contents are NOT provided):');
     for (const t of docTitles) contextLines.push(`- ${t}`);
   }
+  if (kinds.length < ALL_ARTIFACT_KINDS.length) {
+    contextLines.push(
+      `Only produce these artifact kinds: ${kinds.join(', ')}. ` +
+        'Return an empty array for every other kind.',
+    );
+  }
   contextLines.push(
     'Produce the study-artifacts JSON now for this topic, grounded in the context above.',
   );
@@ -181,5 +194,12 @@ export async function generateStudyArtifacts({
     temperature: 0.35,
   });
 
-  return normalize(tryParseJson<RawArtifacts>(raw));
+  const full = normalize(tryParseJson<RawArtifacts>(raw));
+  // Surface only the requested kinds — the caller merges these over any
+  // previously generated artifacts, so unrequested kinds must come back empty.
+  return {
+    flashcards: kinds.includes('flashcards') ? full.flashcards : [],
+    microlearning: kinds.includes('microlearning') ? full.microlearning : [],
+    infographics: kinds.includes('infographics') ? full.infographics : [],
+  };
 }

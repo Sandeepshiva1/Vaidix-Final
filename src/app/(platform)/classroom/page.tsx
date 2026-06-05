@@ -34,6 +34,11 @@ export default async function ClassroomListPage() {
     s.user.role === Role.ADMIN ||
     s.user.role === Role.FACULTY
 
+  // Admins and program directors can edit any upcoming session in their program
+  // (matches the canEdit gate on /classroom/[id]/edit), not just sessions they host.
+  const canManage =
+    s.user.role === Role.ADMIN || s.user.role === Role.PROGRAM_DIRECTOR
+
   // Best-effort recovery of stuck sessions:
   //   - LIVE whose `room_finished` webhook never fired
   //   - SCHEDULED whose host never started but the time window has passed
@@ -83,6 +88,7 @@ export default async function ClassroomListPage() {
     },
     include: {
       host: { select: { id: true, name: true } },
+      // proposedBy is a scalar FK already on the row; host is the relation.
       _count: { select: { participants: true, documentLinks: { where: { isPreSession: true } }, preQuestions: true } },
       recording: { select: { thumbnailUrl: true, durationSec: true } },
     },
@@ -136,6 +142,7 @@ export default async function ClassroomListPage() {
       scheduledStart: displayStart.toISOString(),
       scheduledEnd: displayEnd.toISOString(),
       host: x.host,
+      proposedById: x.proposedBy ?? null,
       participantCount: x._count.participants,
       studyPackCount: x._count.documentLinks,
       questionCount: x._count.preQuestions,
@@ -201,6 +208,7 @@ export default async function ClassroomListPage() {
       nowMs={nowMs}
       canSchedule={canSchedule}
       userId={s.user.id}
+      canManage={canManage}
     />
   )
 }

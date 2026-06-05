@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { SessionStatus, SessionType, Role } from '@prisma/client'
 import { DashboardClient, type DashSession, type DashStage } from './dashboard-client'
+import { buildSessionVisibilityWhere, buildApprovalGate } from '@/server/services/sessions/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,18 +26,52 @@ export default async function HomePage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
 
+  // Read activeProgramId live from the DB so a program switch reflects without
+  // re-auth (matches the /classroom feed). The dashboard is the post-login
+  // landing for EVERY role, so it must show the sessions a learner can see —
+  // not just the ones they host.
+  const userRow = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { activeProgramId: true },
+  })
+  const activeProgramId = userRow?.activeProgramId ?? session.user.activeProgramId ?? null
+
   const now = new Date()
   const horizonStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
   const horizonEnd = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000)
 
+  // Same audience model the classroom feed uses: a session is visible to its
+  // host/proposer, its cohort members, and its explicit invitees. Without this
+  // the landing page only ever showed sessions you HOST — so cohort members and
+  // invited learners saw an empty dashboard even though they were on the
+  // invite/cohort. ADMIN / PROGRAM_DIRECTOR get the full tenant (empty fragment).
+  const visibility = activeProgramId
+    ? await buildSessionVisibilityWhere({
+        userId: session.user.id,
+        role: session.user.role,
+        activeProgramId,
+      })
+    : { hostId: session.user.id }
+  const approvalGate = buildApprovalGate({
+    userId: session.user.id,
+    role: session.user.role,
+    activeProgramId: activeProgramId ?? undefined,
+  })
+
   const rows = await db.teachingSession.findMany({
     where: {
-      hostId: session.user.id,
+      ...(activeProgramId ? { programId: activeProgramId } : {}),
       deletedAt: null,
-      OR: [
-        { status: SessionStatus.LIVE },
-        { status: SessionStatus.SCHEDULED, scheduledStart: { lte: horizonEnd } },
-        { status: SessionStatus.ENDED, actualEnd: { gte: horizonStart } },
+      AND: [
+        visibility,
+        approvalGate,
+        {
+          OR: [
+            { status: SessionStatus.LIVE },
+            { status: SessionStatus.SCHEDULED, scheduledStart: { lte: horizonEnd } },
+            { status: SessionStatus.ENDED, actualEnd: { gte: horizonStart } },
+          ],
+        },
       ],
     },
     orderBy: [{ status: 'asc' }, { scheduledStart: 'asc' }],
@@ -50,6 +85,7 @@ export default async function HomePage() {
       scheduledStart: true,
       scheduledEnd: true,
       tags: true,
+      hostId: true,
       _count: { select: { documentLinks: true, invites: true, preQuestions: true, participants: true } },
     },
   })
@@ -80,6 +116,10 @@ export default async function HomePage() {
       learners: r._count.participants,
       progDone,
       progTotal: steps.length,
+      // Whether the viewer hosts this session. Drives which surface the card
+      // links to: hosts go to the /session/* prep+live workflow; learners go
+      // to the /classroom/[id] hub (study pack, Q&A, recording, join).
+      isHost: r.hostId === session.user.id,
     }
   })
 
@@ -89,7 +129,17 @@ export default async function HomePage() {
     learners: await db.user.count({ where: { role: Role.RESIDENT, deletedAt: null } }),
   }
 
-  const firstName = session.user.name?.split(' ').filter((p) => !p.startsWith('Dr.'))[0] ?? 'Doctor'
+  // "Dr." is an honorific for clinicians only. Admins (and external guests) are
+  // not doctors, so prefixing their name with "Dr." is wrong — derive the
+  // greeting from the real role instead of hard-coding it in the client.
+  const isClinician =
+    session.user.role === Role.RESIDENT ||
+    session.user.role === Role.FACULTY ||
+    session.user.role === Role.PROGRAM_DIRECTOR
+  const firstName =
+    session.user.name?.split(' ').filter((p) => !p.startsWith('Dr.'))[0] ??
+    (isClinician ? 'Doctor' : 'there')
+  const greetingName = isClinician ? `Dr. ${firstName}` : firstName
 
-  return <DashboardClient sessions={sessions} stats={stats} firstName={firstName} />
+  return <DashboardClient sessions={sessions} stats={stats} greetingName={greetingName} />
 }

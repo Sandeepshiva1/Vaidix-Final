@@ -31,6 +31,8 @@ import { env } from '@/lib/env';
 import { persistDeckAsDocument } from './deck-pptx-renderer';
 import { extractOfficeText, isExtractableOffice } from './document-text-extract';
 import { convertOfficeToPdf, isConvertibleToPdf } from './office-to-pdf';
+import { classifySource } from './source-classifier';
+import { importVerbatimDeck } from './verbatim-import-service';
 
 const SYSTEM_PROMPT = `You are an ophthalmology medical educator + instructional designer at LV Prasad Eye Institute.
 You convert source teaching material into a clean, lecture-ready slide outline for a 60-minute live session.
@@ -496,6 +498,31 @@ export async function forgeDeck(input: ForgeInput): Promise<ForgeOutcome> {
   });
 
   try {
+    // ── Verbatim import ──────────────────────────────────────────────────────
+    // If the uploaded document ALREADY is a slide deck (PPTX/Keynote, or a PDF
+    // whose pages look like slides) we show it as-is — a 1:1 editable copy plus
+    // a rasterised "Original" view — instead of re-authoring it with the model.
+    // Only for a pure document source: a transcript/hybrid always needs the AI
+    // to synthesise. AI suggestions stay available on demand in the editor.
+    if (documentSource && !transcriptSource) {
+      const { data, mimeType } = await fetchDocumentBytes({
+        s3Key: documentSource.s3Key,
+        documentId: documentSource.documentId,
+        mimeType: documentSource.mimeType,
+      });
+      const buffer = Buffer.from(data, 'base64');
+      const verdict = await classifySource({ mimeType, buffer });
+      if (verdict.mode === 'VERBATIM') {
+        const { slideCount } = await importVerbatimDeck({
+          jobId: job.id,
+          requestedById: input.requestedById,
+          buffer,
+          mimeType,
+        });
+        return { jobId: job.id, deckTitle: documentSource.title, slideCount };
+      }
+    }
+
     // Build the multimodal Gemini prompt.
     const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
     const headerLines: string[] = [

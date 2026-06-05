@@ -58,6 +58,11 @@ const nextConfig: NextConfig = {
   },
   // Don't advertise the framework/version.
   poweredByHeader: false,
+  // PDF rasterisation (faithful-import "Original" preview) runs server-side via
+  // pdf-to-img → pdfjs-dist (legacy build uses top-level await) + @napi-rs/canvas
+  // (prebuilt native binary). Bundling either breaks them, so keep them external
+  // and let Node require them at runtime on the server only.
+  serverExternalPackages: ['pdf-to-img', 'pdfjs-dist', '@napi-rs/canvas'],
   // The local build skips the type re-check so the slow-disk `next build && next
   // start` dev loop isn't blocked by transient/generated route-type churn. Type
   // safety is NOT lost: CI runs `tsc --noEmit` as a required gate (see

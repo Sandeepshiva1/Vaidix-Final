@@ -16,9 +16,12 @@ interface Props {
   deckTitle: string;
   slides: SlideViewModel[];
   themeId?: string;
+  backgroundHex?: string | null;
+  /** VERBATIM decks present the faithful original slide images, not the canvas. */
+  importMode?: string;
 }
 
-export function DeckPresenterClient({ jobId, deckTitle, slides, themeId }: Props) {
+export function DeckPresenterClient({ jobId, deckTitle, slides, themeId, backgroundHex, importMode }: Props) {
   const router = useRouter();
   const [idx, setIdx] = useState(0);
   const [showNotes, setShowNotes] = useState(false);
@@ -105,14 +108,27 @@ export function DeckPresenterClient({ jobId, deckTitle, slides, themeId }: Props
               exit={{ opacity: 0, x: -16 }}
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              <SlideCanvas
-                slide={active}
-                index={idx}
-                total={slides.length}
-                deckTitle={deckTitle}
-                mode="present"
-                themeId={themeId}
-              />
+              {importMode === 'VERBATIM' && active.sourceImageUrl ? (
+                // Faithful import: present the original slide image exactly as
+                // uploaded. eslint-disable — presigned S3 URL, not a static asset.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={active.sourceImageUrl}
+                  alt={active.title}
+                  className="block w-full"
+                  style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
+                />
+              ) : (
+                <SlideCanvas
+                  slide={active}
+                  index={idx}
+                  total={slides.length}
+                  deckTitle={deckTitle}
+                  mode="present"
+                  themeId={themeId}
+                  backgroundHex={backgroundHex}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

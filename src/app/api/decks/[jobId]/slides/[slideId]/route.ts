@@ -1,7 +1,7 @@
 // PATCH /api/decks/[jobId]/slides/[slideId] — edit one slide.
 
 import { z } from 'zod';
-import { Role, SlideLayout } from '@prisma/client';
+import { Prisma, Role, SlideLayout } from '@prisma/client';
 import {
   handleUnexpected,
   jsonError,
@@ -17,6 +17,15 @@ import { FacultyEditSignalKind } from '@prisma/client';
 
 const FACULTY_LIKE: Role[] = [Role.FACULTY, Role.PROGRAM_DIRECTOR, Role.ADMIN];
 
+// An inserted table: a rectangular grid of cell strings (first row = header).
+// Bounded so a malformed/huge payload can't blow up the slide or the export.
+const TableSchema = z.object({
+  rows: z
+    .array(z.array(z.string().max(500)).min(1).max(8))
+    .min(1)
+    .max(12),
+});
+
 const PatchBody = z
   .object({
     title: z.string().min(1).max(200).optional(),
@@ -28,6 +37,13 @@ const PatchBody = z
       .regex(/^[0-9a-fA-F]{6}$/, 'accentHex must be 6 hex chars without #')
       .optional()
       .nullable(),
+    // ── Ribbon text formatting ──────────────────────────────────────────────
+    bold: z.boolean().optional(),
+    italic: z.boolean().optional(),
+    underline: z.boolean().optional(),
+    fontScale: z.number().min(0.6).max(1.6).optional(),
+    // ── Inserted table (null clears it) ─────────────────────────────────────
+    tableJson: TableSchema.nullable().optional(),
   })
   .refine(
     (v) =>
@@ -102,6 +118,11 @@ export async function PATCH(
         ...(parsed.data.speakerNotes !== undefined ? { speakerNotes: parsed.data.speakerNotes } : {}),
         ...(parsed.data.layout !== undefined ? { layout: parsed.data.layout } : {}),
         ...(parsed.data.accentHex !== undefined ? { accentHex: parsed.data.accentHex } : {}),
+        ...(parsed.data.bold !== undefined ? { bold: parsed.data.bold } : {}),
+        ...(parsed.data.italic !== undefined ? { italic: parsed.data.italic } : {}),
+        ...(parsed.data.underline !== undefined ? { underline: parsed.data.underline } : {}),
+        ...(parsed.data.fontScale !== undefined ? { fontScale: parsed.data.fontScale } : {}),
+        ...(parsed.data.tableJson !== undefined ? { tableJson: parsed.data.tableJson ?? Prisma.DbNull } : {}),
       },
     });
 

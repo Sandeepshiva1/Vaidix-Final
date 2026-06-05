@@ -59,10 +59,12 @@ export function ReadyClient({ session }: { session: SessionView }) {
   const isPost = session.stage === 'POST'
   const room = `/classroom/${session.id}`
 
-  // Learners step is optional — the other 4 gate the Start button.
-  const gatingSteps: SVStepKey[] = ['studio', 'promo', 'analytics', 'questions']
-  const gatingDone = gatingSteps.every((k) => session.steps[k])
-  const learnersSkipped = !session.steps.learners
+  // Every prep step is OPTIONAL. The checklist is guidance, not a gate: the
+  // host can start the session at any time. `prepDone` only drives the
+  // celebratory copy + whether we show a soft "some steps are still open"
+  // confirmation — it never disables the Start button.
+  const prepSteps: SVStepKey[] = ['studio', 'learners', 'promo', 'analytics', 'questions']
+  const prepDone = prepSteps.every((k) => session.steps[k])
   const total = PREP_STEPS.length
   const doneCount = PREP_STEPS.filter((s) => session.steps[s.key]).length
   const prog = { done: doneCount, total, pct: Math.round((doneCount / total) * 100) }
@@ -85,8 +87,9 @@ export function ReadyClient({ session }: { session: SessionView }) {
   }
 
   const handleStart = () => {
-    if (!gatingDone) return
-    if (learnersSkipped) {
+    // Never block. If anything is still open, ask for a soft confirmation so
+    // an early start isn't accidental — but always allow it through.
+    if (!prepDone) {
       setShowConfirm(true)
       return
     }
@@ -103,15 +106,15 @@ export function ReadyClient({ session }: { session: SessionView }) {
 
         <div className="relative">
           <div className="mx-auto grid size-16 place-items-center rounded-3xl bg-linear-to-br from-teal-500 to-emerald-500 shadow-[0_10px_30px_-10px_oklch(0.55_0.16_165/0.6)]">
-            {gatingDone ? <PartyPopper className="size-7 text-white" /> : <Sparkles className="size-7 text-white" />}
+            {prepDone ? <PartyPopper className="size-7 text-white" /> : <Sparkles className="size-7 text-white" />}
           </div>
           <h1 className="mt-4 text-[28px] font-semibold tracking-tight md:text-[32px]">
-            {gatingDone ? 'Your session is ready.' : 'Almost there.'}
+            {prepDone ? 'Your session is ready.' : "You're ready to go live."}
           </h1>
           <p className="mt-2 text-[14px] text-muted-foreground">
-            {gatingDone
+            {prepDone
               ? "Vaidix has prepped your slides, learners, promos and questions. You're cleared for take-off."
-              : 'Wrap up the remaining steps below to enable Start Session.'}
+              : 'The steps below are optional — start whenever you’re ready, or wrap them up first.'}
           </p>
         </div>
       </div>
@@ -199,13 +202,12 @@ export function ReadyClient({ session }: { session: SessionView }) {
         ) : (
           <button
             type="button"
-            disabled={!gatingDone || starting}
+            disabled={starting}
             onClick={handleStart}
             className={cn(
               'inline-flex h-14 items-center gap-2 rounded-full px-8 text-[15px] font-semibold transition-all',
-              gatingDone
-                ? 'bg-slate-700 text-white shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35)] hover:scale-[1.02]'
-                : 'cursor-not-allowed bg-foreground/10 text-muted-foreground'
+              'bg-slate-700 text-white shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35)] hover:scale-[1.02]',
+              starting && 'opacity-70'
             )}
           >
             {starting ? (
@@ -219,9 +221,9 @@ export function ReadyClient({ session }: { session: SessionView }) {
             )}
           </button>
         )}
-        {!isLive && !isPost && !gatingDone && (
+        {!isLive && !isPost && !prepDone && (
           <p className="text-[12px] text-muted-foreground">
-            Complete every step above to enable start.
+            The steps above are optional — you can start the session whenever you&apos;re ready.
           </p>
         )}
       </div>
@@ -234,9 +236,9 @@ export function ReadyClient({ session }: { session: SessionView }) {
               <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
                 <HelpCircle className="size-6" />
               </div>
-              <h2 className="mt-4 text-center text-[18px] font-semibold tracking-tight">Proceed without pre-read?</h2>
+              <h2 className="mt-4 text-center text-[18px] font-semibold tracking-tight">Start with steps still open?</h2>
               <p className="mt-2 text-center text-[13px] text-muted-foreground leading-relaxed">
-                You haven&apos;t prepared learner pre-reads, mind maps, or the priming quiz. Learners will join without any prior preparation.
+                Some prep steps (slides, learner pre-reads, promos, analytics or questions) aren&apos;t complete. They&apos;re optional — you can finish them later. Start the session now?
               </p>
             </div>
             <div className="flex gap-2.5 p-5">

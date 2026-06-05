@@ -35,7 +35,9 @@ import {
 import { db } from '@/lib/db';
 import { GeminiUnavailableError } from '@/server/services/ai/gemini';
 import {
+  ALL_ARTIFACT_KINDS,
   generateStudyArtifacts,
+  type ArtifactKind,
   type StudyArtifacts,
 } from '@/server/services/learners/study-artifacts-service';
 
@@ -196,23 +198,28 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 // the AI provider is unreachable / unconfigured (e.g. network-blocked envs) we
 // honestly report the builder is offline with a 503 instead of fabricating
 // content. The client surfaces an inline "AI builder offline" state on 503.
-const generateSchema = z.object({ kind: z.literal('all').optional() });
+const generateSchema = z.object({
+  kind: z.enum(['all', 'flashcards', 'microlearning', 'infographics']).optional(),
+});
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
   const csrf = await requireCsrf(req);
   if (!csrf.ok) return csrf.response;
-  // Body is optional; tolerate empty/missing JSON. Only `{ kind?: 'all' }` is read.
-  await parseBody(req, generateSchema).catch(() => undefined);
+  // Body is optional; tolerate empty/missing JSON. `{ kind }` selects which
+  // artifact kind to (re)generate — defaults to 'all' when absent.
+  const parsedBody = await parseBody(req, generateSchema).catch(() => undefined);
+  const scope = parsedBody && parsedBody.ok ? parsedBody.data.kind ?? 'all' : 'all';
+  const kinds: ArtifactKind[] = scope === 'all' ? ALL_ARTIFACT_KINDS : [scope];
   const { id: sessionId } = await ctx.params;
   try {
     const gate = await loadGate(sessionId, auth.user.id, auth.user.role);
     if (!gate.ok) return gate.response;
 
-    let artifacts: StudyArtifacts;
+    let generated: StudyArtifacts;
     try {
-      artifacts = await generateStudyArtifacts({ sessionId });
+      generated = await generateStudyArtifacts({ sessionId, kinds });
     } catch (err) {
       if (err instanceof GeminiUnavailableError) {
         console.error('[learners] study-artifact AI unavailable', err.detail);
@@ -226,12 +233,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     // Persist under metadata.learnerPrep.artifacts, merging so we never clobber
-    // sibling keys (lock/analytics/mcqs/openEnded) or other metadata keys.
+    // sibling keys (lock/analytics/mcqs/openEnded) or other metadata keys. A
+    // single-kind regenerate keeps the other two kinds untouched.
     const existingMeta =
       gate.row.metadata && typeof gate.row.metadata === 'object'
         ? (gate.row.metadata as Record<string, unknown>)
         : {};
     const prep = readLearnerPrep(gate.row.metadata);
+    const prev = prep.artifacts;
+    const artifacts: StudyArtifacts = {
+      flashcards: kinds.includes('flashcards') ? generated.flashcards : prev?.flashcards ?? [],
+      microlearning: kinds.includes('microlearning')
+        ? generated.microlearning
+        : prev?.microlearning ?? [],
+      infographics: kinds.includes('infographics')
+        ? generated.infographics
+        : prev?.infographics ?? [],
+    };
     const nextPrep: LearnerPrepConfig = { ...prep, artifacts, updatedAt: new Date().toISOString() };
 
     await db.teachingSession.update({

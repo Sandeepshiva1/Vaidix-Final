@@ -412,8 +412,8 @@ function avatarColorFor(seed: string): string {
 const ROLE_DISPLAY: Record<string, { label: string; cls: string }> = {
   ADMIN:            { label: 'Admin',    cls: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
   PROGRAM_DIRECTOR: { label: 'HOD',     cls: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300' },
-  FACULTY:          { label: 'Teacher', cls: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
-  RESIDENT:         { label: 'Student', cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  FACULTY:          { label: 'Faculty', cls: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+  RESIDENT:         { label: 'Resident', cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
   GUEST:            { label: 'Guest',    cls: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300' },
 }
 

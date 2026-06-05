@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { RRule, Frequency } from 'rrule'
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,6 +12,7 @@ import {
   Microscope,
   Plus,
   Presentation,
+  Repeat,
   Save,
   Sparkles,
   Users2,
@@ -87,6 +89,53 @@ function defaultDate(offsetDays = 3): string {
   const d = new Date()
   d.setDate(d.getDate() + offsetDays)
   return d.toISOString().slice(0, 10)
+}
+
+// ─── Recurrence (mirrors the /calendar/new scheduler so both create flows agree) ──
+type RepeatFreq = 'DAILY' | 'WEEKLY' | 'MONTHLY'
+type RepeatEnd = 'count' | 'date' | 'never'
+
+const REPEAT_WEEKDAYS = [
+  { key: 'MO', label: 'Mo', rule: RRule.MO },
+  { key: 'TU', label: 'Tu', rule: RRule.TU },
+  { key: 'WE', label: 'We', rule: RRule.WE },
+  { key: 'TH', label: 'Th', rule: RRule.TH },
+  { key: 'FR', label: 'Fr', rule: RRule.FR },
+  { key: 'SA', label: 'Sa', rule: RRule.SA },
+  { key: 'SU', label: 'Su', rule: RRule.SU },
+] as const
+
+interface RecurrenceState {
+  repeats: boolean
+  freq: RepeatFreq
+  every: number
+  byDays: Set<string>
+  endMode: RepeatEnd
+  count: number
+  until: string // yyyy-mm-dd
+}
+
+/** Build an RFC-5545 RRULE body (no DTSTART) + an UNTIL cutoff from wizard state. */
+function buildWizardRecurrence(startISO: string, r: RecurrenceState): { rule?: string; until?: string } {
+  if (!r.repeats) return {}
+  const freqMap = { DAILY: Frequency.DAILY, WEEKLY: Frequency.WEEKLY, MONTHLY: Frequency.MONTHLY }
+  const byweekday =
+    r.freq === 'WEEKLY' ? REPEAT_WEEKDAYS.filter((w) => r.byDays.has(w.key)).map((w) => w.rule) : undefined
+  const opts: ConstructorParameters<typeof RRule>[0] = {
+    freq: freqMap[r.freq],
+    ...(byweekday && byweekday.length > 0 ? { byweekday } : {}),
+    ...(r.every > 1 ? { interval: r.every } : {}),
+    dtstart: new Date(startISO),
+  }
+  if (r.endMode === 'count') opts.count = Math.max(1, r.count)
+  else if (r.endMode === 'date' && r.until) opts.until = new Date(`${r.until}T23:59:59Z`)
+  const rule = new RRule(opts)
+    .toString()
+    .split('\n')
+    .find((l) => l.startsWith('RRULE:'))
+    ?.replace('RRULE:', '')
+  const until = r.endMode === 'date' && r.until ? new Date(`${r.until}T23:59:59Z`).toISOString() : undefined
+  return { rule, until }
 }
 
 export interface WizardCohort {
@@ -208,8 +257,28 @@ function ClassroomForm({
   const [type, setType] = useState<SessionTypeLabel>('Webinar')
   const [roles, setRoles] = useState<{ role: Role; user: PickableUser | null }[]>([{ role: 'Presenter', user: null }])
 
+  // Recurrence (optional). Mirrors the /calendar/new scheduler's repeat options.
+  const [repeats, setRepeats] = useState(false)
+  const [freq, setFreq] = useState<RepeatFreq>('WEEKLY')
+  const [every, setEvery] = useState(1)
+  const [byDays, setByDays] = useState<Set<string>>(new Set(['MO']))
+  const [endMode, setEndMode] = useState<RepeatEnd>('count')
+  const [occCount, setOccCount] = useState(8)
+  const [untilDate, setUntilDate] = useState('')
+
   const subSpecs = SUB_SPECIALTIES[specialty] ?? []
   const valid = title.trim().length >= 3 && description.trim().length > 0
+
+  const freqLabel = { DAILY: 'day', WEEKLY: 'week', MONTHLY: 'month' }[freq]
+  const recurrenceSummary = `Every ${every > 1 ? `${every} ${freqLabel}s` : freqLabel}${
+    endMode === 'count' ? ` · ${occCount}×` : endMode === 'date' && untilDate ? ` · until ${untilDate}` : ' · no end'
+  }`
+  const toggleByDay = (key: string) => {
+    const n = new Set(byDays)
+    if (n.has(key)) n.delete(key)
+    else n.add(key)
+    setByDays(n)
+  }
 
   const addRole = () => setRoles((r) => [...r, { role: 'Panelist', user: null }])
   const updateRole = (i: number, patch: Partial<{ role: Role; user: PickableUser | null }>) =>
@@ -224,9 +293,13 @@ function ClassroomForm({
     }
     setSubmitting(true)
     try {
+      const startISO = new Date(`${date}T${time}`).toISOString()
+      const recurrence = buildWizardRecurrence(startISO, {
+        repeats, freq, every, byDays, endMode, count: occCount, until: untilDate,
+      })
       const result = await createTeachingSessionAction({
         title: title.trim(),
-        scheduledStart: new Date(`${date}T${time}`).toISOString(),
+        scheduledStart: startISO,
         durationMinutes: Number(duration),
         sessionType: mapSessionType(type),
         learnerLevel: subSpecialty || specialty,
@@ -237,6 +310,8 @@ function ClassroomForm({
         roles: roles
           .filter((r) => r.user)
           .map((r) => ({ role: r.role, userId: r.user!.id, name: r.user!.name })),
+        recurrenceRule: recurrence.rule,
+        recurrenceUntil: recurrence.until,
       })
       if (result.ok) {
         router.push(`/session/${result.sessionId}/pre`)
@@ -323,6 +398,96 @@ function ClassroomForm({
           <Field label="Time" required>
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="vfx-input" />
           </Field>
+        </div>
+
+        {/* ── Recurrence (optional) — same options as the full /calendar/new scheduler ── */}
+        <div className={cn('mb-5 rounded-2xl border transition-colors', repeats ? 'border-teal-500/40 bg-teal-500/5' : 'border-border/60')}>
+          <label className="flex cursor-pointer items-center gap-2.5 px-4 py-3 text-[13px] font-semibold text-foreground/85">
+            <input type="checkbox" checked={repeats} onChange={(e) => setRepeats(e.target.checked)} className="size-4 accent-teal-600" />
+            <Repeat className={cn('size-4', repeats ? 'text-teal-600' : 'text-muted-foreground')} />
+            Repeat this session
+            {repeats && (
+              <span className="ml-1 rounded-full bg-teal-500/15 px-2.5 py-0.5 text-[11px] font-bold text-teal-700 dark:text-teal-300">
+                {recurrenceSummary}
+              </span>
+            )}
+          </label>
+
+          {repeats && (
+            <div className="space-y-4 border-t border-border/60 px-4 py-4">
+              {/* Every N · frequency */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[13px] text-muted-foreground">Every</span>
+                <input
+                  type="number" min={1} max={52} value={every}
+                  onChange={(e) => setEvery(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 rounded-xl border border-border/60 bg-background px-2.5 py-1.5 text-center text-[13px] font-semibold outline-none focus:border-teal-500"
+                />
+                <div className="relative">
+                  <select
+                    value={freq} onChange={(e) => setFreq(e.target.value as RepeatFreq)}
+                    className="appearance-none rounded-xl border border-border/60 bg-background px-3 py-1.5 pr-9 text-[13px] font-semibold outline-none focus:border-teal-500"
+                  >
+                    <option value="DAILY">Day</option>
+                    <option value="WEEKLY">Week</option>
+                    <option value="MONTHLY">Month</option>
+                  </select>
+                  <ChevronIcon />
+                </div>
+              </div>
+
+              {/* Weekly day picker */}
+              {freq === 'WEEKLY' && (
+                <div className="space-y-1.5">
+                  <div className="text-[11.5px] font-semibold text-muted-foreground">On</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {REPEAT_WEEKDAYS.map((w) => {
+                      const active = byDays.has(w.key)
+                      return (
+                        <button
+                          key={w.key} type="button" onClick={() => toggleByDay(w.key)}
+                          className={cn('size-9 rounded-xl border text-[12px] font-bold transition-all',
+                            active ? 'border-teal-500/50 bg-teal-500/10 text-teal-700 dark:text-teal-300' : 'border-border/60 text-muted-foreground hover:border-teal-500/40')}
+                        >
+                          {w.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* End condition */}
+              <div className="space-y-1.5">
+                <div className="text-[11.5px] font-semibold text-muted-foreground">Ends</div>
+                <div className="space-y-2 rounded-xl border border-border/60 bg-background/60 p-3">
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input type="radio" name="wiz-endmode" checked={endMode === 'count'} onChange={() => setEndMode('count')} className="size-4 accent-teal-600" />
+                    <span className="w-12 text-[13px] font-medium">After</span>
+                    <input
+                      type="number" min={1} max={365} value={occCount} disabled={endMode !== 'count'}
+                      onChange={(e) => setOccCount(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-16 rounded-lg border border-border/60 bg-background px-2 py-1 text-center text-[13px] font-semibold outline-none disabled:opacity-40"
+                    />
+                    <span className="text-[13px] text-muted-foreground">occurrence{occCount !== 1 ? 's' : ''}</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input type="radio" name="wiz-endmode" checked={endMode === 'date'} onChange={() => setEndMode('date')} className="size-4 accent-teal-600" />
+                    <span className="w-12 text-[13px] font-medium">By</span>
+                    <input
+                      type="date" value={untilDate} disabled={endMode !== 'date'}
+                      onChange={(e) => setUntilDate(e.target.value)}
+                      className="rounded-lg border border-border/60 bg-background px-2 py-1 text-[13px] font-medium outline-none disabled:opacity-40"
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input type="radio" name="wiz-endmode" checked={endMode === 'never'} onChange={() => setEndMode('never')} className="size-4 accent-teal-600" />
+                    <span className="text-[13px] font-medium">Never ends</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <Field label="Session type" required>

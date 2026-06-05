@@ -122,8 +122,8 @@ export const CONVERSATION_STAGES = [
 ]
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  resident: 'Student',
-  faculty: 'Teacher',
+  resident: 'Resident',
+  faculty: 'Faculty',
   program_director: 'HOD',
   admin: 'Admin',
   external_learner: 'External Learner',

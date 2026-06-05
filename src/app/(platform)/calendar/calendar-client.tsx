@@ -18,6 +18,7 @@ interface ApiEvent {
   openToAll: boolean
   sessionType: string
   host: { id: string; name: string; role: string } | null
+  userRole: 'HOST' | 'CO_HOST' | 'PARTICIPANT' | 'VIEWER' | null
   isRecurring: boolean
   isOccurrence: boolean
   cohortId: string | null
@@ -25,7 +26,7 @@ interface ApiEvent {
 }
 
 // ── Demo role/colour vocabulary (decorative styling, mapped from real data) ─────
-type RoleType = 'Presenter' | 'Moderator' | 'Panelist' | 'Meeting' | 'Board Room' | 'Class Room'
+type RoleType = 'Presenter' | 'Moderator' | 'Panelist' | 'Meeting' | 'Board Room' | 'Class Room' | 'Attendee'
 
 const ROLE_COLORS: Record<RoleType, { bg: string; text: string; dot: string }> = {
   Presenter:  { bg: 'bg-teal-500/12',   text: 'text-teal-700 dark:text-teal-300',     dot: 'bg-teal-500'   },
@@ -34,17 +35,26 @@ const ROLE_COLORS: Record<RoleType, { bg: string; text: string; dot: string }> =
   Meeting:    { bg: 'bg-sky-500/12',    text: 'text-sky-700 dark:text-sky-300',       dot: 'bg-sky-500'    },
   'Board Room':{ bg: 'bg-violet-500/12',text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
   'Class Room':{ bg: 'bg-emerald-500/12',text: 'text-emerald-700 dark:text-emerald-300',dot: 'bg-emerald-500'},
+  Attendee:   { bg: 'bg-slate-500/12',  text: 'text-slate-600 dark:text-slate-300',   dot: 'bg-slate-400'  },
 }
 
-// Map the real sessionType enum onto the demo's role/colour palette so the
-// design's legend + colour-coding stays intact while reflecting real data.
-const SESSION_TYPE_ROLE: Record<string, RoleType> = {
-  LECTURE:         'Presenter',
-  GRAND_ROUNDS:    'Moderator',
-  CASE_CONFERENCE: 'Panelist',
+// Venue-style session types: for these the badge shows the FORMAT (Meeting /
+// Board Room / Class Room) when the viewer has no special role. Presentation
+// types (LECTURE / GRAND_ROUNDS / CASE_CONFERENCE) are intentionally absent —
+// for those a non-host viewer is an "Attendee", not the host's role.
+const SESSION_TYPE_VENUE: Record<string, RoleType> = {
   JOURNAL_CLUB:    'Meeting',
   SKILLS_WORKSHOP: 'Board Room',
   ASSESSMENT:      'Class Room',
+}
+
+// Resolve the badge from the VIEWER's own role on the session — NOT the session
+// type (that conflation was the "everyone shows as Presenter" bug). Hosting or
+// co-hosting → Presenter; otherwise a venue-type shows its format and anyone
+// else (invitee / participant / viewer) is an Attendee.
+function roleForViewer(userRole: ApiEvent['userRole'], sessionType: string): RoleType {
+  if (userRole === 'HOST' || userRole === 'CO_HOST') return 'Presenter'
+  return SESSION_TYPE_VENUE[sessionType] ?? 'Attendee'
 }
 
 const SESSION_TYPE_LABEL: Record<string, string> = {
@@ -97,7 +107,7 @@ function toCalEvent(e: ApiEvent): CalEvent {
     date,
     time,
     duration,
-    role: SESSION_TYPE_ROLE[e.sessionType] ?? 'Meeting',
+    role: roleForViewer(e.userRole, e.sessionType),
   }
 }
 

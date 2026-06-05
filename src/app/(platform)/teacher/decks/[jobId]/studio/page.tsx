@@ -75,12 +75,20 @@ export default async function PresentationStudioPage({
           bullets: s.bullets,
           speakerNotes: s.speakerNotes,
           accentHex: s.accentHex,
+          bold: s.bold,
+          italic: s.italic,
+          underline: s.underline,
+          fontScale: s.fontScale,
+          tableJson: s.tableJson as unknown as { rows: string[][] } | null,
           imageS3Key: s.imageS3Key,
           imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
+          sourceImageUrl: s.sourceImageS3Key ? await presignDownload(s.sourceImageS3Key, 1800) : null,
         })),
       )}
       initialAnalysis={isRouterV2(job.analysisResult) ? job.analysisResult : null}
       initialTheme={job.template}
+      initialBackgroundHex={job.backgroundHex}
+      initialImportMode={job.importMode}
     />
   );
 }

@@ -133,6 +133,10 @@ export const LIMITS = {
   // Per-slide AI refine (faculty asks "tighten this" / "add evidence" via
   // chat). Each call is a single Opus or Gemini hit.
   DECK_REFINE: { limit: 120, windowSec: 60 * 60, failMode: 'closed' as const },
+  // Teaching & Reflection Bot question. Each ask is one reasoning-router hit
+  // (Opus→DeepSeek→Gemini). Billable upstream, so fail-closed; generous ceiling
+  // for an interactive teaching chat.
+  BOT_ASK: { limit: 60, windowSec: 60 * 60, failMode: 'closed' as const },
   // Case-forge — heavy multimodal Gemini call. Tighter ceiling than deck-
   // forge (cases are typically forged less often than decks per document).
   CASE_FORGE: { limit: 20, windowSec: 60 * 60, failMode: 'closed' as const },

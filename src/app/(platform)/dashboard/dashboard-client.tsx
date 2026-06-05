@@ -9,7 +9,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import {
-  ArrowUpRight, Bell, CalendarDays, CheckCircle2, Clock3, MessageCircle,
+  ArrowUpRight, Bell, BookOpen, CalendarDays, CheckCircle2, Clock3, MessageCircle,
   Plus, Sparkles, TrendingUp, Users2, Video,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,10 @@ export interface DashSession {
   learners: number
   progDone: number
   progTotal: number
+  /** Viewer hosts this session. Non-hosts (cohort members / invitees) are
+   *  routed to the learner-facing /classroom/[id] hub instead of the host
+   *  /session/* prep+live workflow (which redirects non-hosts away). */
+  isHost: boolean
 }
 export interface DashStats { upcoming: number; live: number; learners: number }
 
@@ -71,7 +75,7 @@ function StageBadge({ stage }: { stage: DashStage }) {
   )
 }
 
-export function DashboardClient({ sessions, stats, firstName }: { sessions: DashSession[]; stats: DashStats; firstName: string }) {
+export function DashboardClient({ sessions, stats, greetingName }: { sessions: DashSession[]; stats: DashStats; greetingName: string }) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('Week')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('All')
   const [dashView, setDashView] = useState<'active' | 'completed'>('active')
@@ -136,7 +140,7 @@ export function DashboardClient({ sessions, stats, firstName }: { sessions: Dash
             <div className="inline-flex items-center gap-2 rounded-full border border-teal-500/20 bg-white/60 px-3 py-1 text-[11.5px] font-medium text-teal-700 backdrop-blur dark:bg-background/40 dark:text-teal-300">
               <Sparkles className="size-3.5" /> AI-assisted clinical teaching
             </div>
-            <h1 className="mt-3 text-[34px] font-semibold tracking-tight md:text-[40px]" suppressHydrationWarning>{greeting()}, Dr. {firstName}.</h1>
+            <h1 className="mt-3 text-[34px] font-semibold tracking-tight md:text-[40px]" suppressHydrationWarning>{greeting()}, {greetingName}.</h1>
             <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">Your next teaching session is being prepared. Vaidix has analysed your slides and is ready to help you create a polished, interactive experience for your learners.</p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link href="/sessions/new" className="inline-flex h-11 items-center gap-2 rounded-full bg-slate-700 px-5 text-[14px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] active:scale-100">
@@ -228,14 +232,33 @@ export function DashboardClient({ sessions, stats, firstName }: { sessions: Dash
                   </div>
                 </div>
                 <div className="mt-5 flex items-center gap-2">
-                  {s.stage === 'LIVE' ? (
-                    <Link href={`/session/${s.id}/live`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-rose-500 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-rose-500/90"><Video className="size-4" />Join Live</Link>
-                  ) : s.stage === 'POST' ? (
-                    <Link href={`/session/${s.id}/post`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-teal-600 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-teal-500"><CheckCircle2 className="size-4" />Post-Conference</Link>
+                  {s.isHost ? (
+                    s.stage === 'LIVE' ? (
+                      <Link href={`/session/${s.id}/live`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-rose-500 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-rose-500/90"><Video className="size-4" />Join Live</Link>
+                    ) : s.stage === 'POST' ? (
+                      <Link href={`/session/${s.id}/post`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-teal-600 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-teal-500"><CheckCircle2 className="size-4" />Post-Conference</Link>
+                    ) : (
+                      <Link href={`/session/${s.id}/pre`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-slate-700 px-4 text-[13px] font-medium text-white shadow-sm transition-transform group-hover:scale-[1.01]"><Sparkles className="size-4" />Build</Link>
+                    )
                   ) : (
-                    <Link href={`/session/${s.id}/pre`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-slate-700 px-4 text-[13px] font-medium text-white shadow-sm transition-transform group-hover:scale-[1.01]"><Sparkles className="size-4" />Build</Link>
+                    // Cohort members / invitees: route to the learner session hub.
+                    s.stage === 'LIVE' ? (
+                      <Link href={`/classroom/${s.id}`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-rose-500 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-rose-500/90"><Video className="size-4" />Join Live</Link>
+                    ) : s.stage === 'POST' ? (
+                      <Link href={`/classroom/${s.id}`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-teal-600 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-teal-500"><CheckCircle2 className="size-4" />View &amp; Q&amp;A</Link>
+                    ) : (
+                      <Link href={`/classroom/${s.id}`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-slate-700 px-4 text-[13px] font-medium text-white shadow-sm transition-transform group-hover:scale-[1.01]"><BookOpen className="size-4" />Open session</Link>
+                    )
                   )}
-                  <Link href={s.stage === 'LIVE' ? `/session/${s.id}/live` : s.stage === 'POST' ? `/session/${s.id}/post` : `/session/${s.id}/pre`} aria-label="Open session" className="inline-flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"><ArrowUpRight className="size-4" /></Link>
+                  <Link
+                    href={
+                      s.isHost
+                        ? (s.stage === 'LIVE' ? `/session/${s.id}/live` : s.stage === 'POST' ? `/session/${s.id}/post` : `/session/${s.id}/pre`)
+                        : `/classroom/${s.id}`
+                    }
+                    aria-label="Open session"
+                    className="inline-flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+                  ><ArrowUpRight className="size-4" /></Link>
                 </div>
               </article>
             )

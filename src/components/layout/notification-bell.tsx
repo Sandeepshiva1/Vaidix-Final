@@ -13,7 +13,6 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { Bell, Check, ChevronRight, Loader2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { ensureCsrfHeaders } from '@/lib/csrf-client'
 
 const POLL_INTERVAL_MS = 30_000
@@ -165,20 +164,22 @@ export function NotificationBell() {
 
   return (
     <div className="relative" ref={popoverRef}>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="relative size-8"
+      {/* Trigger styled to match the WorkflowShell topbar's round bordered
+          actions (bot button / user chip). The badge shows the real unread
+          count from the API rather than a static dot. */}
+      <button
+        type="button"
+        className="relative grid size-9 place-items-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
         aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
         onClick={handleToggle}
       >
-        <Bell className="size-4 text-muted-foreground" />
+        <Bell className="size-4" />
         {unread > 0 && (
-          <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[9px] font-bold text-white">
+          <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-background">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
-      </Button>
+      </button>
 
       {open && (
         <div className="absolute right-0 top-full z-200 mt-2 w-88 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-xl shadow-black/10 dark:shadow-black/40">

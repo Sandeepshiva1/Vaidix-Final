@@ -1,5 +1,7 @@
 // POST   /api/decks/[jobId]/slides/[slideId]/image — generate (Gemini) or, with
 //        { remove: true }, clear the slide image.
+// PUT    /api/decks/[jobId]/slides/[slideId]/image — upload an image file
+//        (multipart/form-data, field "file") to use as the slide image.
 // DELETE /api/decks/[jobId]/slides/[slideId]/image — clear the slide image.
 //
 // Reuses the routed image pipeline (aiGenerateImageForSlide) + the same MinIO
@@ -145,6 +147,92 @@ export async function POST(
         503,
       );
     }
+    return handleUnexpected(err);
+  }
+}
+
+// Image uploads accepted from the Insert > Image ribbon control. Kept small —
+// these are slide illustrations, not full-res scans.
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+]);
+
+export async function PUT(
+  req: Request,
+  ctx: { params: Promise<{ jobId: string; slideId: string }> },
+) {
+  const csrf = await requireCsrf(req);
+  if (!csrf.ok) return csrf.response;
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+  if (!FACULTY_LIKE.includes(auth.user.role)) {
+    return jsonError('FORBIDDEN', 'Insufficient role', 403);
+  }
+  const { jobId, slideId } = await ctx.params;
+
+  try {
+    const owned = await loadOwnedSlide(jobId, slideId, auth.user.id, auth.user.role);
+    if (!owned.ok) return owned.response;
+
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      return jsonError('INVALID_BODY', 'Expected multipart/form-data', 400);
+    }
+    const file = form.get('file');
+    if (!(file instanceof File)) {
+      return jsonError('NO_FILE', 'No image file provided', 400);
+    }
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      return jsonError('BAD_TYPE', 'File must be a PNG, JPEG, WebP or GIF image', 415);
+    }
+    if (file.size === 0) return jsonError('EMPTY_FILE', 'Image file is empty', 400);
+    if (file.size > MAX_IMAGE_BYTES) {
+      return jsonError('TOO_LARGE', 'Image must be 8 MB or smaller', 413);
+    }
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    // Reuse the slide-scoped key so an upload overwrites any prior AI image,
+    // and a later AI generate overwrites the upload — one image per slide.
+    const s3Key = `decks/${jobId}/slides/${slideId}.png`;
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: s3Key,
+        Body: bytes,
+        ContentType: file.type || 'image/png',
+        Metadata: { jobId, slideId },
+      }),
+    );
+
+    // Uploaded images have no AI prompt — clear any stale one.
+    await db.slide.update({
+      where: { id: slideId },
+      data: { imageS3Key: s3Key, imagePrompt: null },
+    });
+
+    await audit({
+      actorId: auth.user.id,
+      actorRole: auth.user.role,
+      eventType: AUDIT_EVENTS.DECK_SLIDE_UPDATED,
+      entityType: 'Slide',
+      entityId: slideId,
+      summary: 'Slide image uploaded',
+      details: { jobId, imageS3Key: s3Key, bytes: file.size },
+      ...extractRequestMetadata(req),
+    });
+
+    return jsonOk({
+      imageS3Key: s3Key,
+      imageUrl: await presignDownload(s3Key, IMAGE_URL_TTL_SECONDS),
+    });
+  } catch (err) {
     return handleUnexpected(err);
   }
 }

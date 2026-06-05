@@ -20,6 +20,8 @@ export interface ListedSession {
   scheduledStart: string
   scheduledEnd: string
   host: { id: string; name: string }
+  /** Creator/proposer — may differ from host when a non-host scheduled it. */
+  proposedById: string | null
   participantCount: number
   studyPackCount: number
   questionCount: number
@@ -112,9 +114,11 @@ interface FeedProps {
   nowMs: number
   canSchedule: boolean
   userId: string
+  /** ADMIN / PROGRAM_DIRECTOR can edit any upcoming session, not just ones they host. */
+  canManage: boolean
 }
 
-export function ClassroomFeed({ live, upcoming, past, nowMs, canSchedule, userId }: FeedProps) {
+export function ClassroomFeed({ live, upcoming, past, nowMs, canSchedule, userId, canManage }: FeedProps) {
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming' | 'past'>(
     live.length > 0 ? 'live' : upcoming.length > 0 ? 'upcoming' : 'past'
   )
@@ -313,7 +317,7 @@ export function ClassroomFeed({ live, upcoming, past, nowMs, canSchedule, userId
                   transition={{ delay: Math.min(idx * 0.04, 0.3), duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
                 >
                   {s.status !== 'LIVE' && s.status !== 'ENDED'
-                    ? <UpcomingCard session={s} nowMs={nowMs} isHost={s.host.id === userId} />
+                    ? <UpcomingCard session={s} nowMs={nowMs} isHost={s.host.id === userId} canManage={canManage || s.proposedById === userId} />
                     : <VideoCard session={s} nowMs={nowMs} />}
                 </motion.div>
               ))}
@@ -579,7 +583,7 @@ function countdown(startMs: number, nowMs: number) {
   return 'very soon'
 }
 
-function UpcomingCard({ session: s, nowMs, isHost }: { session: ListedSession; nowMs: number; isHost: boolean }) {
+function UpcomingCard({ session: s, nowMs, isHost, canManage }: { session: ListedSession; nowMs: number; isHost: boolean; canManage: boolean }) {
   const start = new Date(s.scheduledStart)
   const inWindow = start.getTime() - nowMs <= 15 * 60 * 1000
   const href = `/classroom/${s.id}`
@@ -693,7 +697,8 @@ function UpcomingCard({ session: s, nowMs, isHost }: { session: ListedSession; n
       {/* Bottom row — Share + Edit (host) + Study hub + Join */}
       <div className="mx-3 mt-3 mb-3 flex items-center gap-1.5">
         <ShareButton href={href} title={s.title} />
-        {isHost && <EditButton sessionId={s.id} />}
+        {/* Editable until the session starts — host always, admins/PDs for any session. */}
+        {(isHost || canManage) && <EditButton sessionId={s.id} />}
         <Link
           href={`/classroom/${s.id}/study`}
           className={cn(
