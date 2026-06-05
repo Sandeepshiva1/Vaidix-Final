@@ -36,10 +36,28 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Build-time placeholders — real secrets are injected at deploy time.
+          # Build-time placeholders only. `@/lib/env` (zod) validates the full
+          # env during Next's page-data collection, so EVERY required var must be
+          # present and well-formed (URL/number/min-length) for the build to pass.
+          # These are NOT baked into the output — server env is re-validated at
+          # runtime from the real .env on `next start`.
           NEXTAUTH_SECRET: ci-build-placeholder-secret-not-used-at-runtime-000
           DATABASE_URL: postgresql://user:pass@localhost:5432/ci
           NEXTAUTH_URL: http://localhost:3000
+          REDIS_URL: redis://localhost:6379
+          EMAIL_HOST: smtp.example.com
+          EMAIL_PORT: "587"
+          EMAIL_USER: ci@example.com
+          EMAIL_PASSWORD: ci-build-placeholder
+          EMAIL_FROM: ci@example.com
+          LIVEKIT_URL: ws://localhost:7880
+          LIVEKIT_API_KEY: ci-build-placeholder-key
+          LIVEKIT_API_SECRET: ci-build-placeholder-secret-min16
+          S3_ENDPOINT: http://localhost:9000
+          S3_BUCKET: ci-build-bucket
+          S3_ACCESS_KEY: ci-build-access
+          S3_SECRET_KEY: ci-build-secret
+          VAIDIX_DATA_ROOT: /tmp/vaidix-data
 
   # End-to-end tests need Postgres/Redis/MinIO service containers + seed data.
   # Scaffolded separately so the static gate above stays fast and always-on.
