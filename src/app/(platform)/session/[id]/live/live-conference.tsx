@@ -353,36 +353,40 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
       )}
 
       {/* ── TOP STATUS BAR ─────────────────────────────────────────────── */}
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-gray-600 bg-gray-700 px-4 backdrop-blur-sm">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-600 bg-gray-700 px-3 backdrop-blur-sm md:gap-3 md:px-4">
         <Link
           href={`/session/${session.id}/pre`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
         >
           <ArrowLeft className="size-3.5" />
           Exit live
         </Link>
 
-        <div className="flex items-center gap-2 text-[12.5px]">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-rose-300 uppercase">
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-[12.5px]">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-rose-300 uppercase">
             <span className="size-1.5 animate-pulse rounded-full bg-rose-400" />
             Live
           </span>
-          <span className="font-semibold tracking-tight text-white">{session.title}</span>
+          <span className="min-w-0 truncate font-semibold tracking-tight text-white">{session.title}</span>
         </div>
 
         {/* View toggle */}
-        <div className="ml-4 flex items-center gap-0.5 rounded-full border border-white/[0.08] bg-white/[0.04] p-0.5">
+        <div className="ml-2 flex shrink-0 items-center gap-0.5 rounded-full border border-white/[0.08] bg-white/[0.04] p-0.5 md:ml-4">
           {(['gallery', 'presentation'] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => { setViewMode(v); if (v === 'presentation') setSharingScreen(false) }}
               className={cn(
-                'rounded-full px-3 py-1 text-[10.5px] font-medium capitalize transition-colors',
+                'rounded-full px-2.5 py-1 text-[10.5px] font-medium capitalize transition-colors md:px-3',
                 viewMode === v ? 'bg-white/[0.12] text-white' : 'text-slate-500 hover:text-slate-300'
               )}
             >
-              {v === 'gallery' ? 'Gallery View' : 'Presentation'}
+              {v === 'gallery' ? (
+                <><span className="md:hidden">Gallery</span><span className="hidden md:inline">Gallery View</span></>
+              ) : (
+                <><span className="md:hidden">Present</span><span className="hidden md:inline">Presentation</span></>
+              )}
             </button>
           ))}
         </div>
@@ -393,7 +397,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
           </span>
         )}
 
-        <div className="ml-auto flex items-center gap-4 text-[11.5px] text-slate-400">
+        <div className="ml-auto hidden items-center gap-4 text-[11.5px] text-slate-400 md:flex">
           <span className="inline-flex items-center gap-1.5">
             <Clock3 className="size-3.5" />
             <span className="font-mono tabular-nums">{fmtTime(elapsed)}</span>
@@ -412,7 +416,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
       <div className="flex min-h-0 flex-1 overflow-hidden">
 
         {/* LEFT PANEL */}
-        <div className={cn('flex shrink-0 flex-col border-r border-gray-200 bg-white transition-all duration-300', leftCollapsed ? 'w-10' : 'w-[188px]')}>
+        <div className={cn('hidden shrink-0 flex-col border-r border-gray-200 bg-white transition-all duration-300 md:flex', leftCollapsed ? 'w-10' : 'w-[188px]')}>
           <div className="flex h-9 shrink-0 items-center justify-between border-b border-gray-200 px-2.5">
             {!leftCollapsed && <span className="text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Faculty</span>}
             <button type="button" onClick={() => setLeftCollapsed((v) => !v)} className="ml-auto rounded-md p-1 text-gray-400 hover:text-gray-900">
@@ -484,7 +488,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
         </div>
 
         {/* RIGHT PANEL */}
-        <div className={cn('flex shrink-0 flex-col border-l border-gray-200 bg-white transition-all duration-300', rightCollapsed ? 'w-10' : 'w-[264px]')}>
+        <div className={cn('hidden shrink-0 flex-col border-l border-gray-200 bg-white transition-all duration-300 md:flex', rightCollapsed ? 'w-10' : 'w-[264px]')}>
           {/* Collapse toggle row */}
           <div className="flex h-9 shrink-0 items-center border-b border-gray-200 px-2.5">
             <button type="button" onClick={() => setRightCollapsed((v) => !v)} className="rounded-md p-1 text-gray-400 hover:text-gray-900">
@@ -777,33 +781,38 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
           </>
         )}
 
-        <div className="mx-1 h-8 w-px bg-white/[0.08]" />
+        {/* Advanced controls — desktop-only. `hidden md:contents` keeps the
+            desktop dock layout byte-identical while dropping these from the
+            simplified mobile dock (core controls + End Session remain). */}
+        <div className="hidden md:contents">
+          <div className="mx-1 h-8 w-px bg-white/[0.08]" />
 
-        <DockBtn active={showWhiteboard}  icon={<Pencil className="size-5" />}  label="Whiteboard"   onClick={() => setShowWhiteboard((v) => !v)} />
-        <DockBtn active={showLeaderboard} icon={<Trophy className="size-5" />}  label="Leaderboard"  onClick={() => setShowLeaderboard((v) => !v)} />
-        <DockBtn icon={<Zap className="size-5" />}       label="Hooks"        onClick={() => setRightTab('hooks')} />
-        <DockBtn icon={<Layers className="size-5" />}    label="Rooms"        onClick={() => setRightTab('breakout')} />
+          <DockBtn active={showWhiteboard}  icon={<Pencil className="size-5" />}  label="Whiteboard"   onClick={() => setShowWhiteboard((v) => !v)} />
+          <DockBtn active={showLeaderboard} icon={<Trophy className="size-5" />}  label="Leaderboard"  onClick={() => setShowLeaderboard((v) => !v)} />
+          <DockBtn icon={<Zap className="size-5" />}       label="Hooks"        onClick={() => setRightTab('hooks')} />
+          <DockBtn icon={<Layers className="size-5" />}    label="Rooms"        onClick={() => setRightTab('breakout')} />
 
-        <div className="relative">
-          <DockBtn icon={<SmilePlus className="size-5" />} label="Reactions" onClick={() => setReactionOpen((v) => !v)} active={reactionOpen ? true : undefined} />
-          {reactionOpen && (
-            <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 flex gap-1.5 rounded-2xl border border-white/[0.08] bg-slate-800/95 p-2 shadow-2xl backdrop-blur">
-              {REACTIONS_LIST.map((r) => (
-                <button key={r} type="button" onClick={() => { setMyReaction(r); setReactionOpen(false) }}
-                  className="rounded-xl p-1.5 text-xl hover:bg-white/10 transition-colors">{r}</button>
-              ))}
-            </div>
-          )}
+          <div className="relative">
+            <DockBtn icon={<SmilePlus className="size-5" />} label="Reactions" onClick={() => setReactionOpen((v) => !v)} active={reactionOpen ? true : undefined} />
+            {reactionOpen && (
+              <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 flex gap-1.5 rounded-2xl border border-white/[0.08] bg-slate-800/95 p-2 shadow-2xl backdrop-blur">
+                {REACTIONS_LIST.map((r) => (
+                  <button key={r} type="button" onClick={() => { setMyReaction(r); setReactionOpen(false) }}
+                    className="rounded-xl p-1.5 text-xl hover:bg-white/10 transition-colors">{r}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mx-1 h-8 w-px bg-white/[0.08]" />
+
+          <button type="button" onClick={openSjt}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/20">
+            <HelpCircle className="size-4" />End &amp; SJT
+          </button>
+
+          <div className="mx-1 h-8 w-px bg-white/[0.08]" />
         </div>
-
-        <div className="mx-1 h-8 w-px bg-white/[0.08]" />
-
-        <button type="button" onClick={openSjt}
-          className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/20">
-          <HelpCircle className="size-4" />End &amp; SJT
-        </button>
-
-        <div className="mx-1 h-8 w-px bg-white/[0.08]" />
 
         <Link href={`/session/${session.id}/post`}
           className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90">
