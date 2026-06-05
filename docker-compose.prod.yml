@@ -29,6 +29,11 @@
 #   docker compose -f docker-compose.prod.yml down
 # ════════════════════════════════════════════════════════════════════════════
 
+# Pin the Compose project name so volumes/networks/containers are deterministic
+# regardless of the checkout directory name (a clone into a differently-named
+# dir would otherwise change the project and orphan this project's volumes).
+name: vaidix-final
+
 x-restart: &default-restart
   restart: unless-stopped
 
