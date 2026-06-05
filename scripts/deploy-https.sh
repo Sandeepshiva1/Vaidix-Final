@@ -114,6 +114,11 @@ log "Updating nginx site configs: ${PREV_APP_HOST} → ${APP_HOST}"
 sed -i "s|${PREV_APP_HOST}|${APP_HOST}|g" nginx/sites-enabled/app.conf
 sed -i "s|${PREV_LK_HOST}|${LK_HOST}|g"   nginx/sites-enabled/livekit.conf
 sed -i "s|${PREV_S3_HOST}|${S3_HOST}|g"   nginx/sites-enabled/s3.conf
+# s3.conf's CORS map allow-lists the APP origin (browser → presigned PUT to
+# s3.<host>), so it must track APP_HOST too. Without this the placeholder
+# app.<base> stayed in the map after the first deploy, so presigned uploads from
+# the real domain got an empty Access-Control-Allow-Origin → "Failed to fetch".
+sed -i "s|${PREV_APP_HOST}|${APP_HOST}|g" nginx/sites-enabled/s3.conf
 echo "${APP_HOST}" > "${STATE_FILE}"
 
 # ── 7. Bring up the prod stack ─────────────────────────────────────────────
