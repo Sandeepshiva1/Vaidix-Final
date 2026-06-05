@@ -131,17 +131,23 @@ fi
 if [ "$NEEDS_APP" -eq 1 ]; then
   # Guard: builds fail with "failed to export" when the overlay-fs layer store
   # runs out of disk. Prune dangling layers first, then check we have >= 5 GB.
-  echo "[deploy] pruning dangling Docker images to free space before build"
-  docker image prune -f 2>/dev/null || true
-  # Also prune build cache older than 48h so repeated no-cache builds don't
-  # accumulate multi-GB caches indefinitely.
-  docker buildx prune -f --filter until=48h 2>/dev/null || true
+  # Free space before the no-cache build. The image build + export needs ~8 GB
+  # transient (the v6.x deploy died at "exporting to image" with 8 GB free).
+  # Prune ALL unused images (not just dangling) + ALL build cache — this removes
+  # superseded vaidix-app:latest layers, usually the biggest reclaimable chunk.
+  # NEVER `--volumes`: it can drop the Postgres/MinIO data volumes the instant a
+  # container is down (the runbook's #1 DO-NOT-TOUCH). We warn instead of nuking.
+  echo "[deploy] pruning unused Docker images + build cache to free space before build"
+  docker image prune -a -f 2>/dev/null || true
+  docker builder prune -a -f 2>/dev/null || true
   AVAIL_KB=$(df /var/lib/docker 2>/dev/null | awk 'NR==2{print $4}' || echo "0")
-  if [ "$AVAIL_KB" -lt 5242880 ]; then  # 5 GB in KB
-    echo "[deploy] ⚠  Less than 5 GB free on /var/lib/docker (${AVAIL_KB} KB). Running full Docker prune."
-    docker system prune -f --volumes 2>/dev/null || true
-    AVAIL_KB=$(df /var/lib/docker 2>/dev/null | awk 'NR==2{print $4}' || echo "0")
-    echo "[deploy]    Free after prune: ${AVAIL_KB} KB"
+  echo "[deploy]    Free after prune: ${AVAIL_KB} KB"
+  if [ "$AVAIL_KB" -lt 8388608 ]; then  # 8 GB in KB
+    echo "[deploy] ⚠  Under 8 GB free — the image build+export may not fit." >&2
+    echo "[deploy]    Free disk WITHOUT touching volumes. Inspect what's large:" >&2
+    echo "[deploy]      sudo du -sh /var/lib/docker/* | sort -h ; docker system df" >&2
+    echo "[deploy]    Permanent fix: migrate object storage to S3 (runbook §10)" >&2
+    echo "[deploy]    or grow the EBS volume. Do NOT run 'system prune --volumes'." >&2
   fi
 
   echo "[deploy] app sources changed — rebuilding image (no-cache)"
