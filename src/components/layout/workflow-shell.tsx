@@ -6,6 +6,11 @@
 // user. Sidebar: real Vaidix logo + "WORKFLOW" (Pre/Live/Post) + My Sessions /
 // My Calendar / Active Learners / Settings. Topbar: bot + notifications + a
 // user-chip dropdown (Profile / Sign out).
+//
+// Responsive: the persistent left sidebar is desktop-only (md+). Below md it is
+// hidden and replaced by a hamburger button in the topbar that opens the same
+// navigation as an off-canvas drawer (Sheet → Base UI Dialog: focus-trapped,
+// Escape-to-close, scroll-locked, portal-rendered).
 // ════════════════════════════════════════════════════════════════════════════
 
 import Link from 'next/link'
@@ -15,22 +20,29 @@ import { signOut } from 'next-auth/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Bell,
+  BookOpen,
   BotMessageSquare,
+  Building2,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
   FolderOpen,
+  ListChecks,
   LogOut,
+  Mail,
+  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   PlayCircle,
+  ScrollText,
   Settings,
   User,
   Users2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import type { UserRole } from '@/lib/types'
 
 interface ShellIdentity {
@@ -56,7 +68,8 @@ interface NavItem {
   href: (sessionId: string | null) => string
 }
 
-const NAV: NavItem[] = [
+// Teaching workflow nav — faculty / resident / program-director / guest.
+const TEACHING_NAV: NavItem[] = [
   { label: 'Pre-Conference', icon: <Clock className="size-[18px]" />, match: (p) => /\/session\/[^/]+\/(pre|prepare|studio|learners|promo|questions|ready)/.test(p), href: (sid) => (sid ? `/session/${sid}/pre` : '/dashboard') },
   { label: 'Live Conference', icon: <PlayCircle className="size-[18px]" />, match: (p) => /\/session\/[^/]+\/live/.test(p), href: (sid) => (sid ? `/session/${sid}/live` : '/dashboard') },
   { label: 'Post-Conference', icon: <CheckCircle2 className="size-[18px]" />, match: (p) => /\/session\/[^/]+\/post/.test(p), href: (sid) => (sid ? `/session/${sid}/post` : '/dashboard') },
@@ -67,6 +80,28 @@ const NAV: NavItem[] = [
   { label: 'Settings', icon: <Settings className="size-[18px]" />, match: (p) => p.startsWith('/profile') || p.startsWith('/settings'), href: () => '/profile' },
 ]
 
+// Admin-console nav — ADMIN role only. Maps to the real /admin/* routes. The
+// server-side gate in src/app/(platform)/admin/layout.tsx (role === ADMIN) is
+// the security boundary; this nav is UX so admins can reach the console they're
+// already authorised for instead of navigating by raw URL.
+const ADMIN_NAV: NavItem[] = [
+  { label: 'Users', icon: <Users2 className="size-[18px]" />, match: (p) => p.startsWith('/admin/users'), href: () => '/admin/users' },
+  { label: 'Invitations', icon: <Mail className="size-[18px]" />, match: (p) => p.startsWith('/admin/invitations'), href: () => '/admin/invitations' },
+  { label: 'Cohorts', icon: <Users2 className="size-[18px]" />, match: (p) => p.startsWith('/admin/cohorts'), href: () => '/admin/cohorts' },
+  { label: 'Institution', icon: <Building2 className="size-[18px]" />, match: (p) => p.startsWith('/admin/institution'), href: () => '/admin/institution' },
+  { label: 'Knowledge Base', icon: <BookOpen className="size-[18px]" />, match: (p) => p.startsWith('/admin/knowledge-base'), href: () => '/admin/knowledge-base' },
+  { label: 'Training Queue', icon: <ListChecks className="size-[18px]" />, match: (p) => p.startsWith('/admin/training-queue'), href: () => '/admin/training-queue' },
+  { label: 'Audit Logs', icon: <ScrollText className="size-[18px]" />, match: (p) => p.startsWith('/admin/audit-logs'), href: () => '/admin/audit-logs' },
+  { label: 'Settings', icon: <Settings className="size-[18px]" />, match: (p) => p.startsWith('/admin/settings'), href: () => '/admin/settings' },
+]
+
+// Pick the nav set + section label + landing route for the signed-in role.
+// Admins get the admin console; every teaching role keeps the workflow nav.
+function navForRole(role: UserRole): { sectionLabel: string; items: NavItem[]; home: string } {
+  if (role === 'admin') return { sectionLabel: 'Admin', items: ADMIN_NAV, home: '/admin/users' }
+  return { sectionLabel: 'Workflow', items: TEACHING_NAV, home: '/dashboard' }
+}
+
 function initialsOf(name: string): string {
   return name.split(/\s+/).filter((p) => !p.startsWith('Dr.')).map((p) => p[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -75,6 +110,7 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
   const pathname = usePathname() || ''
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const sessionIdFromPath = useMemo(() => {
@@ -86,6 +122,7 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
   const roleLabel = ROLE_LABEL[identity.role] ?? 'Member'
   const subtitle = identity.specialization ? `${roleLabel} · ${identity.specialization}` : roleLabel
   const initials = initialsOf(identity.name || identity.email)
+  const { sectionLabel, items: navItems, home } = navForRole(identity.role)
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -95,6 +132,12 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
+  // Close the mobile drawer whenever the route changes — covers nav-link taps,
+  // the browser back button, and any programmatic navigation.
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [pathname])
+
   const avatar = (size: string, text: string) =>
     identity.avatarUrl ? (
       // eslint-disable-next-line @next/next/no-img-element
@@ -103,15 +146,44 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
       <div className={cn(size, 'grid shrink-0 place-items-center rounded-full bg-linear-to-br from-teal-500 to-emerald-600 font-semibold text-white shadow-sm', text)}>{initials}</div>
     )
 
+  // Single source of truth for the nav links — rendered both in the desktop
+  // sidebar (collapsible) and the mobile drawer (always expanded), so the two
+  // can never drift apart.
+  const renderNavLinks = (collapsed: boolean, onNavigate?: () => void) =>
+    navItems.map((item) => {
+      const active = item.match(pathname)
+      return (
+        <Link
+          key={item.label}
+          href={item.href(sessionIdFromPath)}
+          title={collapsed ? item.label : undefined}
+          onClick={onNavigate}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            'group relative flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13.5px] font-medium transition-all',
+            collapsed && 'justify-center',
+            active
+              ? 'bg-linear-to-r from-teal-500/15 via-teal-500/8 to-transparent text-teal-700 shadow-[inset_0_0_0_1px_oklch(0.85_0.05_165/0.4)] dark:text-teal-300'
+              : 'text-muted-foreground hover:bg-foreground/4 hover:text-foreground',
+          )}
+        >
+          {active && !collapsed && <span className="absolute left-0 h-5 w-1 -translate-x-2 rounded-r-full bg-linear-to-b from-teal-500 to-emerald-500" />}
+          <span className={cn('shrink-0 transition-transform', active ? 'text-teal-600 dark:text-teal-300' : 'group-hover:scale-110')}>{item.icon}</span>
+          {!collapsed && (<><span>{item.label}</span>{active && <ChevronRight className="ml-auto size-4 opacity-70" />}</>)}
+        </Link>
+      )
+    })
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-foreground antialiased">
       <div className="flex">
-        {/* Sidebar */}
-        <aside className={cn('sticky top-0 flex h-screen shrink-0 flex-col border-r border-border/60 bg-white/80 backdrop-blur-xl transition-[width] duration-200 dark:bg-background/80', sidebarCollapsed ? 'w-[56px]' : 'w-64')}>
+        {/* Sidebar — desktop only (md+). On mobile it's hidden and replaced by
+            the hamburger-triggered drawer below. */}
+        <aside className={cn('sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border/60 bg-white/80 backdrop-blur-xl transition-[width] duration-200 md:flex dark:bg-background/80', sidebarCollapsed ? 'w-[56px]' : 'w-64')}>
           {/* Logo + collapse toggle */}
           <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border/60 px-3">
             {!sidebarCollapsed && (
-              <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2.5">
+              <Link href={home} className="flex min-w-0 flex-1 items-center gap-2.5">
                 <Image
                   src="/logo.png"
                   alt="Vaidix"
@@ -132,19 +204,10 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
             </button>
           </div>
 
-          {!sidebarCollapsed && <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">Workflow</div>}
+          {!sidebarCollapsed && <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">{sectionLabel}</div>}
 
           <nav className="flex flex-col gap-1 px-2 pt-2">
-            {NAV.map((item) => {
-              const active = item.match(pathname)
-              return (
-                <Link key={item.label} href={item.href(sessionIdFromPath)} title={sidebarCollapsed ? item.label : undefined} className={cn('group relative flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13.5px] font-medium transition-all', sidebarCollapsed && 'justify-center', active ? 'bg-linear-to-r from-teal-500/15 via-teal-500/8 to-transparent text-teal-700 shadow-[inset_0_0_0_1px_oklch(0.85_0.05_165/0.4)] dark:text-teal-300' : 'text-muted-foreground hover:bg-foreground/4 hover:text-foreground')}>
-                  {active && !sidebarCollapsed && <span className="absolute left-0 h-5 w-1 -translate-x-2 rounded-r-full bg-linear-to-b from-teal-500 to-emerald-500" />}
-                  <span className={cn('shrink-0 transition-transform', active ? 'text-teal-600 dark:text-teal-300' : 'group-hover:scale-110')}>{item.icon}</span>
-                  {!sidebarCollapsed && (<><span>{item.label}</span>{active && <ChevronRight className="ml-auto size-4 opacity-70" />}</>)}
-                </Link>
-              )
-            })}
+            {renderNavLinks(sidebarCollapsed)}
           </nav>
         </aside>
 
@@ -152,7 +215,23 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           {/* Topbar */}
           <header className="sticky top-0 z-30 border-b border-border/60 bg-white/85 backdrop-blur-xl dark:bg-background/80">
-            <div className="flex h-14 items-center gap-4 px-6">
+            <div className="flex h-14 items-center gap-3 px-4 md:px-6">
+              {/* Mobile-only: open navigation + compact brand (the sidebar is
+                  hidden below md, so the topbar carries the brand + menu). */}
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open navigation menu"
+                aria-expanded={mobileNavOpen}
+                className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground md:hidden"
+              >
+                <Menu className="size-5" />
+              </button>
+              <Link href={home} aria-label="Vaidix home" className="flex items-center gap-2 md:hidden">
+                <Image src="/logo.png" alt="" width={28} height={28} className="size-7 shrink-0 object-contain" />
+                <span className="text-[14px] font-semibold tracking-tight">Vaidix</span>
+              </Link>
+
               <div className="ml-auto flex items-center gap-3">
                 <button type="button" title="Teaching &amp; Reflection Bot" className="relative grid size-9 place-items-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                   <BotMessageSquare className="size-4" />
@@ -195,9 +274,35 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
             </div>
           </header>
 
-          <main className="min-w-0 flex-1 px-6 py-8">{children}</main>
+          <main className="min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8">{children}</main>
         </div>
       </div>
+
+      {/* Mobile navigation drawer (md:hidden via the hamburger). Sheet is the
+          Base UI Dialog primitive — it focus-traps, closes on Escape, locks body
+          scroll, and renders in a portal, so there's nothing to hand-roll. */}
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent side="left" className="gap-0 p-0">
+          <SheetTitle className="sr-only">Main navigation</SheetTitle>
+          <SheetDescription className="sr-only">Primary navigation links for the Vaidix platform.</SheetDescription>
+
+          <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border/60 px-3">
+            <Link href={home} onClick={() => setMobileNavOpen(false)} className="flex min-w-0 flex-1 items-center gap-2.5">
+              <Image src="/logo.png" alt="" width={36} height={36} className="size-9 shrink-0 object-contain" />
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="text-[15px] font-semibold tracking-tight">Vaidix</div>
+                <div className="text-[11px] font-medium text-muted-foreground">Clinical Teaching OS</div>
+              </div>
+            </Link>
+          </div>
+
+          <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">{sectionLabel}</div>
+
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 pt-2 pb-4">
+            {renderNavLinks(false, () => setMobileNavOpen(false))}
+          </nav>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
