@@ -238,9 +238,10 @@ export async function startSessionEgress(
         bucket: env.S3_BUCKET,
         region: env.S3_REGION,
         endpoint: env.EGRESS_S3_ENDPOINT,
-        // MinIO requires path-style URLs (s3.endpoint/bucket/key) instead of
-        // the AWS-style virtual-host (bucket.endpoint/key).
-        forcePathStyle: true,
+        // MinIO needs path-style URLs (endpoint/bucket/key); AWS S3 needs
+        // virtual-host style. Driven by the same flag as the app's S3 clients
+        // so recordings + uploads can't target different addressing modes.
+        forcePathStyle: env.S3_FORCE_PATH_STYLE,
       }),
     },
   });

@@ -14,6 +14,7 @@ import { promises as fs, createReadStream, type ReadStream } from 'node:fs';
 import path from 'node:path';
 import {
   S3Client,
+  type S3ClientConfig,
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
@@ -73,42 +74,45 @@ export async function deleteLocalUpload(fileId: string): Promise<void> {
 
 const globalForS3 = globalThis as unknown as { s3?: S3Client; s3public?: S3Client };
 
-// Server-side client — uses the internal Docker hostname (e.g. http://minio:9000).
-// Never put presigned URLs from this client in responses the browser will use directly.
-export const s3 =
-  globalForS3.s3 ??
-  new S3Client({
-    endpoint: env.S3_ENDPOINT,
+// One config that serves BOTH backends, selected by S3_FORCE_PATH_STYLE:
+//   • MinIO / S3-compatible → path-style URLs + relaxed checksums.
+//   • AWS S3               → virtual-host style + the SDK's default integrity
+//                            checksums; pass endpoint=undefined so the SDK
+//                            targets the region's default S3 endpoint.
+function s3Config(endpoint: string | undefined): S3ClientConfig {
+  const pathStyle = env.S3_FORCE_PATH_STYLE;
+  return {
+    endpoint,
     region: env.S3_REGION,
     credentials: {
       accessKeyId: env.S3_ACCESS_KEY,
       secretAccessKey: env.S3_SECRET_KEY,
     },
-    forcePathStyle: true,          // required for MinIO
+    forcePathStyle: pathStyle,
     // @aws-sdk/client-s3 v3.729+ adds CRC32 flexible-checksum headers by
-    // default, which MinIO rejects with "NotImplemented". Only send checksums
-    // when the operation actually requires them.
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED',
-  });
+    // default, which MinIO rejects with "NotImplemented". Send them only when
+    // required for MinIO; AWS S3 keeps the SDK default (integrity on).
+    ...(pathStyle
+      ? {
+          requestChecksumCalculation: 'WHEN_REQUIRED' as const,
+          responseChecksumValidation: 'WHEN_REQUIRED' as const,
+        }
+      : {}),
+  };
+}
+
+// Server-side client — uses the internal endpoint (e.g. http://minio:9000) or,
+// for AWS S3, the region default. Never put presigned URLs from this client in
+// responses the browser will use directly.
+export const s3 = globalForS3.s3 ?? new S3Client(s3Config(env.S3_ENDPOINT));
 
 // Browser-facing client — signs presigned URLs against the PUBLIC endpoint
-// (e.g. https://s3.vaidix.lvpei.org) so browsers can actually reach the URL.
-// Defaults to the internal client when S3_PUBLIC_ENDPOINT is not set (local dev).
+// (e.g. https://s3.vaidix.lvpei.org for MinIO behind nginx) so browsers can
+// reach the URL. For AWS S3 both endpoints are undefined, so it signs against
+// AWS S3 directly. Defaults to the internal endpoint when S3_PUBLIC_ENDPOINT
+// is unset (local dev).
 const publicEndpoint = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
-export const s3public =
-  globalForS3.s3public ??
-  new S3Client({
-    endpoint: publicEndpoint,
-    region: env.S3_REGION,
-    credentials: {
-      accessKeyId: env.S3_ACCESS_KEY,
-      secretAccessKey: env.S3_SECRET_KEY,
-    },
-    forcePathStyle: true,
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED',
-  });
+export const s3public = globalForS3.s3public ?? new S3Client(s3Config(publicEndpoint));
 
 if (process.env.NODE_ENV !== 'production') {
   globalForS3.s3 = s3;

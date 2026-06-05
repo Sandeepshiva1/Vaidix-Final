@@ -33,8 +33,9 @@ const envSchema = z.object({
 
   // MinIO / S3 — S3_ENDPOINT is what the Next.js host process (or any
   // worker running on the host) uses to reach object storage; for local dev
-  // that's localhost:9000.
-  S3_ENDPOINT: z.string().url(),
+  // that's localhost:9000. OMIT it entirely for real AWS S3 so the SDK targets
+  // the region's default endpoint (bucket.s3.<region>.amazonaws.com).
+  S3_ENDPOINT: z.string().url().optional(),
   // S3_PUBLIC_ENDPOINT is the browser-reachable URL for the same storage.
   // In production MinIO is only on Docker's internal network (minio:9000),
   // proxied publicly at https://s3.vaidix.lvpei.org via nginx. Presigned
@@ -45,6 +46,14 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
   S3_REGION: z.string().default('us-east-1'),
+  // Object-storage addressing mode. MinIO needs path-style URLs
+  // (endpoint/bucket/key); AWS S3 needs virtual-host style
+  // (bucket.s3.<region>.amazonaws.com). Defaults to path-style so existing
+  // MinIO deploys are unchanged — set "false" when migrating to AWS S3.
+  S3_FORCE_PATH_STYLE: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false'),
   // EGRESS_S3_ENDPOINT is the same MinIO seen FROM INSIDE the LiveKit
   // egress container, where `localhost` would mean the egress container
   // itself. In dev, that's the Docker service name `http://minio:9000`.

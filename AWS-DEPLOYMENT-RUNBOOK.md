@@ -119,5 +119,44 @@ The 2026‑06‑05 wipe was unrecoverable because nothing was backed up. Add, in
 3. **Daily `mc mirror`** of the MinIO bucket → another bucket / disk.
 4. **Snapshot the EBS volume** of the instance periodically (AWS Backup).
 
+## 10. Move object storage to AWS S3 (off the EC2 disk)
+
+MinIO (`vaidix-minio-data` + `vaidix-recordings`) is the biggest consumer of
+`/var/lib/docker` — recordings especially — and is what caused the "no space"
+(`exit 102`) build failures. Moving it to AWS S3 frees the EC2 disk, gives
+11-nines durability + lifecycle expiry, and removes a container from the
+2-vCPU/8-GB box. The code already supports it (`S3_FORCE_PATH_STYLE`), so it's
+a config + one-time data migration:
+
+```bash
+# 1. Create a PRIVATE, encrypted bucket (block all public access), e.g.
+#    aws s3api create-bucket --bucket vaidix-media --region ap-south-1 \
+#      --create-bucket-configuration LocationConstraint=ap-south-1
+#    aws s3api put-public-access-block --bucket vaidix-media \
+#      --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+#    aws s3api put-bucket-encryption --bucket vaidix-media \
+#      --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+# 2. Create an IAM user with least-privilege access to JUST that bucket; note its keys.
+# 3. Mirror existing objects MinIO -> S3 (mc is the MinIO client):
+mc alias set s3 https://s3.ap-south-1.amazonaws.com <AWS_KEY> <AWS_SECRET>
+mc mirror --overwrite local-minio/vaidix-video s3/vaidix-media
+# 4. Edit ~/Vaidix-Final/.env:
+#      S3_BUCKET=vaidix-media
+#      S3_REGION=ap-south-1
+#      S3_ACCESS_KEY=<AWS_KEY>   S3_SECRET_KEY=<AWS_SECRET>
+#      S3_FORCE_PATH_STYLE=false
+#      EGRESS_S3_ENDPOINT=https://s3.ap-south-1.amazonaws.com
+#      # remove/comment S3_ENDPOINT and S3_PUBLIC_ENDPOINT (use AWS default)
+# 5. Recreate app + workers + egress so they re-read .env:
+docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate app workers livekit-egress
+curl -s https://vaidix.arthivaa.com/api/ready    # expect {"ok":true}
+# 6. Once verified, stop MinIO (do NOT -v) and drop its nginx vhost:
+#    docker compose -f docker-compose.minio.yml --env-file .env down
+#    (then remove nginx/sites-enabled/s3.conf and reload nginx)
+```
+Defaults are unchanged (`S3_FORCE_PATH_STYLE` defaults to path-style/MinIO), so
+existing deployments keep working until you opt in. For PHI, sign an AWS BAA and
+consider a VPC gateway endpoint for S3 (free, keeps traffic off the internet).
+
 ---
 *Maintained alongside the Vaidix deployment. Update the infra table when the instance/IP/domain changes.*

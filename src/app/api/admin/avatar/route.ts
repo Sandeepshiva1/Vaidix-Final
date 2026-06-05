@@ -56,10 +56,14 @@ export async function POST(req: Request) {
     const key = `avatars/${mintToken(8)}.${ext}`;
 
     const uploadUrl = await presignUpload(key, body.data.contentType);
-    // Stable view URL: path-style endpoint pointed at the bucket. Works for
-    // MinIO (forcePathStyle: true) and AWS S3 buckets with public-read on
-    // the avatars/ prefix.
-    const avatarUrl = `${env.S3_ENDPOINT.replace(/\/$/, '')}/${BUCKET}/${key}`;
+    // Stable view URL pointed at the bucket. For MinIO / any custom endpoint we
+    // use path-style (endpoint/bucket/key); for AWS S3 (no endpoint set) we use
+    // virtual-host style (bucket.s3.<region>.amazonaws.com/key). Both assume
+    // public-read (or CloudFront) on the avatars/ prefix.
+    const viewBase = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
+    const avatarUrl = viewBase
+      ? `${viewBase.replace(/\/$/, '')}/${BUCKET}/${key}`
+      : `https://${BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
 
     return jsonOk({ uploadUrl, avatarUrl });
   } catch (err) {
