@@ -377,7 +377,6 @@ function ClassroomForm({
   }, [e0?.startAtISO])
   // Resolve the timezone client-side (after mount) to avoid an SSR/CSR mismatch.
   const [tzLabel, setTzLabel] = useState('')
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setTzLabel(localTimezoneLabel()) }, [])
   const [duration, setDuration] = useState(e0 ? String(e0.durationMinutes) : '60')
   const [type, setType] = useState<SessionTypeLabel>(e0?.type ?? 'Webinar')
@@ -400,6 +399,7 @@ function ClassroomForm({
   // back-dated session can never be submitted. The server keeps a 5-min grace
   // purely for clock skew on legitimately near-now starts.
   const startInPast = useMemo(
+    // eslint-disable-next-line react-hooks/purity
     () => startAt !== '' && new Date(startAt).getTime() <= Date.now(),
     [startAt]
   )
@@ -826,6 +826,7 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
   const [participants, setParticipants] = useState<PickableUser[]>([])
 
   const startInPast = useMemo(
+    // eslint-disable-next-line react-hooks/purity
     () => startAt !== '' && new Date(startAt).getTime() <= Date.now(),
     [startAt]
   )
