@@ -12,7 +12,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { db } from '@/lib/db';
 import { createWorker, QUEUES } from '@/lib/queue';
-import { presignDownload, s3, BUCKET } from '@/lib/storage';
+import { presignDownload, s3, RECORDINGS_BUCKET } from '@/lib/storage';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { audit, AUDIT_EVENTS } from '@/server/services/audit';
 
@@ -48,7 +48,7 @@ async function renderReel(data: ReelJobData): Promise<{ clipId: string; key: str
 
   try {
     // 1. Download source MP4
-    const url = await presignDownload(clip.recording.rawS3Key, 3600);
+    const url = await presignDownload(clip.recording.rawS3Key, 3600, RECORDINGS_BUCKET);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch source: ${res.status}`);
     await writeFile(inputPath, Buffer.from(await res.arrayBuffer()));
@@ -78,7 +78,7 @@ async function renderReel(data: ReelJobData): Promise<{ clipId: string; key: str
     const key = `clips/${sessionId}/${data.clipId}.mp4`;
     await s3.send(
       new PutObjectCommand({
-        Bucket: BUCKET,
+        Bucket: RECORDINGS_BUCKET,
         Key: key,
         Body: await readFile(outputPath),
         ContentType: 'video/mp4',

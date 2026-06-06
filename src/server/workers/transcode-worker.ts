@@ -17,7 +17,7 @@ import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
 import { db } from '@/lib/db';
 import { createWorker, getQueue, QUEUES } from '@/lib/queue';
-import { presignDownload, s3, BUCKET } from '@/lib/storage';
+import { presignDownload, s3, RECORDINGS_BUCKET } from '@/lib/storage';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { RecordingStatus } from '@prisma/client';
 import { audit, AUDIT_EVENTS } from '@/server/services/audit';
@@ -99,7 +99,7 @@ async function uploadDirectory(localDir: string, keyPrefix: string): Promise<voi
         : 'application/octet-stream';
     await s3.send(
       new PutObjectCommand({
-        Bucket: BUCKET,
+        Bucket: RECORDINGS_BUCKET,
         Key: `${keyPrefix}/${e.name}`,
         Body: buf,
         ContentType: ct,
@@ -121,7 +121,7 @@ async function transcodeJob(data: TranscodeJobData): Promise<{ recordingId: stri
 
   try {
     // 1. Download raw MP4 to tmp
-    const url = await presignDownload(recording.rawS3Key, 3600);
+    const url = await presignDownload(recording.rawS3Key, 3600, RECORDINGS_BUCKET);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch raw MP4: ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
@@ -202,7 +202,7 @@ async function transcodeJob(data: TranscodeJobData): Promise<{ recordingId: stri
         const ct = e.name.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t';
         await s3.send(
           new PutObjectCommand({
-            Bucket: BUCKET,
+            Bucket: RECORDINGS_BUCKET,
             Key: `${hlsKeyPrefix}/${e.name}`,
             Body: buf2,
             ContentType: ct,

@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
-import { s3, BUCKET } from '@/lib/storage';
+import { s3, BUCKET, RECORDINGS_BUCKET } from '@/lib/storage';
 import { roomClient } from '@/lib/livekit';
 import { HeadBucketCommand } from '@aws-sdk/client-s3';
 
@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
 const DEP_TIMEOUT_MS = 1500;
 
 interface DepResult {
-  name: 'postgres' | 'redis' | 'minio' | 'livekit';
+  name: 'postgres' | 'redis' | 's3-uploads' | 's3-recordings' | 'livekit';
   ok: boolean;
   latencyMs: number;
   error?: string;
@@ -56,7 +56,8 @@ export async function GET() {
   const deps = await Promise.all([
     check('postgres', () => db.$queryRaw`SELECT 1`),
     check('redis', () => redis.ping()),
-    check('minio', () => s3.send(new HeadBucketCommand({ Bucket: BUCKET }))),
+    check('s3-uploads', () => s3.send(new HeadBucketCommand({ Bucket: BUCKET }))),
+    check('s3-recordings', () => s3.send(new HeadBucketCommand({ Bucket: RECORDINGS_BUCKET }))),
     check('livekit', () => roomClient.listRooms()),
   ]);
 

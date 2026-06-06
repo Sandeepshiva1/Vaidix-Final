@@ -15,7 +15,7 @@ import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
 import { db } from '@/lib/db';
 import { createWorker, QUEUES } from '@/lib/queue';
-import { presignDownload, presignUpload, s3, BUCKET } from '@/lib/storage';
+import { presignDownload, presignUpload, s3, RECORDINGS_BUCKET } from '@/lib/storage';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { RecordingStatus } from '@prisma/client';
 import { getTranscriptionProvider, type TranscriptionResult, type TranscriptionSegment } from '@/server/services/transcription';
@@ -67,7 +67,7 @@ async function uploadVtt(sessionId: string, name: string, body: string): Promise
   const key = `captions/${sessionId}/${name}`;
   await s3.send(
     new PutObjectCommand({
-      Bucket: BUCKET,
+      Bucket: RECORDINGS_BUCKET,
       Key: key,
       Body: body,
       ContentType: 'text/vtt; charset=utf-8',
@@ -87,7 +87,7 @@ async function transcribeJob(data: TranscribeJobData): Promise<{ recordingId: st
 
   try {
     // 1. Download raw MP4
-    const rawUrl = await presignDownload(recording.rawS3Key, 3600);
+    const rawUrl = await presignDownload(recording.rawS3Key, 3600, RECORDINGS_BUCKET);
     const res = await fetch(rawUrl);
     if (!res.ok) throw new Error(`Failed to fetch raw MP4: ${res.status}`);
     await writeFile(inputPath, Buffer.from(await res.arrayBuffer()));
@@ -107,13 +107,13 @@ async function transcribeJob(data: TranscribeJobData): Promise<{ recordingId: st
     const audioKey = `audio/${recording.sessionId}/${recording.id}.wav`;
     await s3.send(
       new PutObjectCommand({
-        Bucket: BUCKET,
+        Bucket: RECORDINGS_BUCKET,
         Key: audioKey,
         Body: await readFile(audioPath),
         ContentType: 'audio/wav',
       })
     );
-    const audioUrl = await presignUpload(audioKey, 'audio/wav', 60).then(() => presignDownload(audioKey, 3600));
+    const audioUrl = await presignUpload(audioKey, 'audio/wav', 60, RECORDINGS_BUCKET).then(() => presignDownload(audioKey, 3600, RECORDINGS_BUCKET));
 
     // 4. Call the configured provider.
     const provider = getTranscriptionProvider();
