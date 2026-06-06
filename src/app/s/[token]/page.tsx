@@ -109,7 +109,7 @@ export default async function SessionSharePage({ params }: { params: Params }) {
               Sign in to attend
             </Link>
             <p className="mt-2.5 text-center text-[11.5px] text-muted-foreground">
-              You'll need a Vaidix account to join the live session.
+              You&apos;ll need a Vaidix account to join the live session.
             </p>
           </div>
         </div>
