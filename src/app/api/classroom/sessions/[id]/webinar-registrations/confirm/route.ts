@@ -13,6 +13,7 @@
 
 import { z } from 'zod';
 import { Role, UserStatus, SessionInviteStatus } from '@prisma/client';
+import { hashToken } from '@/server/services/tokens';
 import {
   handleUnexpected,
   jsonError,
@@ -31,8 +32,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!body.ok) return body.response;
     const { id: sessionId } = await ctx.params;
 
+    const tokenHash = hashToken(body.data.token);
     const reg = await db.webinarRegistration.findUnique({
-      where: { confirmToken: body.data.token },
+      where: { confirmTokenHash: tokenHash },
     });
     if (!reg || reg.sessionId !== sessionId) {
       return jsonError('NOT_FOUND', 'Invalid confirmation token', 404);
