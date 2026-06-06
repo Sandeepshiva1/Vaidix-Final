@@ -17,6 +17,12 @@ import {
 import { db } from '@/lib/db';
 import { s3, BUCKET } from '@/lib/storage';
 import { getDeckTheme, type PptxColors } from '@/lib/deck-themes';
+import {
+  type ImageBox,
+  type SlideRich,
+  htmlToRuns,
+  resolveImageBox,
+} from '@/lib/deck-slide-extras';
 
 const LAYOUT_W = 13.33; // wide layout
 const LAYOUT_H = 7.5;
@@ -36,7 +42,16 @@ interface SlideRow {
   underline: boolean;
   fontScale: number;
   /** Optional inserted table (row 0 = header); null when none. */
-  table: { rows: string[][] } | null;
+  table: {
+    rows: string[][];
+    headerHex?: string | null;
+    colWidths?: number[] | null;
+    widthPct?: number | null;
+  } | null;
+  /** Free image placement/size (fractions 0..1); null = layout default box. */
+  imageBox: ImageBox | null;
+  /** Inline rich-text runs for title/bullets; null = plain text. */
+  rich: SlideRich | null;
   /**
    * Pre-resolved image data URL (e.g. `data:image/png;base64,...`). Populated
    * by renderDeckPptxBuffer before per-slide render; null when generation was
@@ -70,6 +85,78 @@ function fmtText(
   if (force?.italic || s.italic) o.italic = true;
   if (s.underline) o.underline = { style: 'sng' };
   return o;
+}
+
+type TP = PptxGenJS.TextProps;
+
+/**
+ * Build pptx runs for a single-line field (title/body/quote) from its inline
+ * HTML. Returns the plain string when there's no rich formatting so callers can
+ * pass it straight to addText alongside the static fmtText() options.
+ */
+function richRuns(
+  html: string | null | undefined,
+  plain: string,
+  s: SlideRow,
+  force?: { bold?: boolean; italic?: boolean },
+): string | TP[] {
+  const runs = htmlToRuns(html);
+  if (!runs.length) return plain;
+  return runs.map((r) => ({
+    text: r.text,
+    options: {
+      ...(r.bold || s.bold || force?.bold ? { bold: true } : {}),
+      ...(r.italic || s.italic || force?.italic ? { italic: true } : {}),
+      ...(r.underline || s.underline ? { underline: { style: 'sng' as const } } : {}),
+    },
+  }));
+}
+
+/**
+ * Build a bulleted paragraph list with per-bullet rich runs. Each bullet may
+ * expand to several runs; only the first carries the bullet glyph and only the
+ * last breaks the line, so a single bullet keeps mixed formatting on one row.
+ * `startIdx` offsets into rich.bullets for the right/second column.
+ */
+function bulletParas(s: SlideRow, bullets: string[], startIdx = 0): TP[] {
+  const out: TP[] = [];
+  bullets.forEach((b, i) => {
+    const runs = htmlToRuns(s.rich?.bullets?.[startIdx + i]);
+    const parts = runs.length ? runs : [{ text: b }];
+    parts.forEach((r, j) => {
+      out.push({
+        text: r.text,
+        options: {
+          ...(j === 0 ? { bullet: { code: '25B8' } } : {}),
+          ...(j === parts.length - 1 ? { breakLine: true } : {}),
+          ...(r.bold || s.bold ? { bold: true } : {}),
+          ...(r.italic || s.italic ? { italic: true } : {}),
+          ...(r.underline || s.underline ? { underline: { style: 'sng' as const } } : {}),
+        },
+      });
+    });
+  });
+  return out;
+}
+
+/**
+ * Paint the slide image at its placement box (any layout). Mirrors the web
+ * canvas's floating image. `contain` keeps anatomy proportions. No-op without an
+ * image. Drawn after the body/table so it floats above, like the canvas.
+ */
+function renderImage(s: PptxGenJS.Slide, slide: SlideRow) {
+  if (!slide.imageDataUrl) return;
+  const box = resolveImageBox(slide.layout, slide.imageBox);
+  const w = box.w * LAYOUT_W;
+  const h = box.h * LAYOUT_H;
+  s.addImage({
+    data: slide.imageDataUrl,
+    x: box.x * LAYOUT_W,
+    y: box.y * LAYOUT_H,
+    w,
+    h,
+    sizing: { type: 'contain', w, h },
+  });
 }
 
 function addHeader(slide: PptxGenJS.Slide, n: number, total: number, c: PptxColors) {
@@ -129,7 +216,7 @@ function renderTitleOnly(
     x: 0.7, y: 1.4, w: 11.9, h: 0.3,
     fontSize: 11, bold: true, color: accent, charSpacing: 4,
   });
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { bold: true }), {
     x: 0.7, y: 1.85, w: 11.9, h: 3,
     ...fmtText(slide, 56, { bold: true }), color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.05,
   });
@@ -141,7 +228,7 @@ function renderTitleOnly(
 
 function renderClosing(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: PptxColors) {
   s.background = { color: c.titleBg };
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { bold: true }), {
     x: 0.7, y: 2.4, w: 11.9, h: 2,
     ...fmtText(slide, 64, { bold: true }), color: c.text, align: 'center', fontFace: 'Georgia',
   });
@@ -159,7 +246,7 @@ function renderClosing(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: P
 
 function renderTitleBullets(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: PptxColors) {
   s.background = { color: c.contentBg };
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { bold: true }), {
     x: 0.7, y: 0.95, w: 11.9, h: 1.0,
     ...fmtText(slide, 30, { bold: true }), color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.15,
   });
@@ -169,7 +256,7 @@ function renderTitleBullets(s: PptxGenJS.Slide, slide: SlideRow, accent: string,
   });
   if (slide.bullets.length > 0) {
     s.addText(
-      slide.bullets.map((b) => ({ text: b, options: { bullet: { code: '25B8' } } })),
+      bulletParas(slide, slide.bullets),
       {
         x: 0.9, y: 2.4, w: 11.5, h: 4.2,
         ...fmtText(slide, 18), color: c.text85, lineSpacingMultiple: 1.45, valign: 'top', paraSpaceAfter: 8,
@@ -180,7 +267,7 @@ function renderTitleBullets(s: PptxGenJS.Slide, slide: SlideRow, accent: string,
 
 function renderTwoColumn(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: PptxColors) {
   s.background = { color: c.contentBg };
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { bold: true }), {
     x: 0.7, y: 0.95, w: 11.9, h: 1.0,
     ...fmtText(slide, 28, { bold: true }), color: c.text, fontFace: 'Georgia',
   });
@@ -193,13 +280,13 @@ function renderTwoColumn(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c:
   const right = slide.bullets.slice(half);
   if (left.length > 0) {
     s.addText(
-      left.map((b) => ({ text: b, options: { bullet: { code: '25B8' } } })),
+      bulletParas(slide, left, 0),
       { x: 0.9, y: 2.4, w: 5.7, h: 4.2, ...fmtText(slide, 16), color: c.text85, lineSpacingMultiple: 1.4 },
     );
   }
   if (right.length > 0) {
     s.addText(
-      right.map((b) => ({ text: b, options: { bullet: { code: '25B8' } } })),
+      bulletParas(slide, right, half),
       { x: 6.9, y: 2.4, w: 5.7, h: 4.2, ...fmtText(slide, 16), color: c.text85, lineSpacingMultiple: 1.4 },
     );
   }
@@ -211,7 +298,7 @@ function renderQuote(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: Ppt
     x: 0.9, y: 1.6, w: 1, h: 1.6,
     fontSize: 110, color: accent, fontFace: 'Georgia',
   });
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { italic: true }), {
     x: 1.5, y: 2.6, w: 10.5, h: 2.5,
     ...fmtText(slide, 26, { italic: true }), color: c.text, fontFace: 'Georgia', lineSpacingMultiple: 1.4,
   });
@@ -233,7 +320,7 @@ function renderInteraction(s: PptxGenJS.Slide, slide: SlideRow, accent: string, 
     x: 0.7, y: 0.95, w: 1.4, h: 0.36,
     fontSize: 10, bold: true, color: c.bg, align: 'center', valign: 'middle', charSpacing: 3,
   });
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { bold: true }), {
     x: 0.7, y: 1.55, w: 11.9, h: 1.4,
     ...fmtText(slide, 28, { bold: true }), color: c.text, fontFace: 'Georgia',
   });
@@ -247,7 +334,7 @@ function renderInteraction(s: PptxGenJS.Slide, slide: SlideRow, accent: string, 
       x: 1.05, y, w: 0.5, h: 0.6,
       fontSize: 16, bold: true, color: accent, valign: 'middle',
     });
-    s.addText(slide.bullets[i], {
+    s.addText(richRuns(slide.rich?.bullets?.[i], slide.bullets[i], slide), {
       x: 1.55, y, w: 10.7, h: 0.6,
       ...fmtText(slide, 14), color: c.text85, valign: 'middle',
     });
@@ -256,21 +343,14 @@ function renderInteraction(s: PptxGenJS.Slide, slide: SlideRow, accent: string, 
 
 function renderImageFocus(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c: PptxColors) {
   s.background = { color: c.contentBg };
-  s.addText(slide.title, {
+  s.addText(richRuns(slide.rich?.title, slide.title, slide, { bold: true }), {
     x: 0.7, y: 0.95, w: 11.9, h: 0.9,
     ...fmtText(slide, 26, { bold: true }), color: c.text, fontFace: 'Georgia',
   });
-  if (slide.imageDataUrl) {
-    // Wizard-forge generated image (Gemini 2.5 Flash Image). The slot is
-    // 16:9-ish (11.5 x 4.0 in EMU) which matches the aspectRatio hint the
-    // image router defaults to. sizing: 'contain' preserves anatomy
-    // proportions even if the model returned a non-conforming aspect.
-    s.addImage({
-      data: slide.imageDataUrl,
-      x: 0.9, y: 2.1, w: 11.5, h: 4.0,
-      sizing: { type: 'contain', w: 11.5, h: 4.0 },
-    });
-  } else {
+  // The actual image is painted by the generic renderImage() (honours imageBox
+  // and works on every layout). Here we only draw the dashed placeholder when
+  // the slide has no image yet.
+  if (!slide.imageDataUrl) {
     s.addShape('rect', {
       x: 0.9, y: 2.1, w: 11.5, h: 4.0,
       fill: { color: c.panelDark }, line: { color: accent, width: 1.2, dashType: 'dash' },
@@ -281,7 +361,7 @@ function renderImageFocus(s: PptxGenJS.Slide, slide: SlideRow, accent: string, c
     });
   }
   if (slide.bullets[0]) {
-    s.addText(slide.bullets[0], {
+    s.addText(richRuns(slide.rich?.bullets?.[0], slide.bullets[0], slide), {
       x: 0.9, y: 6.3, w: 11.5, h: 0.5,
       ...fmtText(slide, 14), color: c.text85,
     });
@@ -294,6 +374,8 @@ function renderTable(s: PptxGenJS.Slide, slide: SlideRow, c: PptxColors) {
   const t = slide.table;
   if (!t || t.rows.length === 0) return;
   const scale = slide.fontScale && slide.fontScale > 0 ? slide.fontScale : 1;
+  const headerFill =
+    t.headerHex && /^[0-9a-fA-F]{6}$/.test(t.headerHex) ? t.headerHex : c.panelBg;
   const rows: PptxGenJS.TableRow[] = t.rows.map((row, ri) =>
     row.map((cell) => ({
       text: cell,
@@ -302,16 +384,26 @@ function renderTable(s: PptxGenJS.Slide, slide: SlideRow, c: PptxColors) {
         italic: slide.italic,
         ...(slide.underline ? { underline: { style: 'sng' as const } } : {}),
         color: ri === 0 ? c.text : c.text85,
-        fill: { color: ri === 0 ? c.panelBg : c.contentBg },
+        fill: { color: ri === 0 ? headerFill : c.contentBg },
         align: 'left' as const,
         valign: 'middle' as const,
       },
     })),
   );
+  const fullW = 11.93;
+  const tableW = fullW * (t.widthPct && t.widthPct > 0 ? Math.min(1, t.widthPct) : 1);
+  const nCols = t.rows[0]?.length ?? 0;
+  // Per-column widths (inches), honouring dragged colWidths; else equal columns.
+  let colW: number[] | undefined;
+  if (t.colWidths && t.colWidths.length === nCols && nCols > 0) {
+    const sum = t.colWidths.reduce((a, b) => a + (b > 0 ? b : 0), 0) || 1;
+    colW = t.colWidths.map((x) => (x > 0 ? x : 0.0001) / sum * tableW);
+  }
   s.addTable(rows, {
     x: 0.7,
     y: 4.55,
-    w: 11.93,
+    w: tableW,
+    ...(colW ? { colW } : {}),
     border: { type: 'solid', pt: 0.5, color: c.panelBg },
     fontSize: Math.round(12 * scale * 10) / 10,
     color: c.text85,
@@ -341,6 +433,7 @@ function renderSlide(
     default:              renderTitleBullets(s, slide, accent, c);
   }
   renderTable(s, slide, c);
+  renderImage(s, slide);
   addHeader(s, index + 1, total, c);
   addFooter(s, deckTitle, c);
   if (slide.speakerNotes) s.addNotes(slide.speakerNotes);
@@ -437,7 +530,9 @@ export async function renderDeckPptxBuffer(opts: {
         italic: s.italic,
         underline: s.underline,
         fontScale: s.fontScale,
-        table: s.tableJson as unknown as { rows: string[][] } | null,
+        table: s.tableJson as unknown as { rows: string[][]; headerHex?: string | null } | null,
+        imageBox: (s.imageBox as unknown as ImageBox | null) ?? null,
+        rich: (s.richJson as unknown as SlideRich | null) ?? null,
         imageDataUrl: imageDataUrls[i],
       },
       i, total, deckTitle, c,

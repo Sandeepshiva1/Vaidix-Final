@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
@@ -12,6 +13,7 @@ import {
   Clock3,
   Download,
   Globe,
+  Hand,
   HelpCircle,
   Languages,
   Layers,
@@ -45,7 +47,7 @@ import {
   useParticipants,
   useDataChannel,
 } from '@livekit/components-react'
-import { Track, type Participant } from 'livekit-client'
+import { Track, DisconnectReason, type Participant } from 'livekit-client'
 import '@livekit/components-styles'
 import { isAgentParticipant } from '@/lib/livekit-helpers'
 import { cn } from '@/lib/utils'
@@ -55,7 +57,7 @@ import { HookOverlay } from '@/components/engagement/hook-overlay'
 import type { SessionView } from '@/lib/medlearn/session-view'
 import {
   useLiveToken, useEngagement, useLiveHooks, useLeaderboard, useBreakouts,
-  useCaptions, usePresenterAlerts, suggestHooks, muteAllParticipants,
+  useCaptions, usePresenterAlerts, suggestHooks, muteAllParticipants, endLiveSession,
   type TokenState, type ApiHookKind, type SuggestedPoll,
 } from './live-data'
 
@@ -63,7 +65,7 @@ const reactionEnc = new TextEncoder()
 const reactionDec = new TextDecoder()
 
 type ViewMode = 'gallery' | 'presentation'
-type RightTab = 'hooks' | 'transcript' | 'ai' | 'breakout'
+type RightTab = 'people' | 'hooks' | 'transcript' | 'ai' | 'breakout'
 type LbCategory = 'score' | 'consistent' | 'accurate' | 'engaged' | 'time'
 type TxLang = 'all' | 'en' | 'te' | 'hi' | 'ta' | 'kn' | 'ml' | 'mixed'
 
@@ -107,8 +109,28 @@ function downloadText(content: string, filename: string) {
 // When not joined (loading / waiting / denied / error / unreachable LiveKit) the
 // same body renders with connected=false and shows honest non-mock states.
 export function LiveConference({ session, isHost }: { session: SessionView; isHost: boolean }) {
+  const router = useRouter()
   const tok = useLiveToken(session.id)
   const [lkError, setLkError] = useState(false)
+
+  // Terminal disconnects mean the call is over for this user — leave the room
+  // instead of stranding them on the offline console (the bug where members
+  // stayed "in" the call after the host ended it and had to click Leave).
+  //   ROOM_DELETED       — host ended the session (server deletes the room)
+  //   PARTICIPANT_REMOVED— host removed this user
+  //   SERVER_SHUTDOWN    — LiveKit going down
+  // Non-hosts go to the calendar; the host is already headed to /post.
+  const handleDisconnected = useCallback((reason?: DisconnectReason) => {
+    if (
+      reason === DisconnectReason.ROOM_DELETED ||
+      reason === DisconnectReason.PARTICIPANT_REMOVED ||
+      reason === DisconnectReason.SERVER_SHUTDOWN
+    ) {
+      router.push(isHost ? `/session/${session.id}/post` : '/calendar')
+      return
+    }
+    setLkError(true)
+  }, [router, isHost, session.id])
   // When set, the user has joined a breakout: we leave the main room entirely
   // and connect to the child room (BreakoutRoomView mints its own token + runs
   // its own <LiveKitRoom>). Lives above the main <LiveKitRoom> so the two never
@@ -156,7 +178,7 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
         data-lk-theme="default"
         className="contents"
         onError={() => setLkError(true)}
-        onDisconnected={() => setLkError(true)}
+        onDisconnected={handleDisconnected}
       >
         {body}
         <RoomAudioRenderer />
@@ -224,8 +246,29 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
   const [reactionOpen, setReactionOpen]   = useState(false)
   const [myReaction, setMyReaction]       = useState<string | null>(null)
   const [remoteReactions, setRemoteReactions] = useState<{ id: number; emoji: string; name: string }[]>([])
+  const [ending, setEnding]               = useState(false)
+  const captionsEndRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   void role
+
+  // Auto-scroll the captions list to the newest line so it behaves like the
+  // Teams/Meet caption pane — the list stays pinned to the bottom as new
+  // segments stream in, instead of growing past the viewport.
+  useEffect(() => {
+    if (rightTab === 'transcript') captionsEndRef.current?.scrollIntoView({ block: 'end' })
+  }, [captionSegs, rightTab])
+
+  // End the session for EVERYONE (host only). Hits /end which flips status to
+  // ENDED and deletes the LiveKit room — every other participant is then
+  // disconnected (ROOM_DELETED) and auto-redirected. We navigate the host to
+  // the post-conference afterwards. Previously this button was just a link, so
+  // the room stayed live and members were stranded.
+  const handleEndSession = async () => {
+    setEnding(true)
+    if (connected) await endLiveSession(session.id)
+    router.push(`/session/${session.id}/post`)
+  }
 
   useEffect(() => {
     const i = setInterval(() => setElapsed((e) => e + 1), 1000)
@@ -375,7 +418,12 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
   const engColor   = engagement === null ? 'text-slate-500' : engagement >= 75 ? 'text-emerald-400' : engagement >= 55 ? 'text-amber-400' : 'text-rose-400'
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-gray-950 text-slate-100">
+    // fixed inset-0 so the console is a full-viewport takeover on ANY route.
+    // The host route's (platform) layout gives full height, but the (call)
+    // layout used by /classroom/[id] is a bare fragment — without fixed
+    // positioning the console collapsed to content height (the "half window"
+    // clipping participants saw). Mirrors the prior participant room.
+    <div className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-gray-950 text-slate-100">
       {connected && <ReactionsChannel reaction={myReaction} onRemote={addRemoteReaction} />}
       {/* Non-hosts get the live hook-answer modal (the right-panel Hooks tab is
           the host's authoring surface). Self-contained HTTP poller — works even
@@ -538,11 +586,12 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
             {!rightCollapsed && <span className="ml-1 text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Panel</span>}
           </div>
           {!rightCollapsed && <>
-          <div className={cn('grid shrink-0 border-b border-gray-200', isHost ? 'grid-cols-4' : 'grid-cols-2')}>
+          <div className={cn('grid shrink-0 border-b border-gray-200', isHost ? 'grid-cols-5' : 'grid-cols-3')}>
             {([
-              // Hooks authoring + AI co-facilitator are host-only moderator
-              // surfaces; learners get Captions + Rooms (and answer hooks via
-              // the HookOverlay modal, not this panel).
+              // People (roster) + Captions + Rooms are for everyone. Hooks
+              // authoring + AI co-facilitator are host-only moderator surfaces;
+              // learners answer hooks via the HookOverlay modal, not this panel.
+              { key: 'people' as RightTab, icon: <Users2 className="size-[13px]" />, label: 'People' },
               ...(isHost ? [{ key: 'hooks' as RightTab, icon: <Zap className="size-[13px]" />, label: 'Hooks' }] : []),
               { key: 'transcript' as RightTab, icon: <Globe className="size-[13px]" />,      label: 'Captions' },
               ...(isHost ? [{ key: 'ai' as RightTab, icon: <Sparkles className="size-[13px]" />, label: 'AI' }] : []),
@@ -555,10 +604,25 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
             ))}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Clip here; each tab owns its own internal scroll so the captions
+              list (and the others) stay bounded to the panel instead of
+              overflowing the window. */}
+          <div className="min-h-0 flex-1 overflow-hidden">
+
+            {rightTab === 'people' && (
+              <div className="h-full overflow-y-auto p-3">
+                {connected ? (
+                  <PeoplePanelLive hostId={session.hostId} />
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-6 text-center text-[10.5px] leading-snug text-gray-400">
+                    Participants appear here once the room connects.
+                  </div>
+                )}
+              </div>
+            )}
 
             {isHost && rightTab === 'hooks' && (
-              <div className="space-y-2 p-3">
+              <div className="h-full space-y-2 overflow-y-auto p-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Attention Hooks</span>
                   <button type="button" onClick={runAiSuggest} disabled={aiBusy}
@@ -708,13 +772,14 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
                       <p className="text-[11px] leading-snug text-gray-800">{l.text}</p>
                     </div>
                   ))}
+                  <div ref={captionsEndRef} />
                 </div>
               </div>
               )
             })()}
 
             {isHost && rightTab === 'ai' && (
-              <div className="p-3">
+              <div className="h-full overflow-y-auto p-3">
                 <div className="mb-3 flex items-center gap-2">
                   <Sparkles className="size-4 text-teal-600" />
                   <span className="text-[12px] font-semibold text-gray-900">AI Co-Facilitator</span>
@@ -756,7 +821,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
             )}
 
             {rightTab === 'breakout' && (
-              <div className="p-3">
+              <div className="h-full overflow-y-auto p-3">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Smart Breakouts</span>
                   <button type="button" onClick={refreshRooms} className="rounded-full border border-gray-200 px-2.5 py-0.5 text-[10px] text-gray-500 transition-colors hover:bg-gray-50">Refresh</button>
@@ -876,10 +941,10 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
 
         {/* Host ends the session for everyone; learners simply leave the room. */}
         {isHost ? (
-          <Link href={`/session/${session.id}/post`}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90">
-            <AlertCircle className="size-4" />End Session
-          </Link>
+          <button type="button" onClick={handleEndSession} disabled={ending}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90 disabled:opacity-60">
+            <AlertCircle className="size-4" />{ending ? 'Ending…' : 'End Session'}
+          </button>
         ) : (
           <Link href="/calendar"
             className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90">
@@ -1069,10 +1134,10 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
                     </div>
                   </button>
                 </div>
-                <Link href={`/session/${session.id}/post`} className="mt-5 inline-flex h-12 items-center gap-2 rounded-full bg-teal-600 px-8 text-[14px] font-semibold text-white hover:bg-teal-500">
-                  Post Conference
+                <button type="button" onClick={handleEndSession} disabled={ending} className="mt-5 inline-flex h-12 items-center gap-2 rounded-full bg-teal-600 px-8 text-[14px] font-semibold text-white hover:bg-teal-500 disabled:opacity-60">
+                  {ending ? 'Ending…' : 'Post Conference'}
                   <ChevronRight className="size-4" />
-                </Link>
+                </button>
               </div>
             ) : (
               <div className="mx-4 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.08] bg-slate-900 shadow-2xl">
@@ -1236,7 +1301,12 @@ function FacultyPanelLive({ hostId, mutedAll }: { hostId: string; mutedAll: bool
       {faculty.map((p) => {
         const host = p.identity === hostId
         const name = p.name || p.identity
-        const micOff = p.isMicrophoneEnabled === false || mutedAll
+        // Reflect the participant's REAL mic state. Don't force-muted off the
+        // local "mutedAll" flag — the server-mute already flips
+        // isMicrophoneEnabled to false (and back when they unmute), so OR-ing
+        // mutedAll just froze every tile as muted forever, even after a member
+        // unmuted themselves.
+        const micOff = p.isMicrophoneEnabled === false
         const camOff = p.isCameraEnabled === false
         return (
           <div key={p.identity} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
@@ -1260,6 +1330,62 @@ function FacultyPanelLive({ hostId, mutedAll }: { hostId: string; mutedAll: bool
   )
 }
 
+// Full participant roster (the Teams/Meet "People" panel). The left rail shows
+// only faculty; this lists EVERYONE with live mic/cam + raised-hand state, with
+// raised hands floated to the top so the host notices them first.
+function PeoplePanelLive({ hostId }: { hostId: string }) {
+  const participants = useParticipants().filter((p) => !isAgentParticipant(p))
+  if (participants.length === 0) {
+    return <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-6 text-center text-[10.5px] leading-snug text-gray-400">No one has joined yet.</div>
+  }
+  const roleOf = (p: Participant): string => {
+    if (p.identity === hostId) return 'Presenter'
+    try {
+      const m = JSON.parse(p.metadata || '{}')
+      if (m.effectiveRole === 'HOST') return 'Presenter'
+      if (m.effectiveRole === 'CO_HOST') return 'Co-host'
+    } catch { /* default */ }
+    return 'Participant'
+  }
+  const isHandRaised = (p: Participant): boolean => {
+    try { return JSON.parse(p.metadata || '{}').handRaised === true } catch { return false }
+  }
+  const sorted = [...participants].sort((a, b) => Number(isHandRaised(b)) - Number(isHandRaised(a)))
+  const raisedCount = participants.filter(isHandRaised).length
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between px-1 pb-1.5">
+        <span className="text-[9px] font-semibold tracking-widest text-gray-400 uppercase">In this room · {participants.length}</span>
+        {raisedCount > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+            <Hand className="size-2.5" />{raisedCount}
+          </span>
+        )}
+      </div>
+      {sorted.map((p) => {
+        const name = p.name || p.identity
+        const micOff = p.isMicrophoneEnabled === false
+        const camOff = p.isCameraEnabled === false
+        const raised = isHandRaised(p)
+        return (
+          <div key={p.identity} className={cn('flex items-center gap-2 rounded-xl px-2 py-1.5', raised ? 'bg-amber-50 ring-1 ring-amber-200' : 'hover:bg-gray-50')}>
+            <div className={cn('grid size-7 shrink-0 place-items-center rounded-full bg-linear-to-br text-[9px] font-bold text-slate-700', gradientFor(p.identity))}>{initialsOf(name)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[11px] font-medium leading-tight text-gray-900">{name}</div>
+              <div className="text-[9px] text-gray-400">{roleOf(p)}</div>
+            </div>
+            {raised && <Hand className="size-3.5 shrink-0 text-amber-500" />}
+            <div className="flex items-center gap-1">
+              {micOff ? <MicOff className="size-3 text-gray-300" /> : <Mic className="size-3 text-teal-500" />}
+              {camOff ? <VideoOff className="size-3 text-gray-300" /> : <Video className="size-3 text-teal-500" />}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // Mic / camera / screen-share dock buttons driven by the local LiveKit participant.
 function MediaControls({ onSharingChange, canShare, onPresent, onError }: {
   onSharingChange: (v: boolean) => void
@@ -1269,6 +1395,25 @@ function MediaControls({ onSharingChange, canShare, onPresent, onError }: {
 }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant()
   useEffect(() => { onSharingChange(!!isScreenShareEnabled) }, [isScreenShareEnabled, onSharingChange])
+
+  // Raise hand — toggles `handRaised` in the participant's LiveKit metadata so
+  // every client (and the People panel) sees it live. We MERGE into existing
+  // metadata so we don't clobber `effectiveRole` (which drives faculty/role
+  // detection). Mirrors the old participant room's raise-hand, restyled here.
+  const [handRaised, setHandRaised] = useState(false)
+  useEffect(() => {
+    try { setHandRaised(JSON.parse(localParticipant.metadata || '{}').handRaised === true) }
+    catch { setHandRaised(false) }
+  }, [localParticipant.metadata])
+  const toggleHand = async () => {
+    const next = !handRaised
+    let cur: Record<string, unknown> = {}
+    try { cur = JSON.parse(localParticipant.metadata || '{}') } catch { /* fresh */ }
+    try {
+      await localParticipant.setMetadata(JSON.stringify({ ...cur, handRaised: next }))
+      setHandRaised(next)
+    } catch { /* signal not ready (mid-connect) — ignore */ }
+  }
 
   const toggleMic = async () => {
     try { await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) }
@@ -1312,6 +1457,12 @@ function MediaControls({ onSharingChange, canShare, onPresent, onError }: {
           label="Share Screen"
         />
       )}
+      <DockBtn
+        active={handRaised ? true : undefined}
+        onClick={toggleHand}
+        icon={<Hand className="size-5" />}
+        label={handRaised ? 'Lower hand' : 'Raise hand'}
+      />
     </>
   )
 }
@@ -1415,9 +1566,12 @@ function ParticipantStageTile({ participant, track, big, presenterBadge, mutedAl
   }
   const name = participant.name || participant.identity
   const hasVideo = !!track && !!track.publication && track.publication.isSubscribed && !track.publication.isMuted
-  const micOff = participant.isMicrophoneEnabled === false || mutedAll
+  // Real mic state only — see FacultyPanelLive: OR-ing mutedAll froze the icon.
+  const micOff = participant.isMicrophoneEnabled === false
+  let handRaised = false
+  try { handRaised = JSON.parse(participant.metadata || '{}').handRaised === true } catch { /* none */ }
   return (
-    <div className="relative overflow-hidden rounded-2xl">
+    <div className={cn('relative overflow-hidden rounded-2xl', handRaised && 'ring-2 ring-amber-400')}>
       {hasVideo && track ? (
         <TrackRefContext.Provider value={track}>
           <ParticipantTile className="absolute inset-0 size-full" disableSpeakingIndicator />
@@ -1429,6 +1583,11 @@ function ParticipantStageTile({ participant, track, big, presenterBadge, mutedAl
             <span className={cn('font-bold text-slate-700', big ? 'text-5xl' : 'text-xl')}>{initialsOf(name)}</span>
           </div>
         </>
+      )}
+      {handRaised && (
+        <div className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-full bg-amber-400 text-white shadow-lg animate-in zoom-in-50">
+          <Hand className="size-4" />
+        </div>
       )}
       <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 bg-black/50 px-3 py-2 backdrop-blur-sm">
         {micOff
@@ -1449,6 +1608,7 @@ function CenterStageLive({ hostId, viewMode, mutedAll, myReaction, liveHookLabel
   liveHookLabel: string | null
   caption: string | null
 }) {
+  const { localParticipant } = useLocalParticipant()
   const participants = useParticipants().filter((p) => !isAgentParticipant(p))
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], { onlySubscribed: false })
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }], { onlySubscribed: false })
@@ -1459,23 +1619,43 @@ function CenterStageLive({ hostId, viewMode, mutedAll, myReaction, liveHookLabel
   const presenter = participants.find((p) => p.identity === hostId) ?? participants[0]
   const others = participants.filter((p) => p !== presenter)
 
-  if (viewMode === 'presentation') {
-    const share = screenTracks[screenTracks.length - 1]
+  const share = screenTracks[screenTracks.length - 1]
+
+  // A screen share takes over the stage for EVERYONE the moment it starts —
+  // the Meet/Zoom behaviour. Previously the share rendered only in the sharer's
+  // own local 'presentation' viewMode, so other participants (sitting in
+  // gallery) never saw it at all. We also never render the sharer's OWN screen
+  // back to them: FocusLayout on their own capture recurses into an infinite
+  // mirror when they're sharing the whole screen — they get a placeholder.
+  if (share) {
+    const isLocalShare = share.participant.identity === localParticipant.identity
     return (
       <div className="relative min-h-0 flex-1 overflow-hidden bg-gray-900 p-2">
-        {share ? (
-          <div className="relative h-full overflow-hidden rounded-2xl ring-1 ring-white/10">
+        <div className="relative h-full overflow-hidden rounded-2xl ring-1 ring-white/10">
+          {isLocalShare ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 bg-gray-950 text-center">
+              <Monitor className="size-8 text-teal-400" />
+              <div className="text-[14px] font-semibold text-slate-200">You’re presenting your screen</div>
+              <p className="max-w-xs text-[12px] text-slate-500">Everyone in the room can see your shared screen. Use “Share Screen” in the dock again to stop.</p>
+            </div>
+          ) : (
             <FocusLayout trackRef={share} />
-            {liveHookLabel && <LiveHookBanner label={liveHookLabel} />}
-            {caption && <CaptionBar text={caption} />}
-          </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <Monitor className="size-8 text-slate-600" />
-            <div className="text-[14px] font-semibold text-slate-300">No one is sharing their screen</div>
-            <p className="max-w-xs text-[12px] text-slate-500">Use “Share Screen” in the dock to present slides, OCT scans or an exam to the room.</p>
-          </div>
-        )}
+          )}
+          {liveHookLabel && <LiveHookBanner label={liveHookLabel} />}
+          {caption && <CaptionBar text={caption} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (viewMode === 'presentation') {
+    return (
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-gray-900 p-2">
+        <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+          <Monitor className="size-8 text-slate-600" />
+          <div className="text-[14px] font-semibold text-slate-300">No one is sharing their screen</div>
+          <p className="max-w-xs text-[12px] text-slate-500">Use “Share Screen” in the dock to present slides, OCT scans or an exam to the room.</p>
+        </div>
       </div>
     )
   }

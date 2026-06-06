@@ -244,3 +244,14 @@ export async function muteAllParticipants(sessionId: string): Promise<boolean> {
   const r = await sendJson<{ muted: number }>(`/api/classroom/sessions/${sessionId}/mute-all`, 'POST')
   return r.ok
 }
+
+// End the session for EVERYONE: flips status to ENDED and deletes the LiveKit
+// room server-side, which disconnects every participant (they get a
+// ROOM_DELETED disconnect the room handler turns into a redirect). Host-only,
+// enforced server-side. Previously the console's "End Session" was just a link
+// to /post — the host left but the room stayed alive, so members were stranded
+// in the call until they clicked Leave themselves.
+export async function endLiveSession(sessionId: string): Promise<boolean> {
+  const r = await sendJson<{ ended: boolean }>(`/api/classroom/sessions/${sessionId}/end`, 'POST')
+  return r.ok
+}

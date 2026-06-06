@@ -208,7 +208,14 @@ export default async function ClassroomSessionPage({ params, searchParams }: Pag
   // the in-room HookOverlay and can join their assigned breakout. This replaces
   // the old split where the host saw the console and learners saw a different
   // (Teams-style) room — the source of the UI mismatch.
-  if (effectiveStatus === 'LIVE') {
+  //
+  // Board rooms are instant meetings with NO scheduled lobby / "Start Session"
+  // step, so they're created SCHEDULED and never explicitly flip to LIVE before
+  // this page renders — which left the board-room host on the OLD LiveSession UI
+  // while a normal live session showed the console (the Board-Room vs Normal
+  // inconsistency). Board rooms therefore always use the console; the token mint
+  // flips them LIVE on join.
+  if (effectiveStatus === 'LIVE' || isBoardRoom) {
     const view = await loadSessionView(s.id)
     if (view) {
       return <LiveConference session={view} isHost={session.user.id === s.hostId} />

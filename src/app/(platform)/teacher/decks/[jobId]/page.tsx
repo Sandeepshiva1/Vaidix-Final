@@ -10,6 +10,7 @@ import { DeckEditorClient } from './deck-editor-client';
 import { isRouterV2 } from '@/server/services/decks/deck-analyze-service';
 import { presignDownload } from '@/lib/storage';
 import { asSlideOverlay } from '@/lib/deck-overlay';
+import { asImageBox, asSlideRich } from '@/lib/deck-slide-extras';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +68,14 @@ export default async function FacultyDeckEditorPage({
           italic: s.italic,
           underline: s.underline,
           fontScale: s.fontScale,
-          tableJson: s.tableJson as unknown as { rows: string[][] } | null,
+          tableJson: s.tableJson as unknown as {
+            rows: string[][];
+            headerHex?: string | null;
+            colWidths?: number[] | null;
+            widthPct?: number | null;
+          } | null,
+          imageBox: asImageBox(s.imageBox),
+          richJson: asSlideRich(s.richJson),
           imageS3Key: s.imageS3Key,
           imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
           sourceImageUrl: s.sourceImageS3Key ? await presignDownload(s.sourceImageS3Key, 1800) : null,

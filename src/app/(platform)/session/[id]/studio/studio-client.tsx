@@ -41,12 +41,57 @@ export interface SessionDeck {
   status: DeckForgeStatus | null
 }
 
-const ACCEPTED_TYPES: { kind: 'pdf' | 'pptx' | 'docx' | 'notes'; label: string; ext: string; icon: React.ReactNode }[] = [
+type SourceKind = 'pdf' | 'pptx' | 'docx' | 'notes'
+
+const ACCEPTED_TYPES: { kind: SourceKind; label: string; ext: string; icon: React.ReactNode }[] = [
   { kind: 'pdf', label: 'PDF', ext: '.pdf', icon: <FileText className="size-4" /> },
   { kind: 'pptx', label: 'PowerPoint', ext: '.pptx', icon: <FileType className="size-4" /> },
   { kind: 'docx', label: 'Word', ext: '.docx', icon: <FileText className="size-4" /> },
   { kind: 'notes', label: 'Notes / Articles', ext: '.txt', icon: <FileText className="size-4" /> },
 ]
+
+// Each source-material row is type-specific: clicking "PDF" must only accept a
+// PDF, "PowerPoint" only .ppt/.pptx, etc. The `accept` attribute alone is just a
+// picker hint, so we also validate the chosen file's extension against the slot
+// the user clicked and reject mismatches with a clear, type-named message.
+const KIND_RULES: Record<SourceKind, { label: string; exts: string[]; accept: string; hint: string }> = {
+  pdf: {
+    label: 'PDF',
+    exts: ['pdf'],
+    accept: '.pdf,application/pdf',
+    hint: 'a .pdf file',
+  },
+  pptx: {
+    label: 'PowerPoint',
+    exts: ['pptx', 'ppt'],
+    accept:
+      '.pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint',
+    hint: 'a .pptx or .ppt file',
+  },
+  docx: {
+    label: 'Word',
+    exts: ['docx', 'doc'],
+    accept:
+      '.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword',
+    hint: 'a .docx or .doc file',
+  },
+  notes: {
+    label: 'Notes / Articles',
+    exts: ['txt', 'md'],
+    accept: '.txt,.md,text/plain,text/markdown',
+    hint: 'a .txt or .md file',
+  },
+}
+
+// Human description of an arbitrary uploaded extension, for the mismatch error.
+function describeExt(ext: string): string {
+  if (ext === 'pdf') return 'a PDF'
+  if (ext === 'ppt' || ext === 'pptx') return 'a PowerPoint file'
+  if (ext === 'doc' || ext === 'docx') return 'a Word document'
+  if (ext === 'txt' || ext === 'md') return 'a text/notes file'
+  if (ext === 'key') return 'a Keynote file'
+  return ext ? `a .${ext} file` : 'that file'
+}
 
 const ACCEPT_ATTR =
   '.pptx,.ppt,.pdf,.docx,.doc,.txt,.md,' +
@@ -84,6 +129,9 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
   // Target number of slides for AI generation (clamped 4–40 server-side).
   const [slideCount, setSlideCount] = useState(12)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Which type-specific source slot the user clicked, so onChange can verify the
+  // chosen file actually matches it (the PDF slot must reject a .pptx, etc.).
+  const selectedKindRef = useRef<SourceKind | null>(null)
   // Deck-level management state: which PPT is being deleted (spinner), and which
   // (if any) is being REPLACED — the new upload soft-deletes the old one only
   // AFTER the new deck forges successfully, so a cancelled replace loses nothing.
@@ -520,7 +568,21 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
         onChange={(e) => {
           const f = e.target.files?.[0]
           e.target.value = ''
+          const kind = selectedKindRef.current
+          selectedKindRef.current = null
           if (!f) return
+          // Enforce the slot the user clicked — the `accept` hint is bypassable
+          // (drag-drop / "All files"), so re-check the actual extension here.
+          if (kind) {
+            const ext = (f.name.split('.').pop() ?? '').toLowerCase()
+            if (!KIND_RULES[kind].exts.includes(ext)) {
+              setFlow({
+                kind: 'error',
+                message: `You chose the ${KIND_RULES[kind].label} option but selected ${describeExt(ext)}. Please pick ${KIND_RULES[kind].hint}.`,
+              })
+              return
+            }
+          }
           if (isUpload) onUploadModeFile(f)
           else onCreateModeFile(f)
         }}
@@ -542,7 +604,15 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                 <button
                   key={t.kind}
                   type="button"
-                  onClick={() => { if (!busy) fileInputRef.current?.click() }}
+                  onClick={() => {
+                    if (busy) return
+                    selectedKindRef.current = t.kind
+                    // Restrict the OS picker to this slot's types, then open it.
+                    if (fileInputRef.current) {
+                      fileInputRef.current.accept = KIND_RULES[t.kind].accept
+                      fileInputRef.current.click()
+                    }
+                  }}
                   disabled={busy}
                   className="flex w-full items-center gap-2.5 rounded-xl border border-border/60 bg-background/70 px-3 py-2.5 text-[12.5px] font-medium text-foreground/80 transition-colors hover:border-teal-500/40 hover:bg-teal-500/5 disabled:opacity-60"
                 >

@@ -120,6 +120,7 @@ export const AUDIT_EVENTS = {
   DECK_SLIDE_UPDATED: 'deck.slide.updated',
   DECK_EXPORTED_PPTX: 'deck.exported.pptx',
   DECK_ANALYZED: 'deck.analyzed',
+  DECK_SLIDES_GENERATED: 'deck.slides.generated',
   DECK_SUGGESTION_APPLIED: 'deck.suggestion.applied',
   DECK_SUGGESTION_DISMISSED: 'deck.suggestion.dismissed',
   DECK_SLIDE_REFINED: 'deck.slide.refined',

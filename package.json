@@ -39,6 +39,7 @@
     "e2e:w-guest-resilience": "tsx --env-file=.env.local --env-file=.env scripts/e2e-w-guest-resilience.ts",
     "e2e:prompts": "tsx --env-file=.env.local --env-file=.env scripts/e2e-prompt-loader-integration.ts",
     "smoke:prompts": "tsx --env-file=.env.local --env-file=.env scripts/smoke-prompt-loader.ts",
+    "verify:webhook-fk": "tsx --env-file=.env.local --env-file=.env scripts/verify-livekit-webhook-fk.ts",
     "test:e2e:ui": "playwright test",
     "test:e2e:ui:headed": "playwright test --headed",
     "test:e2e:ui:report": "playwright show-report"

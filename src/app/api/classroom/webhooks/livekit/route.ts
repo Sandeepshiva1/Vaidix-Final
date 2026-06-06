@@ -16,10 +16,33 @@ import { audit, AUDIT_EVENTS } from '@/server/services/audit';
 import { maybeFlipToLive } from '@/server/services/session-service';
 
 const ROOM_SESSION_PREFIX = 'session-';
+// Breakout child rooms are named `session-<sessionId>-bk-<breakoutId>` by
+// breakoutRoomName() in server/services/breakouts/breakout-service.ts. The
+// `-bk-` infix is the discriminator: a TeachingSession id is a cuid and can
+// never contain it, so a room name carrying `-bk-` is unambiguously a breakout
+// child room, not a main session room.
+const BREAKOUT_ROOM_MARKER = '-bk-';
 
-function roomToSessionId(roomName: string | undefined): string | null {
+/**
+ * Resolve a LiveKit room name to the TeachingSession id it represents, or null
+ * if the room is not a trackable main-session room.
+ *
+ * Returns null for:
+ *   - rooms without the `session-` prefix (unknown / unrelated rooms), and
+ *   - breakout child rooms (`session-<sessionId>-bk-<breakoutId>`).
+ *
+ * Breakout attendance is tracked separately in BreakoutParticipant, NOT in
+ * SessionParticipant. Earlier this function stripped only the `session-`
+ * prefix, so a breakout join produced the bogus id `<sessionId>-bk-<breakoutId>`
+ * and every breakout `participant_joined` webhook failed the
+ * `session_participants_sessionId_fkey` constraint (P2003) and spammed the log.
+ *
+ * Exported for verification/regression coverage (scripts/verify-livekit-webhook-fk.ts).
+ */
+export function roomToSessionId(roomName: string | undefined): string | null {
   if (!roomName) return null;
   if (!roomName.startsWith(ROOM_SESSION_PREFIX)) return null;
+  if (roomName.includes(BREAKOUT_ROOM_MARKER)) return null;
   return roomName.slice(ROOM_SESSION_PREFIX.length);
 }
 
@@ -286,14 +309,41 @@ export async function POST(req: Request) {
     return new Response('OK', { status: 200 });
   }
 
-  // ─── Room lifecycle events (existing logic) ─────────────────────────
-  const sessionId = roomToSessionId(event.room?.name);
-  if (!sessionId) {
-    return new Response('OK (no-op)', { status: 200 });
-  }
-
+  // ─── Room lifecycle events ──────────────────────────────────────────
   try {
-    switch (event.event) {
+    const result = await handleRoomLifecycleEvent(event);
+    return new Response(result === 'no-op' ? 'OK (no-op)' : 'OK', { status: 200 });
+  } catch (err) {
+    console.error('[livekit-webhook] handler error:', err, 'event:', event.event);
+    return new Response('Handler error', { status: 500 });
+  }
+}
+
+type LiveKitWebhookEvent = Awaited<ReturnType<typeof webhookReceiver.receive>>;
+
+/**
+ * Handle a LiveKit *room-lifecycle* webhook event (room_started / room_finished
+ * / participant_joined / participant_left / track_published).
+ *
+ * Returns 'no-op' when the room is not a trackable main-session room — i.e.
+ * roomToSessionId() returned null (unknown room or a breakout child room) — and
+ * 'ok' when the event was dispatched against a resolved session.
+ *
+ * Throws on unexpected DB errors; the POST handler maps a throw to HTTP 500 so
+ * LiveKit retries delivery. Expected-absent rows (unknown user / unknown
+ * session) are handled inline as clean no-ops and never throw.
+ *
+ * Exported so verification/regression coverage can drive the full handler
+ * end-to-end without minting a signed webhook — signature verification is the
+ * separate concern owned by POST(). See scripts/verify-livekit-webhook-fk.ts.
+ */
+export async function handleRoomLifecycleEvent(
+  event: LiveKitWebhookEvent,
+): Promise<'ok' | 'no-op'> {
+  const sessionId = roomToSessionId(event.room?.name);
+  if (!sessionId) return 'no-op';
+
+  switch (event.event) {
       case 'room_started': {
         // Capture the LiveKit room SID regardless of pre-flight vs in-window —
         // the SID is just a handle for later operations (egress, mute, etc.)
@@ -360,6 +410,26 @@ export async function POST(req: Request) {
           select: { role: true },
         });
         if (!u) break;
+        // Defense-in-depth for the sessionId FK. roomToSessionId() already
+        // filters out breakout child rooms (the original cause of the
+        // session_participants_sessionId_fkey P2003 spam), but a session can
+        // still legitimately be absent here — e.g. a hard-deleted session whose
+        // LiveKit room is still draining, or any future room-name shape we don't
+        // yet special-case. Verify the parent row exists before the upsert so a
+        // missing session degrades to a clean no-op + warning instead of an
+        // unhandled P2003 that 500s the webhook. Mirrors the user-existence
+        // guard above and the findUnique-first pattern in the egress path.
+        const sessionExists = await db.teachingSession.findUnique({
+          where: { id: sessionId },
+          select: { id: true },
+        });
+        if (!sessionExists) {
+          console.warn(
+            '[livekit-webhook] participant_joined for unknown session, skipping:',
+            { sessionId, roomName: event.room?.name, userId },
+          );
+          break;
+        }
         // Upsert so we record joins even if there was no pre-created row
         // (e.g. an open-to-all session where attendance wasn't pre-seeded).
         // The unique constraint on (sessionId, userId) makes this idempotent.
@@ -419,11 +489,7 @@ export async function POST(req: Request) {
       }
       default:
         break;
-    }
-  } catch (err) {
-    console.error('[livekit-webhook] handler error:', err, 'event:', event.event);
-    return new Response('Handler error', { status: 500 });
   }
 
-  return new Response('OK', { status: 200 });
+  return 'ok';
 }
