@@ -122,8 +122,12 @@ export function BreakoutRoomView({ sessionId, breakoutId, breakoutName, isFacult
           token={conn.token}
           serverUrl={conn.url}
           connect
-          audio
-          video
+          // Join with mic + camera OFF (the user toggles them in the control
+          // bar) — matching the main room. `audio`/`video` here auto-published
+          // the camera the instant someone entered a breakout, which is why
+          // video turned itself on. Let people opt in instead.
+          audio={false}
+          video={false}
           // Same CPU guardrails as the main room: decode only visible tiles,
           // stop publishing unviewed layers.
           options={{ adaptiveStream: true, dynacast: true }}

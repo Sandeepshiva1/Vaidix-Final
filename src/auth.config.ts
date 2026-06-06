@@ -104,7 +104,29 @@ export const authConfig: NextAuthConfig = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: 60 * 60 * 8, // 8 hours
+    // SLIDING idle timeout, not a fixed cutoff. Previously `updateAge` defaulted
+    // to 24h while `maxAge` was 8h — because updateAge > maxAge the cookie was
+    // never re-issued, so the session died a hard 8h after login even for an
+    // actively-working user (the classic "logged out mid-task" complaint).
+    //
+    // Now: every authenticated request that lands within the window re-issues
+    // the cookie with a fresh `maxAge`, so an ACTIVE user is NEVER signed out;
+    // only `maxAge` of true INACTIVITY ends the session. There is no refresh
+    // token and no rotation here (single encrypted JWE cookie), so none of the
+    // refresh-rotation race conditions / multi-tab invalidation apply.
+    //
+    // Fast revocation is decoupled from this window: suspension / password
+    // change / forced logout is enforced within ~30s by the per-request
+    // passwordVersion recheck in requireAuth (SESSION_RECHECK_TTL_SEC), so a
+    // comfortable idle window does NOT weaken the account kill-switch.
+    //
+    // 4h idle is sized to outlast any single uninterrupted lecture/reading
+    // session (the live page has no cookie-refreshing heartbeat, so a passive
+    // viewer must be covered by the idle window). For shared-workstation
+    // deployments that want a tighter 15–30 min idle, pair a shorter maxAge with
+    // an activity-aware keepalive so passive viewers aren't dropped.
+    maxAge: 60 * 60 * 4, // 4h of INACTIVITY → sign-out (sliding)
+    updateAge: 60 * 30, // re-extend the cookie at most every 30 min of activity
   },
   callbacks: {
     async jwt({ token, user, trigger, session }) {

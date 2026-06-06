@@ -2221,6 +2221,17 @@ model Slide {
   // renderer fetches the S3 object and paints it into IMAGE_FOCUS slides;
   // falls back to the dashed placeholder when null/fetch fails.
   imageS3Key      String?
+  // Free placement/size for the slide image (PowerPoint-style). Fractions of
+  // the slide (0..1): { x, y, w, h }. Null = use the layout-derived default box
+  // (see resolveImageBox). Lets faculty drag + resize the image on the canvas;
+  // honoured by both the web SlideCanvas and the .pptx export.
+  imageBox        Json?
+  // Inline rich-text runs for title/bullets (PowerPoint-style per-selection
+  // bold/italic/underline). Shape: { title?: string(html), bullets?: (string|null)[] }
+  // where each value is sanitised HTML limited to <b>/<i>/<u> (+ <strong>/<em>).
+  // The plain-text mirrors in `title`/`bullets` stay authoritative for AI/search;
+  // when a field has a richJson entry the canvas + export render the HTML runs.
+  richJson        Json?
   // The prompt aiGenerateImagePrompt produced — kept for audit and so
   // faculty can regenerate with a tweaked prompt from the Studio later.
   imagePrompt     String?     @db.Text

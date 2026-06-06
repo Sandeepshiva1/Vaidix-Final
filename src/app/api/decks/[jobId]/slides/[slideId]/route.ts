@@ -14,8 +14,11 @@ import { audit, AUDIT_EVENTS, extractRequestMetadata } from '@/server/services/a
 import { db } from '@/lib/db';
 import { recordEditSignal } from '@/server/services/decks/faculty-style-profile';
 import { FacultyEditSignalKind } from '@prisma/client';
+import { sanitizeRichHtml } from '@/lib/deck-slide-extras';
 
 const FACULTY_LIKE: Role[] = [Role.FACULTY, Role.PROGRAM_DIRECTOR, Role.ADMIN];
+
+const HEX6_RE = /^[0-9a-fA-F]{6}$/;
 
 // An inserted table: a rectangular grid of cell strings (first row = header).
 // Bounded so a malformed/huge payload can't blow up the slide or the export.
@@ -24,6 +27,26 @@ const TableSchema = z.object({
     .array(z.array(z.string().max(500)).min(1).max(8))
     .min(1)
     .max(12),
+  // Optional header-band fill (hex, no '#').
+  headerHex: z.string().regex(HEX6_RE).nullable().optional(),
+  // Optional relative column widths (one per column) and overall width fraction.
+  colWidths: z.array(z.number()).max(8).nullable().optional(),
+  widthPct: z.number().min(0.2).max(1).nullable().optional(),
+});
+
+// Free placement/size of the slide image — fractions of the slide (0..1).
+const ImageBoxSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+});
+
+// Inline rich-text runs. Each value is contentEditable HTML; it is re-sanitised
+// server-side to the <b>/<i>/<u> subset before persisting (defence in depth).
+const RichSchema = z.object({
+  title: z.string().max(8000).nullable().optional(),
+  bullets: z.array(z.string().max(8000).nullable()).max(16).nullable().optional(),
 });
 
 // Faithful-import editable overlay (positioned text boxes over the original
@@ -70,6 +93,10 @@ const PatchBody = z
     fontScale: z.number().min(0.6).max(1.6).optional(),
     // ── Inserted table (null clears it) ─────────────────────────────────────
     tableJson: TableSchema.nullable().optional(),
+    // ── Free image placement/size (null = layout default) ───────────────────
+    imageBox: ImageBoxSchema.nullable().optional(),
+    // ── Inline rich-text runs for title/bullets (null clears it) ────────────
+    richJson: RichSchema.nullable().optional(),
     // ── Faithful-import overlay edits (null clears it) ──────────────────────
     overlayJson: OverlaySchema.nullable().optional(),
   })
@@ -108,6 +135,26 @@ export async function PATCH(
   const { jobId, slideId } = await ctx.params;
   const parsed = await parseBody(req, PatchBody);
   if (!parsed.ok) return parsed.response;
+
+  // Re-sanitise rich-text HTML server-side (never trust the client) down to the
+  // <b>/<i>/<u> subset; empty entries become null.
+  const cleanRich =
+    parsed.data.richJson === undefined
+      ? undefined
+      : parsed.data.richJson === null
+        ? null
+        : {
+            ...(parsed.data.richJson.title !== undefined
+              ? { title: sanitizeRichHtml(parsed.data.richJson.title) || null }
+              : {}),
+            ...(parsed.data.richJson.bullets !== undefined
+              ? {
+                  bullets: (parsed.data.richJson.bullets ?? []).map((h) =>
+                    h ? sanitizeRichHtml(h) || null : null,
+                  ),
+                }
+              : {}),
+          };
 
   try {
     const slide = await db.slide.findUnique({
@@ -151,6 +198,8 @@ export async function PATCH(
         ...(parsed.data.underline !== undefined ? { underline: parsed.data.underline } : {}),
         ...(parsed.data.fontScale !== undefined ? { fontScale: parsed.data.fontScale } : {}),
         ...(parsed.data.tableJson !== undefined ? { tableJson: parsed.data.tableJson ?? Prisma.DbNull } : {}),
+        ...(parsed.data.imageBox !== undefined ? { imageBox: parsed.data.imageBox ?? Prisma.DbNull } : {}),
+        ...(cleanRich !== undefined ? { richJson: cleanRich ?? Prisma.DbNull } : {}),
         ...(parsed.data.overlayJson !== undefined ? { overlayJson: parsed.data.overlayJson ?? Prisma.DbNull } : {}),
       },
     });

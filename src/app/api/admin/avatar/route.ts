@@ -25,8 +25,7 @@ import {
   parseBody,
   handleUnexpected,
 } from '@/server/services/api-helpers';
-import { presignUpload, BUCKET, isLocalStorageBackend } from '@/lib/storage';
-import { env } from '@/lib/env';
+import { presignUpload, isLocalStorageBackend } from '@/lib/storage';
 import { mintToken } from '@/server/services/tokens';
 
 const ALLOWED_TYPES: Record<string, string> = {
@@ -54,27 +53,21 @@ export async function POST(req: Request) {
 
     const ext = ALLOWED_TYPES[body.data.contentType];
 
-    // Local-FS dev backend: no MinIO/S3 is running, so a presigned URL would
-    // point at an unreachable host and the browser PUT fails with "Failed to
-    // fetch". Hand back a same-origin URL the dev app can serve instead. The
-    // same URL is used for both upload (PUT) and view (GET).
+    // Content-addressed id (16 hex). The stored avatarUrl is ALWAYS the stable,
+    // same-origin proxy `/api/avatar/<id>.<ext>` — backend-agnostic, so it never
+    // breaks across local FS / MinIO / AWS S3 (public or private). The bytes are
+    // resolved at view-time by GET /api/avatar/[file].
+    const fileId = `${mintToken(8)}.${ext}`;
+    const avatarUrl = `/api/avatar/${fileId}`;
+
+    // The UPLOAD target still depends on the backend:
+    //   • local FS  → same-origin PUT the dev app serves (no MinIO/S3 running).
+    //   • S3/MinIO  → presigned PUT straight to the `avatars/` prefix.
     if (isLocalStorageBackend()) {
-      const localUrl = `/api/uploads/local-avatar/${mintToken(8)}.${ext}`;
-      return jsonOk({ uploadUrl: localUrl, avatarUrl: localUrl });
+      return jsonOk({ uploadUrl: `/api/uploads/local-avatar/${fileId}`, avatarUrl });
     }
 
-    const key = `avatars/${mintToken(8)}.${ext}`;
-
-    const uploadUrl = await presignUpload(key, body.data.contentType);
-    // Stable view URL pointed at the bucket. For MinIO / any custom endpoint we
-    // use path-style (endpoint/bucket/key); for AWS S3 (no endpoint set) we use
-    // virtual-host style (bucket.s3.<region>.amazonaws.com/key). Both assume
-    // public-read (or CloudFront) on the avatars/ prefix.
-    const viewBase = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
-    const avatarUrl = viewBase
-      ? `${viewBase.replace(/\/$/, '')}/${BUCKET}/${key}`
-      : `https://${BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
-
+    const uploadUrl = await presignUpload(`avatars/${fileId}`, body.data.contentType);
     return jsonOk({ uploadUrl, avatarUrl });
   } catch (err) {
     return handleUnexpected(err);

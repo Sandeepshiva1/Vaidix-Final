@@ -415,6 +415,118 @@ async function generateAndPersistSlides(args: {
   return { jobId, deckTitle: result.deckTitle, slideCount: result.slides.length };
 }
 
+export interface AppendedSlide {
+  id: string;
+  order: number;
+  layout: SlideLayout;
+  title: string;
+  bullets: string[];
+  speakerNotes: string | null;
+}
+
+/**
+ * Append AI-generated slides to an EXISTING deck — the in-editor "AI Slides"
+ * action. Unlike generateAndPersistSlides (which builds a deck from scratch and
+ * is destructive), this is purely additive: it generates `count` NEW slides
+ * from a faculty prompt, anchored by the deck title + the existing slide titles
+ * (so the model doesn't duplicate what's already there), and inserts them after
+ * the last slide. It deliberately does NOT flip the job status or rebuild the
+ * deck document — the deck re-renders on finalize/export. Gemini-tier to match
+ * in-editor enhancement; AI errors propagate so the route maps them to 503/502.
+ */
+export async function appendGeneratedSlides(args: {
+  jobId: string;
+  prompt: string;
+  count?: number;
+  learnerLevel?: string;
+}): Promise<{ slides: AppendedSlide[] }> {
+  const count = Math.max(1, Math.min(6, Math.round(args.count ?? 1)));
+  const learnerLevel = args.learnerLevel ?? 'ophthalmology resident at LVPEI';
+
+  const job = await db.deckForgeJob.findUnique({
+    where: { id: args.jobId },
+    select: {
+      id: true,
+      inputTitle: true,
+      slides: { select: { order: true, title: true }, orderBy: { order: 'asc' } },
+    },
+  });
+  if (!job) throw new DeckForgeError('NOT_FOUND', 'Deck not found');
+
+  const existingTitles = job.slides.map((s) => `- ${s.title}`).join('\n') || '(none yet)';
+  const userParts: Array<{ text: string }> = [
+    {
+      text: [
+        `Target learner: ${learnerLevel}`,
+        `You are ADDING to an EXISTING deck titled "${job.inputTitle ?? 'Untitled Deck'}".`,
+        `Existing slide titles (do NOT duplicate these):`,
+        existingTitles,
+        ``,
+        `Produce EXACTLY ${count} NEW slide(s) that satisfy the request below and`,
+        `fit the deck's topic and the stated learner level. Anchor claims to`,
+        `standard ophthalmology teaching; never invent dosages, drug names, or`,
+        `classification cutoffs.`,
+      ].join('\n'),
+    },
+    { text: `--- REQUEST ---\n${args.prompt.slice(0, 2000)}\n--- END REQUEST ---` },
+    {
+      text: `Output strict JSON {"slides":[...]} containing EXACTLY ${count} slide object(s). No deckTitle needed.`,
+    },
+  ];
+
+  // Gemini-tier (matches in-editor enhancement). Unparseable / unavailable
+  // errors propagate to the route, which maps them to 502 / 503.
+  const rawText = await geminiGenerate({
+    systemInstruction: SYSTEM_PROMPT,
+    userParts,
+    responseMimeType: 'application/json',
+    temperature: 0.35,
+  });
+  const parsed = tryParseJson<{ deckTitle?: unknown; slides?: unknown }>(rawText);
+  const fresh = normalizeSlides(parsed).slides.slice(0, count);
+  if (fresh.length === 0) {
+    throw new DeckForgeError('EMPTY_DECK', 'AI returned no usable slides');
+  }
+
+  // Append after the current last slide (Slide has @@unique([deckForgeJobId, order])).
+  const startOrder = job.slides.reduce((m, s) => Math.max(m, s.order), -1) + 1;
+
+  // Persist in one transaction. Use per-row create (not createMany) so we get
+  // the generated ids back to hand to the editor for immediate in-place insert.
+  const created = await db.$transaction(async (tx) => {
+    const out: AppendedSlide[] = [];
+    for (let i = 0; i < fresh.length; i++) {
+      const s = fresh[i];
+      const row = await tx.slide.create({
+        data: {
+          deckForgeJobId: args.jobId,
+          order: startOrder + i,
+          layout: s.layout,
+          title: s.title,
+          bullets: s.bullets,
+          speakerNotes: s.speakerNotes || null,
+        },
+        select: {
+          id: true,
+          order: true,
+          layout: true,
+          title: true,
+          bullets: true,
+          speakerNotes: true,
+        },
+      });
+      out.push(row);
+    }
+    await tx.deckForgeJob.update({
+      where: { id: args.jobId },
+      data: { slideCount: job.slides.length + fresh.length },
+    });
+    return out;
+  });
+
+  return { slides: created };
+}
+
 /**
  * Topic-only forge: build a deck purely from a typed topic prompt — no
  * uploaded document, no recording. There is no inline file part; the "source"

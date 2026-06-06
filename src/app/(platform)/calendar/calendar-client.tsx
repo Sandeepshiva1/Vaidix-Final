@@ -78,13 +78,32 @@ const SESSION_TYPE_LABEL: Record<string, string> = {
 
 interface CalEvent {
   id: string // calendar occurrence id (unique per render key)
-  sessionId: string // real session id → links to /session/:id/pre
+  sessionId: string // real session id
   title: string
   specialty?: string
   date: string // YYYY-MM-DD (local)
   time: string // HH:mm (local)
   duration: number // minutes
   role: RoleType
+  /// Stage-aware destination. The calendar used to hard-link every event to
+  /// /session/:id/pre regardless of status — so an ENDED session opened the
+  /// pre-conference (while the dashboard correctly opened the post-conference),
+  /// and non-hosts were bounced from the host-only /session/* workflow. This is
+  /// computed per status + host so both entry points behave the same.
+  href: string
+}
+
+// Mirror the dashboard's stage routing: ENDED/CANCELLED → post, LIVE → the
+// unified console at /classroom/:id, SCHEDULED → host prep or the learner hub.
+function sessionHref(e: ApiEvent, currentUserId: string | null): string {
+  const isHost = !!e.host && e.host.id === currentUserId
+  if (e.status === 'ENDED' || e.status === 'CANCELLED') {
+    return isHost ? `/session/${e.sessionId}/post` : `/classroom/${e.sessionId}/post`
+  }
+  if (e.status === 'LIVE') {
+    return `/classroom/${e.sessionId}`
+  }
+  return isHost ? `/session/${e.sessionId}/pre` : `/classroom/${e.sessionId}`
 }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -103,7 +122,7 @@ function isoDate(year: number, month: number, day: number) {
 }
 
 // Convert a real ApiEvent → the demo's CalEvent shape (local date/time).
-function toCalEvent(e: ApiEvent): CalEvent {
+function toCalEvent(e: ApiEvent, currentUserId: string | null): CalEvent {
   const start = new Date(e.start)
   const end = new Date(e.end)
   const date = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
@@ -118,6 +137,7 @@ function toCalEvent(e: ApiEvent): CalEvent {
     time,
     duration,
     role: roleForViewer(e.userRole, e.sessionType),
+    href: sessionHref(e, currentUserId),
   }
 }
 
@@ -152,7 +172,7 @@ export function CalendarClient({ currentUserId }: CalendarClientProps) {
         const json = await res.json()
         if (!json.ok) throw new Error(json.error?.message ?? 'Failed to load events')
         if (cancelled) return
-        const all = (json.data.events as ApiEvent[]).map((e) => ({ ...toCalEvent(e), _hostId: e.host?.id ?? null }))
+        const all = (json.data.events as ApiEvent[]).map((e) => ({ ...toCalEvent(e, currentUserId), _hostId: e.host?.id ?? null }))
         // "My Calendar" = sessions the current user hosts; "Organisational" = the rest.
         const mineList: CalEvent[] = []
         const orgList: CalEvent[] = []
@@ -342,7 +362,7 @@ export function CalendarClient({ currentUserId }: CalendarClientProps) {
               {selectedDayEvents.map((ev) => (
                 <Link
                   key={ev.id}
-                  href={`/session/${ev.sessionId}/pre`}
+                  href={ev.href}
                   className={cn('block rounded-2xl border p-3.5 transition-all hover:opacity-90', ROLE_COLORS[ev.role].bg)}
                 >
                   <div className={cn('flex items-center gap-1.5 text-[10.5px] font-semibold tracking-wider uppercase', ROLE_COLORS[ev.role].text)}>
@@ -367,7 +387,7 @@ export function CalendarClient({ currentUserId }: CalendarClientProps) {
               {upcoming.slice(0, 6).map((ev) => (
                 <Link
                   key={ev.id}
-                  href={`/session/${ev.sessionId}/pre`}
+                  href={ev.href}
                   className={cn('block w-full rounded-2xl border p-3 text-left transition-all hover:opacity-90', ROLE_COLORS[ev.role].bg)}
                 >
                   <div className={cn('flex items-center gap-1.5 text-[10px] font-semibold tracking-wider uppercase', ROLE_COLORS[ev.role].text)}>

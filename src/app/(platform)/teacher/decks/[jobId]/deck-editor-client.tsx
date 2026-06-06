@@ -19,10 +19,14 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Columns3,
   Download,
   ImagePlus,
   Italic,
   Loader2,
+  Minus,
+  Plus,
+  Rows3,
   Sparkles,
   Table as TableIcon,
   Trash2,
@@ -34,8 +38,9 @@ import {
   type SlideViewModel,
   type SlideTable,
 } from '@/components/decks/slide-canvas';
+import type { SlideRich } from '@/lib/deck-slide-extras';
 import { FaithfulSlide } from '@/components/decks/faithful-slide';
-import { DeckAiCoach } from '@/components/decks/deck-ai-coach';
+import { DeckRightPanel } from '@/components/decks/deck-right-panel';
 import { BackgroundPicker } from '@/components/decks/background-picker';
 import { DECK_THEMES, THEME_IDS, getDeckTheme } from '@/lib/deck-themes';
 import { DECK_FONTS, DEFAULT_FONT_ID, getFontById, googleFontsUrl } from '@/lib/deck-fonts';
@@ -62,6 +67,23 @@ function scaleToSize(scale: number): number {
 
 function newTable(): SlideTable {
   return { rows: [['Column 1', 'Column 2', 'Column 3'], ['', '', ''], ['', '', '']] };
+}
+
+/**
+ * Set the inline-HTML for bullet `idx`, padding/truncating the rich array so it
+ * stays index-aligned with the plain `bullets`. Empty HTML clears the entry
+ * (the plain text mirror remains authoritative).
+ */
+function mergeRichBullets(
+  rich: SlideRich | null | undefined,
+  bullets: string[],
+  idx: number,
+  html: string,
+): SlideRich {
+  const arr = (rich?.bullets ?? []).slice();
+  while (arr.length < bullets.length) arr.push(null);
+  arr[idx] = html || null;
+  return { ...(rich ?? {}), bullets: arr.slice(0, bullets.length) };
 }
 
 const LAYOUT_OPTIONS: SlideLayout[] = [
@@ -178,6 +200,38 @@ export function DeckEditorClient({
   // Any persisted change since the last finalize re-locks Present.
   const markDirty = useCallback(() => setDirty(true), []);
   const canPresent = finalized && !dirty;
+
+  // ── Inline (selection) text formatting ────────────────────────────────────
+  // PowerPoint-style: Bold/Italic/Underline act on the CURRENT SELECTION inside
+  // the focused slide text — not the whole slide. The button's onMouseDown
+  // preventDefault keeps the caret/selection in the editable; execCommand then
+  // wraps just the selection in <b>/<i>/<u>, and the EditText commits the new
+  // inline HTML on blur. A selectionchange listener drives the toggled state.
+  const [selFmt, setSelFmt] = useState({ bold: false, italic: false, underline: false });
+  useEffect(() => {
+    function onSel() {
+      try {
+        setSelFmt({
+          bold: document.queryCommandState('bold'),
+          italic: document.queryCommandState('italic'),
+          underline: document.queryCommandState('underline'),
+        });
+      } catch {
+        /* no active selection */
+      }
+    }
+    document.addEventListener('selectionchange', onSel);
+    return () => document.removeEventListener('selectionchange', onSel);
+  }, []);
+
+  function applyInlineFormat(cmd: 'bold' | 'italic' | 'underline') {
+    try {
+      document.execCommand('styleWithCSS', false, 'false');
+      document.execCommand(cmd);
+    } catch {
+      /* execCommand unsupported */
+    }
+  }
 
   const updateLocal = useCallback((id: string, patch: Partial<SlideViewModel>) => {
     setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -364,14 +418,6 @@ export function DeckEditorClient({
     fileInputRef.current?.click();
   }
 
-  // ── Ribbon Home: slide-level text formatting ──────────────────────────────
-  function toggleFmt(field: 'bold' | 'italic' | 'underline') {
-    if (!active) return;
-    const patch = { [field]: !active[field] } as Partial<SlideViewModel>;
-    updateLocal(active.id, patch);
-    void persistSlide(active.id, patch);
-  }
-
   function changeFontFamily(id: string) {
     setFontFamilyId(id)
     setFontPickerOpen(false)
@@ -391,6 +437,50 @@ export function DeckEditorClient({
     if (!active) return;
     updateLocal(active.id, { tableJson: null });
     void persistSlide(active.id, { tableJson: null });
+  }
+
+  // Persist a structural/colour change to the active slide's table. Always sent
+  // as a full table (rows + headerHex) so partial edits keep the other field.
+  function updateTable(next: SlideTable) {
+    if (!active) return;
+    updateLocal(active.id, { tableJson: next });
+    void persistSlide(active.id, { tableJson: next });
+  }
+
+  function addTableRow() {
+    if (!active?.tableJson) return;
+    const cols = active.tableJson.rows[0]?.length ?? 1;
+    const rows = [...active.tableJson.rows.map((r) => r.slice()), Array(cols).fill('')];
+    if (rows.length > 12) return; // matches API bound
+    updateTable({ ...active.tableJson, rows });
+  }
+
+  function deleteTableRow() {
+    if (!active?.tableJson) return;
+    if (active.tableJson.rows.length <= 2) return; // keep header + ≥1 body row
+    const rows = active.tableJson.rows.slice(0, -1).map((r) => r.slice());
+    updateTable({ ...active.tableJson, rows });
+  }
+
+  function addTableColumn() {
+    if (!active?.tableJson) return;
+    const cols = active.tableJson.rows[0]?.length ?? 0;
+    if (cols >= 8) return; // matches API bound
+    const rows = active.tableJson.rows.map((r, i) => [...r, i === 0 ? `Column ${cols + 1}` : '']);
+    updateTable({ ...active.tableJson, rows });
+  }
+
+  function deleteTableColumn() {
+    if (!active?.tableJson) return;
+    const cols = active.tableJson.rows[0]?.length ?? 0;
+    if (cols <= 1) return;
+    const rows = active.tableJson.rows.map((r) => r.slice(0, -1));
+    updateTable({ ...active.tableJson, rows });
+  }
+
+  function setTableHeaderHex(hex: string | null) {
+    if (!active?.tableJson) return;
+    updateTable({ ...active.tableJson, headerHex: hex });
   }
 
   async function exportPptx() {
@@ -593,6 +683,7 @@ export function DeckEditorClient({
                     >
                       <button
                         type="button"
+                        data-slide-index={i}
                         onClick={() => setActiveId(s.id)}
                         className={cn(
                           'group/btn relative block w-full overflow-hidden rounded-xl border text-left transition-all',
@@ -720,25 +811,25 @@ export function DeckEditorClient({
                     </div>
                   )}
                 </div>
-                <span className="pr-1 text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">Title</span>
+                <span className="pr-1 text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">Selection</span>
                 <div className="flex items-center gap-0.5 border-r border-border/60 pr-2">
                   <RibbonBtn
                     icon={<Bold className="size-3.5" />}
-                    label="Bold"
-                    active={!!active?.bold}
-                    onClick={() => toggleFmt('bold')}
+                    label="Bold (selected text)"
+                    active={selFmt.bold}
+                    onMouseDown={(e) => { e.preventDefault(); applyInlineFormat('bold'); }}
                   />
                   <RibbonBtn
                     icon={<Italic className="size-3.5" />}
-                    label="Italic"
-                    active={!!active?.italic}
-                    onClick={() => toggleFmt('italic')}
+                    label="Italic (selected text)"
+                    active={selFmt.italic}
+                    onMouseDown={(e) => { e.preventDefault(); applyInlineFormat('italic'); }}
                   />
                   <RibbonBtn
                     icon={<Underline className="size-3.5" />}
-                    label="Underline"
-                    active={!!active?.underline}
-                    onClick={() => toggleFmt('underline')}
+                    label="Underline (selected text)"
+                    active={selFmt.underline}
+                    onMouseDown={(e) => { e.preventDefault(); applyInlineFormat('underline'); }}
                   />
                 </div>
                 {/* Font size — PPT-style pt sizes mapped to slide fontScale */}
@@ -806,14 +897,65 @@ export function DeckEditorClient({
                   </span>
                 )}
                 {active?.tableJson && (
-                  <button
-                    type="button"
-                    onClick={removeTable}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5"
-                  >
-                    <Trash2 className="size-3" />
-                    Remove table
-                  </button>
+                  <>
+                    <span className="h-5 w-px shrink-0 bg-border/60" />
+                    <div className="inline-flex items-center overflow-hidden rounded-md border border-border/60 bg-background/60">
+                      <button
+                        type="button"
+                        onClick={addTableRow}
+                        title="Add row"
+                        className="inline-flex h-7 items-center gap-1 px-2 text-[11.5px] font-medium hover:bg-foreground/5"
+                      >
+                        <Plus className="size-3" />
+                        <Rows3 className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={deleteTableRow}
+                        title="Delete last row"
+                        disabled={(active.tableJson.rows.length ?? 0) <= 2}
+                        className="inline-flex h-7 items-center gap-1 border-l border-border/60 px-2 text-[11.5px] font-medium hover:bg-foreground/5 disabled:opacity-40"
+                      >
+                        <Minus className="size-3" />
+                        <Rows3 className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={addTableColumn}
+                        title="Add column"
+                        disabled={(active.tableJson.rows[0]?.length ?? 0) >= 8}
+                        className="inline-flex h-7 items-center gap-1 border-l border-border/60 px-2 text-[11.5px] font-medium hover:bg-foreground/5 disabled:opacity-40"
+                      >
+                        <Plus className="size-3" />
+                        <Columns3 className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={deleteTableColumn}
+                        title="Delete last column"
+                        disabled={(active.tableJson.rows[0]?.length ?? 0) <= 1}
+                        className="inline-flex h-7 items-center gap-1 border-l border-border/60 px-2 text-[11.5px] font-medium hover:bg-foreground/5 disabled:opacity-40"
+                      >
+                        <Minus className="size-3" />
+                        <Columns3 className="size-3.5" />
+                      </button>
+                    </div>
+                    <span className="shrink-0 text-[11px] font-medium text-muted-foreground">Header</span>
+                    <BackgroundPicker
+                      value={active.tableJson.headerHex ?? null}
+                      themeDefault={getDeckTheme(themeId).panel}
+                      onChange={(hex) => setTableHeaderHex(hex)}
+                      onReset={() => setTableHeaderHex(null)}
+                    />
+                    <button
+                      type="button"
+                      onClick={removeTable}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5"
+                    >
+                      <Trash2 className="size-3" />
+                      Remove table
+                    </button>
+                  </>
                 )}
                 {active?.imageUrl && (
                   <button
@@ -974,22 +1116,25 @@ export function DeckEditorClient({
                       fontFamily={getFontById(fontFamilyId).family}
                       editable
                       focusBulletIndex={focusBulletIndex}
-                      onTitleChange={(title) => {
-                        updateLocal(active.id, { title })
-                        void persistSlide(active.id, { title })
+                      onTitleChange={(plain, html) => {
+                        const richJson: SlideRich = { ...(active.richJson ?? {}), title: html || null }
+                        updateLocal(active.id, { title: plain, richJson })
+                        void persistSlide(active.id, { title: plain, richJson })
                       }}
-                      onBulletChange={(idx, value) => {
+                      onBulletChange={(idx, plain, html) => {
                         setFocusBulletIndex(undefined)
                         const next = active.bullets.slice()
-                        next[idx] = value
-                        updateLocal(active.id, { bullets: next })
-                        void persistSlide(active.id, { bullets: next })
+                        next[idx] = plain
+                        const richJson = mergeRichBullets(active.richJson, next, idx, html)
+                        updateLocal(active.id, { bullets: next, richJson })
+                        void persistSlide(active.id, { bullets: next, richJson })
                       }}
-                      onCommitNewBullet={(value) => {
-                        const next = [...active.bullets, value]
+                      onCommitNewBullet={(plain, html) => {
+                        const next = [...active.bullets, plain]
+                        const richJson = mergeRichBullets(active.richJson, next, next.length - 1, html)
                         const layoutPatch = active.layout === 'TITLE_ONLY' ? { layout: 'TITLE_BULLETS' as const } : {}
-                        updateLocal(active.id, { bullets: next, ...layoutPatch })
-                        void persistSlide(active.id, { bullets: next, ...layoutPatch })
+                        updateLocal(active.id, { bullets: next, richJson, ...layoutPatch })
+                        void persistSlide(active.id, { bullets: next, richJson, ...layoutPatch })
                       }}
                       onAddBullet={() => {
                         // Called by Enter key on existing bullet — adds empty bullet and auto-focuses it.
@@ -1002,12 +1147,24 @@ export function DeckEditorClient({
                       }}
                       onDeleteBullet={(idx) => {
                         const next = active.bullets.filter((_, i) => i !== idx)
-                        updateLocal(active.id, { bullets: next })
-                        void persistSlide(active.id, { bullets: next })
+                        const richBullets = (active.richJson?.bullets ?? []).filter((_, i) => i !== idx)
+                        const richJson: SlideRich = { ...(active.richJson ?? {}), bullets: richBullets }
+                        updateLocal(active.id, { bullets: next, richJson })
+                        void persistSlide(active.id, { bullets: next, richJson })
                         setFocusBulletIndex(Math.max(0, idx - 1))
                       }}
                       onTableChange={(rows) => {
-                        const tableJson = { rows }
+                        const tableJson = { ...(active.tableJson ?? {}), rows }
+                        updateLocal(active.id, { tableJson })
+                        void persistSlide(active.id, { tableJson })
+                      }}
+                      onImageBoxChange={(box) => {
+                        updateLocal(active.id, { imageBox: box })
+                        void persistSlide(active.id, { imageBox: box })
+                      }}
+                      onTableMeta={(meta) => {
+                        if (!active.tableJson) return
+                        const tableJson = { ...active.tableJson, ...meta }
                         updateLocal(active.id, { tableJson })
                         void persistSlide(active.id, { tableJson })
                       }}
@@ -1051,39 +1208,40 @@ export function DeckEditorClient({
           </div>
         </section>
 
-        {/* ── RIGHT panel — Analysis (AI Coach) only ───────────────────────
-            The slide itself is now the editor: click any title, bullet, body,
-            table cell or speaker note to edit it in place; layout, accent,
-            theme, table and image controls live in the ribbon. So the right
-            panel is dedicated entirely to AI analysis. */}
+        {/* ── RIGHT panel — tabbed AI surface ──────────────────────────────
+            The slide itself is the editor (click any text to edit in place;
+            layout/accent/theme/table/image controls live in the ribbon). The
+            right panel carries the AI tooling: Analysis, Fixes, AI Slides and
+            Hooks. Hooks is functional only in the session-studio context. */}
         <aside className="flex h-full min-h-0 flex-col border-l border-border/60 bg-background/30">
-          <div className="flex items-center gap-1.5 border-b border-border/60 px-4 py-3">
-            <Sparkles className="size-3.5 text-amber-500" />
-            <span className="text-[12px] font-semibold tracking-tight">Analysis</span>
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <DeckAiCoach
-              jobId={jobId}
-              initialAnalysis={initialAnalysis}
-              slides={slides.map((s) => ({ id: s.id, order: s.order }))}
-              activeSlideId={active?.id ?? null}
-              onFocusSlide={(slideId) => setActiveId(slideId)}
-              onSlideCommitted={async (slideId, patch) => {
-                updateLocal(slideId, {
-                  title: patch.title,
-                  bullets: patch.bullets,
-                  speakerNotes: patch.speakerNotes,
-                  ...(patch.layout ? { layout: patch.layout as SlideLayout } : {}),
-                });
-                await persistSlide(slideId, {
-                  title: patch.title,
-                  bullets: patch.bullets,
-                  speakerNotes: patch.speakerNotes,
-                  ...(patch.layout ? { layout: patch.layout as SlideLayout } : {}),
-                });
-              }}
-            />
-          </div>
+          <DeckRightPanel
+            jobId={jobId}
+            initialAnalysis={initialAnalysis}
+            slides={slides.map((s) => ({ id: s.id, order: s.order }))}
+            activeSlideId={active?.id ?? null}
+            activeSlideOrder={active?.order ?? null}
+            sessionId={backToSessionId ?? null}
+            onFocusSlide={(slideId) => setActiveId(slideId)}
+            onSlidesAppended={(newSlides) => {
+              setSlides((prev) => [...prev, ...newSlides]);
+              if (newSlides[0]) setActiveId(newSlides[0].id);
+              markDirty();
+            }}
+            onSlideCommitted={async (slideId, patch) => {
+              updateLocal(slideId, {
+                title: patch.title,
+                bullets: patch.bullets,
+                speakerNotes: patch.speakerNotes,
+                ...(patch.layout ? { layout: patch.layout as SlideLayout } : {}),
+              });
+              await persistSlide(slideId, {
+                title: patch.title,
+                bullets: patch.bullets,
+                speakerNotes: patch.speakerNotes,
+                ...(patch.layout ? { layout: patch.layout as SlideLayout } : {}),
+              });
+            }}
+          />
         </aside>
       </div>
     </div>
@@ -1095,17 +1253,21 @@ function RibbonBtn({
   label,
   active,
   onClick,
+  onMouseDown,
 }: {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
   onClick?: () => void;
+  /** Used by formatting buttons: preventDefault here keeps the editor selection. */
+  onMouseDown?: (e: React.MouseEvent) => void;
 }) {
   return (
     <button
       type="button"
       title={label}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       className={cn(
         'grid size-6 place-items-center rounded transition-colors',
         active

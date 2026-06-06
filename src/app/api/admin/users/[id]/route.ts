@@ -18,6 +18,7 @@ import { Role } from '@prisma/client';
 import { db } from '@/lib/db';
 import { getUser, updateUserDetails, UserAdminError } from '@/server/services/user-admin-service';
 import { cuidSchema, fullNameSchema, mobileSchema, usernameSchema } from '@/lib/validation/primitives';
+import { avatarRefSchema } from '@/lib/validation/auth';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -109,10 +110,11 @@ const updateBodySchema = z
     // Resident → faculty mentor link. Service enforces target.role === RESIDENT
     // and ref.role === FACULTY. null clears; absent leaves untouched.
     facultyMentorId: cuidSchema.nullable().optional(),
-    // Avatar URL produced by the avatar presign route; the route is the only
-    // sanctioned producer (validates content-type + size) so we accept any
-    // string here without re-validating shape.
-    avatarUrl: z.string().url().max(2048).nullable().optional(),
+    // Avatar reference produced by the avatar presign route — the stable
+    // same-origin proxy path `/api/avatar/<id>.<ext>` (or a legacy absolute URL
+    // for pre-migration rows). avatarRefSchema accepts both; a plain `.url()`
+    // here would reject the relative proxy path.
+    avatarUrl: avatarRefSchema,
     // Resident → cohort assignment. Service replaces the user's current
     // cohort memberships with this single cohort. null clears all memberships.
     // Absent leaves untouched. Service enforces target.role === RESIDENT.

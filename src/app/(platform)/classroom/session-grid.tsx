@@ -564,15 +564,6 @@ function VideoCard({ session: s, nowMs }: { session: ListedSession; nowMs: numbe
 
 // ─── Upcoming Event Card ─────────────────────────────────────────────────────
 
-const typeAccent: Record<string, { bar: string; bg: string; countdown: string }> = {
-  LECTURE:         { bar: 'bg-blue-500',   bg: 'bg-blue-500/5',   countdown: 'text-blue-600 dark:text-blue-400' },
-  GRAND_ROUNDS:    { bar: 'bg-amber-500',  bg: 'bg-amber-500/5',  countdown: 'text-amber-600 dark:text-amber-400' },
-  CASE_CONFERENCE: { bar: 'bg-purple-500', bg: 'bg-purple-500/5', countdown: 'text-purple-600 dark:text-purple-400' },
-  JOURNAL_CLUB:    { bar: 'bg-teal-500',   bg: 'bg-teal-500/5',   countdown: 'text-teal-600 dark:text-teal-400' },
-  SKILLS_WORKSHOP: { bar: 'bg-pink-500',   bg: 'bg-pink-500/5',   countdown: 'text-pink-600 dark:text-pink-400' },
-  ASSESSMENT:      { bar: 'bg-slate-500',  bg: 'bg-slate-500/5',  countdown: 'text-slate-600 dark:text-slate-400' },
-}
-
 function countdown(startMs: number, nowMs: number) {
   const diff = startMs - nowMs
   if (diff <= 0) return 'starting now'
@@ -591,17 +582,17 @@ function UpcomingCard({ session: s, nowMs, isHost, canManage }: { session: Liste
   const inWindow = start.getTime() - nowMs <= 15 * 60 * 1000
   const href = `/classroom/${s.id}`
   const badge = typeBadge[s.sessionType]
-  const accent = typeAccent[s.sessionType] ?? { bar: 'bg-primary', bg: 'bg-primary/5', countdown: 'text-primary' }
   const initials = s.host.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   const mins = scheduledMins(s.scheduledStart, s.scheduledEnd)
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-shadow hover:shadow-md">
-      {/* Type accent bar */}
-      <div className={`h-[3px] w-full ${accent.bar}`} />
+      {/* Thin teal accent — the console uses one restrained accent, not a
+          per-type rainbow bar + tinted hero. */}
+      <div className="h-[3px] w-full bg-primary/70" />
 
-      {/* Date hero */}
-      <div className={`flex items-center justify-between px-4 py-4 ${accent.bg}`}>
+      {/* Date hero — neutral surface (console aesthetic) */}
+      <div className="flex items-center justify-between border-b border-border/50 bg-muted/30 px-4 py-4">
         <div>
           <p className="text-4xl font-black leading-none tracking-tight text-foreground">
             {start.getDate()}
@@ -614,7 +605,7 @@ function UpcomingCard({ session: s, nowMs, isHost, canManage }: { session: Liste
           </p>
         </div>
         <div className="text-right">
-          <p className={`text-base font-black ${accent.countdown}`}>
+          <p className="text-base font-black text-primary">
             {countdown(start.getTime(), nowMs)}
           </p>
           <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
@@ -643,8 +634,8 @@ function UpcomingCard({ session: s, nowMs, isHost, canManage }: { session: Liste
               </span>
             )}
             {isHost && (
-              <span className="inline-flex items-center gap-0.5 rounded-md bg-teal-500/10 px-1.5 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-400">
-                🎓 Hosting
+              <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                Hosting
               </span>
             )}
             {s.isRecurring && (

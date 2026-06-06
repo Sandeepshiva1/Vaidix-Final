@@ -18,6 +18,23 @@ import {
 } from './primitives';
 import { MODULE_KEYS } from '../modules';
 
+// ─── Avatar reference ─────────────────────────────────────────────────────────
+// Accepts EITHER the stable same-origin avatar proxy path minted by
+// POST /api/admin/avatar (`/api/avatar/<16hex>.<jpg|png|webp>`) OR a legacy
+// absolute http(s) URL (avatars stored before the backend-agnostic proxy
+// migration). NOTE: a plain `z.string().url()` would reject the same-origin
+// relative path — that was the previous bug that 400'd new uploads.
+export const avatarRefSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (v) =>
+      /^\/api\/avatar\/[0-9a-f]{16}\.(?:jpg|png|webp)$/.test(v) || /^https?:\/\/\S+$/.test(v),
+    'Invalid avatar reference',
+  )
+  .optional()
+  .nullable();
+
 // ─── Login ──────────────────────────────────────────────────────────────────
 // `identifier` is the canonical field. `email` is kept as a back-compat alias
 // so existing callers (older test scripts, NextAuth credentials shape, third-
@@ -159,7 +176,7 @@ export const createInvitationSchema = z
     programDirectorId: cuidSchema.optional().nullable(),
     facultyMentorId:   cuidSchema.optional().nullable(),
     cohortId:          cuidSchema.optional().nullable(),
-    avatarUrl:         z.string().url().max(2048).optional().nullable(),
+    avatarUrl:         avatarRefSchema,
     gender:            z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional().nullable(),
     moduleOverrides: moduleOverridesSchema,
     expiresInHours: z.number().int().min(1).max(168).default(48),
@@ -197,7 +214,7 @@ export const updateInvitationSchema = z
     programDirectorId: cuidSchema.optional().nullable(),
     facultyMentorId:   cuidSchema.optional().nullable(),
     cohortId:          cuidSchema.optional().nullable(),
-    avatarUrl:         z.string().url().max(2048).optional().nullable(),
+    avatarUrl:         avatarRefSchema,
     gender:            z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional().nullable(),
     moduleOverrides: moduleOverridesSchema.optional(),
     expiresInHours: z.number().int().min(1).max(168).optional(),
