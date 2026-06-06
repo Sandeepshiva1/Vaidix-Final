@@ -235,12 +235,9 @@ export async function startSessionEgress(
       value: new S3Upload({
         accessKey: env.S3_ACCESS_KEY,
         secret: env.S3_SECRET_KEY,
-        bucket: env.S3_BUCKET,
+        bucket: env.S3_RECORDINGS_BUCKET,
         region: env.S3_REGION,
-        endpoint: env.EGRESS_S3_ENDPOINT,
-        // MinIO needs path-style URLs (endpoint/bucket/key); AWS S3 needs
-        // virtual-host style. Driven by the same flag as the app's S3 clients
-        // so recordings + uploads can't target different addressing modes.
+        endpoint: env.EGRESS_S3_ENDPOINT ?? '',
         forcePathStyle: env.S3_FORCE_PATH_STYLE,
       }),
     },

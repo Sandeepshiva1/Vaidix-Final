@@ -7,7 +7,7 @@
 // follow relative paths inside the bucket (MinIO supports path-style URLs).
 
 import { db } from '@/lib/db';
-import { presignDownload } from '@/lib/storage';
+import { presignDownload, RECORDINGS_BUCKET } from '@/lib/storage';
 import { Role, RecordingStatus } from '@prisma/client';
 
 // Statuses where the HLS package has been fully written to MinIO and the
@@ -123,12 +123,12 @@ export async function listSessionRecordings(
       ? `/api/recordings/${r.id}/hls/master.m3u8`
       : null;
     const thumbnailUrl = r.thumbnailUrl
-      ? await presignDownload(r.thumbnailUrl, 6 * 3600).catch(() => null)
+      ? await presignDownload(r.thumbnailUrl, 6 * 3600, RECORDINGS_BUCKET).catch(() => null)
       : null;
     const transcripts: RecordingViewModel['transcripts'] = [];
     for (const t of r.transcripts) {
       const vttKey = `captions/${sessionId}/${t.language}.vtt`;
-      const vttUrl = await presignDownload(vttKey, 6 * 3600).catch(() => '');
+      const vttUrl = await presignDownload(vttKey, 6 * 3600, RECORDINGS_BUCKET).catch(() => '');
       transcripts.push({ language: t.language, source: wireTranscriptSource(t.source), vttUrl });
     }
     out.push({
@@ -166,7 +166,7 @@ export async function getRecordingForViewer(
       ? `/api/recordings/${recording.id}/hls/master.m3u8`
       : null;
   const thumbnailUrl = recording.thumbnailUrl
-    ? await presignDownload(recording.thumbnailUrl, 6 * 3600).catch(() => null)
+    ? await presignDownload(recording.thumbnailUrl, 6 * 3600, RECORDINGS_BUCKET).catch(() => null)
     : null;
   const transcripts: RecordingViewModel['transcripts'] = [];
   for (const t of recording.transcripts) {

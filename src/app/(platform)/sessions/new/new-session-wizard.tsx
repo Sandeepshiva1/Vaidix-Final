@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { RRule, Frequency } from 'rrule'
 import {
@@ -399,7 +399,10 @@ function ClassroomForm({
   // Strict UI guard: any start at/under "now" disables Create (no grace) so a
   // back-dated session can never be submitted. The server keeps a 5-min grace
   // purely for clock skew on legitimately near-now starts.
-  const startInPast = startAt !== '' && new Date(startAt).getTime() <= Date.now()
+  const startInPast = useMemo(
+    () => startAt !== '' && new Date(startAt).getTime() <= Date.now(),
+    [startAt]
+  )
   const hasPresenter = roles.some((r) => r.role === 'Presenter' && r.user !== null)
   const [presenterError, setPresenterError] = useState(false)
   const valid = title.trim().length >= 3 && !startInPast && hasPresenter
@@ -822,7 +825,10 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
   // search UX; each becomes a SessionInvite + an in-app invite alert.
   const [participants, setParticipants] = useState<PickableUser[]>([])
 
-  const startInPast = startAt !== '' && new Date(startAt).getTime() <= Date.now()
+  const startInPast = useMemo(
+    () => startAt !== '' && new Date(startAt).getTime() <= Date.now(),
+    [startAt]
+  )
   const valid = subject.trim().length >= 3 && !startInPast
 
   const submit = async () => {

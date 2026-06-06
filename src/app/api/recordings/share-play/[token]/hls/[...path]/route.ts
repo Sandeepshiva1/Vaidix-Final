@@ -12,7 +12,7 @@ import type { NextRequest } from 'next/server';
 import { Readable } from 'node:stream';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { db } from '@/lib/db';
-import { s3, BUCKET } from '@/lib/storage';
+import { s3, RECORDINGS_BUCKET } from '@/lib/storage';
 import { verifySharePlaybackToken } from '@/server/services/recordings/share-playback-token';
 import { RecordingStatus } from '@prisma/client';
 
@@ -65,7 +65,7 @@ export async function GET(
   const range = req.headers.get('range') ?? undefined;
   let out;
   try {
-    out = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key, Range: range }));
+    out = await s3.send(new GetObjectCommand({ Bucket: RECORDINGS_BUCKET, Key: key, Range: range }));
   } catch (err) {
     const name = (err as { name?: string }).name ?? '';
     if (name === 'NoSuchKey' || name === 'NotFound') return new Response('Not found', { status: 404 });

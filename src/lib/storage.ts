@@ -75,10 +75,9 @@ export async function deleteLocalUpload(fileId: string): Promise<void> {
 const globalForS3 = globalThis as unknown as { s3?: S3Client; s3public?: S3Client };
 
 // One config that serves BOTH backends, selected by S3_FORCE_PATH_STYLE:
-//   • MinIO / S3-compatible → path-style URLs + relaxed checksums.
-//   • AWS S3               → virtual-host style + the SDK's default integrity
-//                            checksums; pass endpoint=undefined so the SDK
-//                            targets the region's default S3 endpoint.
+//   • AWS S3 (default)     → virtual-host style + SDK default integrity checksums;
+//                            endpoint=undefined → SDK targets regional S3 endpoint.
+//   • MinIO / S3-compat    → path-style URLs + relaxed checksums (local dev only).
 function s3Config(endpoint: string | undefined): S3ClientConfig {
   const pathStyle = env.S3_FORCE_PATH_STYLE;
   return {
@@ -101,16 +100,14 @@ function s3Config(endpoint: string | undefined): S3ClientConfig {
   };
 }
 
-// Server-side client — uses the internal endpoint (e.g. http://minio:9000) or,
-// for AWS S3, the region default. Never put presigned URLs from this client in
-// responses the browser will use directly.
+// Server-side client — uses internal endpoint or the regional AWS S3 default.
+// Never put presigned URLs from this client in responses the browser will use.
 export const s3 = globalForS3.s3 ?? new S3Client(s3Config(env.S3_ENDPOINT));
 
-// Browser-facing client — signs presigned URLs against the PUBLIC endpoint
-// (e.g. https://s3.vaidix.lvpei.org for MinIO behind nginx) so browsers can
-// reach the URL. For AWS S3 both endpoints are undefined, so it signs against
-// AWS S3 directly. Defaults to the internal endpoint when S3_PUBLIC_ENDPOINT
-// is unset (local dev).
+// Browser-facing client — signs presigned URLs against the public endpoint so
+// browsers can reach them. For AWS S3 both endpoints are undefined, so it signs
+// against AWS S3 directly (virtual-host URLs). Defaults to the internal endpoint
+// when S3_PUBLIC_ENDPOINT is unset.
 const publicEndpoint = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
 export const s3public = globalForS3.s3public ?? new S3Client(s3Config(publicEndpoint));
 
@@ -119,26 +116,15 @@ if (process.env.NODE_ENV !== 'production') {
   globalForS3.s3public = s3public;
 }
 
+// Uploads bucket: documents, avatars, promo assets, DSR exports.
 export const BUCKET = env.S3_BUCKET;
+// Recordings bucket: raw MP4s, HLS segments, audio, captions, rendered clips.
+export const RECORDINGS_BUCKET = env.S3_RECORDINGS_BUCKET;
 
-export async function ensureBucket(): Promise<void> {
-  try {
-    await s3.send(new HeadBucketCommand({ Bucket: BUCKET }));
-  } catch {
-    await s3.send(new CreateBucketCommand({ Bucket: BUCKET }));
-  }
-  // Allow browsers to PUT via presigned URLs from any origin.
-  // Without this, MinIO/S3 blocks the CORS preflight and the chat
-  // attachment upload fails with "Failed to fetch".
-  //
-  // Best-effort: older MinIO builds don't implement PutBucketCors and return
-  // "NotImplemented" (501). That only affects browser→MinIO presigned uploads;
-  // the server-proxied upload path (POST /api/documents/upload) does not need
-  // bucket CORS at all. So swallow the unsupported-op error rather than letting
-  // it 500 the whole upload.
+async function applyBucketCors(bucket: string): Promise<void> {
   try {
     await s3.send(new PutBucketCorsCommand({
-      Bucket: BUCKET,
+      Bucket: bucket,
       CORSConfiguration: {
         CORSRules: [{
           AllowedHeaders: ['*'],
@@ -151,40 +137,49 @@ export async function ensureBucket(): Promise<void> {
     }));
   } catch (err) {
     const name = (err as { name?: string })?.name ?? '';
-    // Unsupported by this object store (e.g. MinIO) — non-fatal.
     if (name !== 'NotImplemented' && !/not implemented/i.test(String((err as Error)?.message))) {
       console.warn('[storage] PutBucketCors failed (non-fatal):', name || err);
     }
   }
 }
 
+export async function ensureBucket(): Promise<void> {
+  for (const bucket of [BUCKET, RECORDINGS_BUCKET]) {
+    try {
+      await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    } catch {
+      await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+    }
+    await applyBucketCors(bucket);
+  }
+}
+
 export async function presignUpload(
   key: string,
   contentType: string,
-  ttlSeconds = 900
+  ttlSeconds = 900,
+  bucket = BUCKET
 ): Promise<string> {
   const cmd = new PutObjectCommand({
-    Bucket: BUCKET,
+    Bucket: bucket,
     Key: key,
     ContentType: contentType,
   });
-  // Use the public client so the signed URL hostname is reachable by browsers.
   return getSignedUrl(s3public, cmd, { expiresIn: ttlSeconds });
 }
 
-export async function presignDownload(key: string, ttlSeconds = 900): Promise<string> {
-  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-  // Use the public client so the download URL is reachable by browsers.
+export async function presignDownload(key: string, ttlSeconds = 900, bucket = BUCKET): Promise<string> {
+  const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
   return getSignedUrl(s3public, cmd, { expiresIn: ttlSeconds });
 }
 
-export async function deleteObject(key: string): Promise<void> {
-  await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+export async function deleteObject(key: string, bucket = BUCKET): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
-export async function objectExists(key: string): Promise<boolean> {
+export async function objectExists(key: string, bucket = BUCKET): Promise<boolean> {
   try {
-    await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
     return true;
   } catch {
     return false;

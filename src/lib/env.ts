@@ -37,34 +37,33 @@ const envSchema = z.object({
   LIVEKIT_API_KEY: z.string(),
   LIVEKIT_API_SECRET: z.string().min(16),
 
-  // MinIO / S3 — S3_ENDPOINT is what the Next.js host process (or any
-  // worker running on the host) uses to reach object storage; for local dev
-  // that's localhost:9000. OMIT it entirely for real AWS S3 so the SDK targets
-  // the region's default endpoint (bucket.s3.<region>.amazonaws.com).
+  // AWS S3 / S3-compatible object storage.
+  // S3_ENDPOINT: omit for real AWS S3 (SDK auto-targets the regional endpoint).
+  // Set it only for S3-compatible stores (e.g. MinIO) in local dev.
   S3_ENDPOINT: z.string().url().optional(),
-  // S3_PUBLIC_ENDPOINT is the browser-reachable URL for the same storage.
-  // In production MinIO is only on Docker's internal network (minio:9000),
-  // proxied publicly at https://s3.vaidix.lvpei.org via nginx. Presigned
-  // PUT/GET URLs are signed against this host so browsers can actually reach
-  // them. Defaults to S3_ENDPOINT so local dev needs no extra config.
+  // S3_PUBLIC_ENDPOINT: browser-reachable URL for the same store. Only needed
+  // when the internal endpoint differs from the public one (e.g. MinIO behind
+  // a reverse proxy). Omit for AWS S3 — the SDK derives the URL from the region.
   S3_PUBLIC_ENDPOINT: z.string().url().optional(),
+  // Primary bucket for user uploads: documents, avatars, promo assets, DSR exports.
   S3_BUCKET: z.string(),
+  // Separate bucket for session recordings: raw MP4s, HLS segments, audio,
+  // captions, and rendered clips. Kept separate for lifecycle/cost isolation.
+  S3_RECORDINGS_BUCKET: z.string(),
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
-  S3_REGION: z.string().default('us-east-1'),
-  // Object-storage addressing mode. MinIO needs path-style URLs
-  // (endpoint/bucket/key); AWS S3 needs virtual-host style
-  // (bucket.s3.<region>.amazonaws.com). Defaults to path-style so existing
-  // MinIO deploys are unchanged — set "false" when migrating to AWS S3.
+  S3_REGION: z.string().default('ap-south-1'),
+  // Object-storage addressing mode. AWS S3 uses virtual-host style
+  // (bucket.s3.<region>.amazonaws.com); S3-compatible stores (MinIO) need
+  // path-style (endpoint/bucket/key). Set "true" only for local MinIO dev.
   S3_FORCE_PATH_STYLE: z
     .string()
     .optional()
-    .transform((v) => v !== 'false'),
-  // EGRESS_S3_ENDPOINT is the same MinIO seen FROM INSIDE the LiveKit
-  // egress container, where `localhost` would mean the egress container
-  // itself. In dev, that's the Docker service name `http://minio:9000`.
-  // In production this typically equals S3_ENDPOINT (one canonical URL).
-  EGRESS_S3_ENDPOINT: z.string().url().default('http://minio:9000'),
+    .transform((v) => v === 'true'),
+  // EGRESS_S3_ENDPOINT is the S3 endpoint used FROM INSIDE the LiveKit egress
+  // container. For AWS S3 leave it unset (LiveKit uses the regional default).
+  // For local dev with MinIO use the Docker service name: http://minio:9000.
+  EGRESS_S3_ENDPOINT: z.string().url().optional(),
 
   // AI providers
   SARVAM_API_KEY: z.string().optional(),
