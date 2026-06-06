@@ -124,6 +124,9 @@ export function BreakoutRoomView({ sessionId, breakoutId, breakoutName, isFacult
           connect
           audio
           video
+          // Same CPU guardrails as the main room: decode only visible tiles,
+          // stop publishing unviewed layers.
+          options={{ adaptiveStream: true, dynacast: true }}
           onDisconnected={onLeave}
           className="h-full"
         >

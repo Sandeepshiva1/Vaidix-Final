@@ -68,6 +68,10 @@ interface NavItem {
   href: (sessionId: string | null, isLearner: boolean) => string
   /** If set, only these roles see this nav item. Omit to show to all teaching roles. */
   allowedRoles?: UserRole[]
+  /** When viewing a session that has reached its Post-Conference phase, earlier
+   *  workflow stages (Pre / Live) are over — show the item but make it a
+   *  non-clickable, greyed-out marker instead of a live link. */
+  disabledInPost?: boolean
 }
 
 // Teaching workflow nav — faculty / resident / program-director / guest.
@@ -77,12 +81,14 @@ const TEACHING_NAV: NavItem[] = [
     icon: <Clock className="size-4.5" />,
     match: (p) => /\/session\/[^/]+\/(pre|prepare|studio|learners|promo|questions|ready)/.test(p) || /\/classroom\/[^/]+\/prepare/.test(p),
     href: (sid, isLearner) => sid ? (isLearner ? `/classroom/${sid}/prepare` : `/session/${sid}/pre`) : '/dashboard',
+    disabledInPost: true,
   },
   {
     label: 'Live Conference',
     icon: <PlayCircle className="size-4.5" />,
     match: (p) => /\/session\/[^/]+\/live/.test(p) || /\/classroom\/[^/]+$/.test(p),
     href: (sid, isLearner) => sid ? (isLearner ? `/classroom/${sid}` : `/session/${sid}/live`) : '/dashboard',
+    disabledInPost: true,
   },
   {
     label: 'Post-Conference',
@@ -150,6 +156,10 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
     return { sessionIdFromPath: learnerId, isLearnerContext: !!learnerId }
   }, [pathname])
 
+  // Viewing a session in its Post-Conference phase — the earlier workflow stages
+  // (Pre / Live) are over, so their nav items are shown but disabled.
+  const inPostPhase = /\/session\/[^/]+\/post/.test(pathname) || /\/classroom\/[^/]+\/post/.test(pathname)
+
   const roleLabel = ROLE_LABEL[identity.role] ?? 'Member'
   const subtitle = identity.specialization ? `${roleLabel} · ${identity.specialization}` : roleLabel
   const initials = initialsOf(identity.name || identity.email)
@@ -185,6 +195,27 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
   const renderNavLinks = (collapsed: boolean, onNavigate?: () => void) =>
     navItems.filter((item) => !item.allowedRoles || item.allowedRoles.includes(identity.role)).map((item) => {
       const active = item.match(pathname)
+      // Only disable a stage we have a real session to disable it for — never on
+      // the standalone /sessions/completed list (no sessionId in the path).
+      const disabled = inPostPhase && !!item.disabledInPost && !!sessionIdFromPath
+
+      if (disabled) {
+        return (
+          <div
+            key={item.label}
+            aria-disabled="true"
+            title={collapsed ? `${item.label} (session ended)` : 'This phase is over — the session has moved to Post-Conference'}
+            className={cn(
+              'group relative flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13.5px] font-medium text-muted-foreground/40 cursor-not-allowed select-none',
+              collapsed && 'justify-center',
+            )}
+          >
+            <span className="shrink-0">{item.icon}</span>
+            {!collapsed && <span>{item.label}</span>}
+          </div>
+        )
+      }
+
       return (
         <Link
           key={item.label}

@@ -12,7 +12,7 @@ import { useMemo, useState } from 'react'
 import { formatLocalDate, formatLocalTime, useMounted } from '@/lib/local-datetime'
 import {
   Bell, BookOpen, CalendarDays, Check, CheckCircle2, Clock3, Link2,
-  Pencil, Plus, Sparkles, TrendingUp, Video,
+  Pencil, Plus, Sparkles, TrendingUp, Users2, Video,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -252,9 +252,17 @@ export function DashboardClient({ sessions, stats, greetingName }: { sessions: D
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <StageBadge stage={s.stage} />
-                      <span className="text-[11.5px] font-medium text-muted-foreground">{s.specialty}</span>
-                      <span className="text-border">·</span>
-                      <span className="text-[11.5px] font-medium text-muted-foreground">{s.type}</span>
+                      {s.isBoardRoom ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                          <Users2 className="size-3" />Board Room
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-[11.5px] font-medium text-muted-foreground">{s.specialty}</span>
+                          <span className="text-border">·</span>
+                          <span className="text-[11.5px] font-medium text-muted-foreground">{s.type}</span>
+                        </>
+                      )}
                     </div>
                     <h3 className="mt-2 text-[17px] font-semibold leading-snug tracking-tight">{s.title}</h3>
                   </div>
@@ -272,25 +280,50 @@ export function DashboardClient({ sessions, stats, greetingName }: { sessions: D
                   <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Clock3 className="size-3.5 opacity-0" /><span className="font-semibold text-foreground">{s.duration} min</span></span>
                 </div>
 
-                {/* 6 pre-conference activities — done / active / pending */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="font-medium text-muted-foreground">Pre-conference activities</span>
-                    <span className="font-mono tabular-nums text-teal-700 dark:text-teal-300">{s.progDone} of {s.progTotal} done</span>
+                {/* 6 pre-conference activities — done / active / pending. Board
+                    rooms have no pre-conference, so show a one-line meeting note
+                    instead of the prep progress bar. */}
+                {s.isBoardRoom ? (
+                  <div className="mt-4 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                    <Users2 className="size-3.5 text-violet-500" />
+                    Quick meeting — no preparation needed. Join directly when it&apos;s time.
                   </div>
-                  <div className="mt-1.5 flex gap-1" aria-label={`${s.progDone} of ${s.progTotal} pre-conference activities complete`}>
-                    {s.prepSteps.map((stepDone, i) => (
-                      <div
-                        key={i}
-                        className={cn('h-1.5 flex-1 rounded-full transition-colors', stepDone ? 'bg-emerald-600' : 'bg-emerald-100 dark:bg-emerald-900/40')}
-                      />
-                    ))}
+                ) : (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="font-medium text-muted-foreground">Pre-conference activities</span>
+                      <span className="font-mono tabular-nums text-teal-700 dark:text-teal-300">{s.progDone} of {s.progTotal} done</span>
+                    </div>
+                    <div className="mt-1.5 flex gap-1" aria-label={`${s.progDone} of ${s.progTotal} pre-conference activities complete`}>
+                      {s.prepSteps.map((stepDone, i) => (
+                        <div
+                          key={i}
+                          className={cn('h-1.5 flex-1 rounded-full transition-colors', stepDone ? 'bg-emerald-600' : 'bg-emerald-100 dark:bg-emerald-900/40')}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Actions — Build / Edit / Live (host) or Join/Open (learner) */}
+                {/* Actions — Build / Edit / Live (host) or Join/Open (learner).
+                    Board rooms collapse all of this to a single direct Join (no
+                    pre-conference build, no post-conference review). */}
                 <div className="mt-5 flex items-center gap-2">
-                  {s.isHost ? (
+                  {s.isBoardRoom ? (
+                    s.stage === 'POST' ? (
+                      // Ended board room — view-only entry (no post-conference).
+                      <span className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-border/60 bg-foreground/[0.03] px-4 text-[13px] font-medium text-muted-foreground">
+                        <CheckCircle2 className="size-4" />Meeting ended
+                      </span>
+                    ) : (
+                      <>
+                        <Link href={`/classroom/${s.id}`} className={cn('inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-white shadow-sm transition-colors', s.stage === 'LIVE' ? 'bg-rose-500 hover:bg-rose-500/90' : 'bg-violet-600 hover:bg-violet-600/90')}>
+                          {s.stage === 'LIVE' ? <><span className="size-1.5 animate-pulse rounded-full bg-white" />Join Live</> : <><Video className="size-3.5" />Join</>}
+                        </Link>
+                        {s.isHost && <ShareLinkButton sessionId={s.id} />}
+                      </>
+                    )
+                  ) : s.isHost ? (
                     <>
                       {/* Build — guided pre-conference workflow (Review once it's over) */}
                       <Link href={s.stage === 'POST' ? `/session/${s.id}/post` : `/session/${s.id}/pre`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-slate-700 px-4 text-[13px] font-medium text-white shadow-sm transition-transform group-hover:scale-[1.01]">

@@ -63,10 +63,44 @@ export function isPublicPath(pathname: string): boolean {
   );
 }
 
+// In production every auth cookie is TLS-only (`Secure`) and carries a
+// `__Secure-`/`__Host-` prefix. A `__Host-` cookie is rejected by the browser
+// unless it was set over HTTPS with Path=/ and no Domain, which structurally
+// prevents a forged session cookie being injected over cleartext or from a
+// sibling subdomain. Locally (http://localhost) the prefixes + Secure flag are
+// dropped so dev sign-in still works.
+const useSecureCookies = process.env.NODE_ENV === 'production';
+const securePrefix = useSecureCookies ? '__Secure-' : '';
+const hostPrefix = useSecureCookies ? '__Host-' : '';
+
 export const authConfig: NextAuthConfig = {
   pages: {
     signIn: '/login',
     error: '/login',
+  },
+  // Self-hosted behind nginx: trust X-Forwarded-* so Auth.js resolves the
+  // canonical https origin and therefore issues Secure cookies. REQUIRES the
+  // reverse proxy to set `X-Forwarded-Proto: https` — without it Auth.js can
+  // fall back to http and silently drop the Secure flag.
+  trustHost: true,
+  // Explicit, audit-visible cookie hardening. The session token is the bearer
+  // credential — HttpOnly (no JS/XSS read via document.cookie), Secure (never
+  // sent over http), SameSite=Lax (rides top-level navigations so the login
+  // callbackUrl redirect works, but not cross-site subrequests → CSRF defense).
+  cookies: {
+    sessionToken: {
+      name: `${securePrefix}authjs.session-token`,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: useSecureCookies },
+    },
+    callbackUrl: {
+      name: `${securePrefix}authjs.callback-url`,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: useSecureCookies },
+    },
+    // No Domain + Path=/ ⇒ qualifies for the strongest `__Host-` prefix in prod.
+    csrfToken: {
+      name: `${hostPrefix}authjs.csrf-token`,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: useSecureCookies },
+    },
   },
   session: {
     strategy: 'jwt',

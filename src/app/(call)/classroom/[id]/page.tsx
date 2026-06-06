@@ -26,6 +26,8 @@ import { Pencil, BookOpen, MessageCircleQuestion } from 'lucide-react'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { LiveSession } from '@/components/classroom/live-session'
+import { LiveConference } from '@/app/(platform)/session/[id]/live/live-conference'
+import { loadSessionView } from '@/lib/medlearn/session-view'
 import { PendingSessionManager } from '@/components/classroom/pending-session-manager'
 import { PostSessionInsightsPanel } from '@/components/classroom/post-session-insights-panel'
 import { GuestPrejoin } from '@/components/classroom/guest-prejoin'
@@ -120,6 +122,15 @@ export default async function ClassroomSessionPage({ params, searchParams }: Pag
   })
   if (!s) notFound()
 
+  // Board rooms are quick meetings: no classroom prep (study hub), no
+  // classroom-style edit form, and no post-conference insights. The room itself
+  // (people, chat, recording) is shared, so we just drop the classroom-only
+  // chrome below.
+  const isBoardRoom =
+    s.metadata && typeof s.metadata === 'object' && !Array.isArray(s.metadata)
+      ? (s.metadata as Record<string, unknown>).kind === 'BOARD_ROOM'
+      : false
+
   const now = new Date()
   const next = s.recurrenceRule
     ? nextOccurrenceStart(s.scheduledStart, s.recurrenceRule, s.recurrenceUntil, now)
@@ -189,13 +200,28 @@ export default async function ClassroomSessionPage({ params, searchParams }: Pag
     )
   }
 
+  // ── Unified live conference ───────────────────────────────────────────────
+  // During the LIVE video conference EVERYONE — host, faculty, residents —
+  // gets the same presenter console (the white teaching console). Host-only
+  // moderator surfaces (mod tools, hook authoring, AI, breakout create, End
+  // Session / SJT) are gated inside it by `isHost`; learners answer hooks via
+  // the in-room HookOverlay and can join their assigned breakout. This replaces
+  // the old split where the host saw the console and learners saw a different
+  // (Teams-style) room — the source of the UI mismatch.
+  if (effectiveStatus === 'LIVE') {
+    const view = await loadSessionView(s.id)
+    if (view) {
+      return <LiveConference session={view} isHost={session.user.id === s.hostId} />
+    }
+  }
+
   const isCurator =
     session.user.id === s.hostId ||
     session.user.role === 'FACULTY' ||
     session.user.role === 'PROGRAM_DIRECTOR' ||
     session.user.role === 'ADMIN'
 
-  const showStudyHubLink = effectiveStatus === 'SCHEDULED'
+  const showStudyHubLink = effectiveStatus === 'SCHEDULED' && !isBoardRoom
 
   const prereqStatus = !isCurator
     ? await computePrereqStatus(s.id, session.user.id)
@@ -205,7 +231,7 @@ export default async function ClassroomSessionPage({ params, searchParams }: Pag
     where: { sessionId_language: { sessionId: s.id, language: 'en' } },
     select: { finalized: true },
   })
-  const showInsights = !!finalizedTranscript?.finalized
+  const showInsights = !!finalizedTranscript?.finalized && !isBoardRoom
   const canTriggerInsights =
     session.user.id === s.hostId ||
     session.user.role === 'PROGRAM_DIRECTOR' ||
@@ -213,14 +239,18 @@ export default async function ClassroomSessionPage({ params, searchParams }: Pag
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {/* Shared Q&A — open before AND after class so every cohort member /
-            invitee can ask a question and answer anyone else's, not just the
-            host. Shown in all stages (SCHEDULED / LIVE / ENDED). */}
-        <QnaLink sessionId={s.id} />
-        {showStudyHubLink && <StudyHubLink sessionId={s.id} isCurator={isCurator} />}
-        {canEdit && <EditSessionLink sessionId={s.id} />}
-      </div>
+      {/* Classroom-only chrome. Board rooms are bare meetings — no shared Q&A,
+          study hub, or classroom edit form — so the whole row is hidden. */}
+      {!isBoardRoom && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Shared Q&A — open before AND after class so every cohort member /
+              invitee can ask a question and answer anyone else's, not just the
+              host. Shown in all stages (SCHEDULED / LIVE / ENDED). */}
+          <QnaLink sessionId={s.id} />
+          {showStudyHubLink && <StudyHubLink sessionId={s.id} isCurator={isCurator} />}
+          {canEdit && <EditSessionLink sessionId={s.id} />}
+        </div>
+      )}
       {showInsights && (
         <PostSessionInsightsPanel sessionId={s.id} canTrigger={canTriggerInsights} />
       )}

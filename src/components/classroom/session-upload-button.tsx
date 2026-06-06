@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { validateStudyPackFile, STUDY_PACK_ACCEPT, ACCEPTED_FORMATS_LABEL } from '@/lib/upload-accept'
 
 interface Props {
   sessionId: string
@@ -38,7 +39,7 @@ export function SessionUploadButton({ sessionId, onUploaded }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [phase, setPhase] = useState<'idle' | 'draft' | 'upload' | 'tag' | 'mark' | 'done'>('idle')
+  const [phase, setPhase] = useState<'idle' | 'upload' | 'tag' | 'mark' | 'done'>('idle')
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -56,39 +57,38 @@ export function SessionUploadButton({ sessionId, onUploaded }: Props) {
       setError('Title and file are required')
       return
     }
+    // Re-check the type at submit time — the file may have been set before this
+    // guard existed, or programmatically. The server enforces this too.
+    const check = validateStudyPackFile(file)
+    if (!check.ok) {
+      setError(check.reason)
+      return
+    }
     setError(null)
     const csrf = await getCsrf()
     try {
-      setPhase('draft')
-      const draftRes = await fetch('/api/documents', {
+      // Server-proxied upload: streams the bytes through /api/documents/upload,
+      // which allowlists the extension AND sniffs magic bytes before storing —
+      // so a renamed file can't bypass the type policy.
+      setPhase('upload')
+      const form = new FormData()
+      form.append('title', title.trim())
+      if (description.trim()) form.append('description', description.trim())
+      form.append('file', file)
+      const upRes = await fetch('/api/documents/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrf },
         credentials: 'include',
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          filename: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          sizeBytes: file.size,
-        }),
+        body: form,
       })
-      const draft = (await draftRes.json()) as {
+      const up = (await upRes.json()) as {
         ok: boolean
-        data?: { presignedUploadUrl: string; document: { id: string } }
+        data?: { document: { id: string } }
         error?: { message: string }
       }
-      if (!draftRes.ok || !draft.ok || !draft.data) {
-        throw new Error(draft.error?.message ?? `HTTP ${draftRes.status}`)
+      if (!upRes.ok || !up.ok || !up.data) {
+        throw new Error(up.error?.message ?? `Upload failed (HTTP ${upRes.status})`)
       }
-      const { presignedUploadUrl, document: { id: documentId } } = draft.data
-
-      setPhase('upload')
-      const putRes = await fetch(presignedUploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
-      })
-      if (!putRes.ok) throw new Error(`Storage upload failed (${putRes.status})`)
+      const documentId = up.data.document.id
 
       // Best-effort classification — don't block on it.
       fetch(`/api/documents/${documentId}/classify`, {
@@ -136,7 +136,6 @@ export function SessionUploadButton({ sessionId, onUploaded }: Props) {
 
   const phaseLabel: Record<typeof phase, string> = {
     idle: 'Upload to study pack',
-    draft: 'Creating draft…',
     upload: 'Uploading file…',
     tag: 'Tagging to session…',
     mark: 'Marking as pre-session…',
@@ -180,7 +179,7 @@ export function SessionUploadButton({ sessionId, onUploaded }: Props) {
                   </div>
                   <div>
                     <p className="text-sm font-bold">Upload material</p>
-                    <p className="text-[11px] text-muted-foreground">PDF, PPT, DOC, image, or video</p>
+                    <p className="text-[11px] text-muted-foreground">{ACCEPTED_FORMATS_LABEL}</p>
                   </div>
                 </div>
                 <button
@@ -211,8 +210,23 @@ export function SessionUploadButton({ sessionId, onUploaded }: Props) {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".ppt,.pptx,.key,.pdf,.doc,.docx,.md,.png,.jpg,.jpeg,.mp4,.mov"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    accept={STUDY_PACK_ACCEPT}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null
+                      if (!f) {
+                        setFile(null)
+                        return
+                      }
+                      const check = validateStudyPackFile(f)
+                      if (!check.ok) {
+                        setError(check.reason)
+                        setFile(null)
+                        if (fileInputRef.current) fileInputRef.current.value = ''
+                        return
+                      }
+                      setError(null)
+                      setFile(f)
+                    }}
                     disabled={phase !== 'idle'}
                     className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-primary/10 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-primary"
                     data-testid="session-upload-file"

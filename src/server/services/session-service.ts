@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { audit } from './audit';
 import { sessionAudit, SESSION_AUDIT } from './session-audit';
 import { getUserCohortIds } from './cohort-service';
+import { listSessionLearners } from './sessions/visibility';
 import {
   notifySessionProposed,
   notifySessionApproved,
@@ -1014,6 +1015,75 @@ export async function addSessionInvitees(
   });
 
   return { added: result.count, skipped };
+}
+
+/**
+ * Materialise the session's *configured* audience into explicit SessionInvite
+ * rows. The promo / "Send to learners" step calls this so the people who will
+ * receive the flyer become real invitees — which is exactly what every list
+ * surface keys off. List-surface visibility (dashboard, classroom feed,
+ * calendar, readiness panel) is driven by invite presence + cohort membership
+ * ONLY; `openToAll` alone never lists a session in anyone's feed (see
+ * sessions/visibility.ts). Previously the promo "Send" only flipped a
+ * `metadata.promoAssets.sent` flag and created no invites, so an openToAll /
+ * cohort session showed nobody on the learners dashboard.
+ *
+ * The audience is the canonical roster from listSessionLearners — the same
+ * source the dashboard reads — so the two sides can never disagree: cohort
+ * members + openToAll residents + anyone already invited/attended, minus the
+ * host & proposer (they're presenters). Idempotent: re-sending only adds people
+ * who are not already invited (skipDuplicates), so the host can hit Send again
+ * safely after the cohort grows.
+ *
+ * Authorisation mirrors the promo step itself (host / proposer or faculty-like)
+ * rather than the stricter invite-editor gate, so any actor allowed to author &
+ * send the promo can also commit its audience.
+ */
+export async function materializeSessionAudience(
+  sessionId: string,
+  actorId: string,
+  actorRole: Role
+): Promise<{ audienceSize: number; invited: number; alreadyInvited: number }> {
+  const session = await db.teachingSession.findUnique({
+    where: { id: sessionId },
+    select: { id: true, hostId: true, proposedBy: true },
+  });
+  if (!session) throw new Error('SESSION_NOT_FOUND');
+  const isOwner = session.hostId === actorId || session.proposedBy === actorId;
+  const facultyLike =
+    actorRole === Role.FACULTY ||
+    actorRole === Role.PROGRAM_DIRECTOR ||
+    actorRole === Role.ADMIN;
+  if (!isOwner && !facultyLike) throw new Error('NOT_AUTHORIZED');
+
+  const audience = await listSessionLearners(sessionId);
+  const audienceSize = audience.length;
+  if (audienceSize === 0) return { audienceSize: 0, invited: 0, alreadyInvited: 0 };
+
+  const audienceIds = audience.map((a) => a.id);
+  const existing = await db.sessionInvite.findMany({
+    where: { sessionId, userId: { in: audienceIds } },
+    select: { userId: true },
+  });
+  const alreadyInvited = existing.length;
+
+  const result = await db.sessionInvite.createMany({
+    data: audienceIds.map((userId) => ({ sessionId, userId, invitedBy: actorId })),
+    skipDuplicates: true,
+  });
+
+  if (result.count > 0) {
+    await audit({
+      actorId,
+      eventType: 'SESSION_INVITES_ADDED',
+      entityType: 'teaching_session',
+      entityId: sessionId,
+      summary: `Promo send materialised ${result.count} invitee(s) from a configured audience of ${audienceSize}`,
+      details: { source: 'promo_send', invited: result.count, audienceSize, alreadyInvited },
+    });
+  }
+
+  return { audienceSize, invited: result.count, alreadyInvited };
 }
 
 export async function removeSessionInvitee(

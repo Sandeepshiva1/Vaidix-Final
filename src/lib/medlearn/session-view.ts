@@ -23,6 +23,10 @@ export interface SessionView {
   time: string // h:mm am/pm
   duration: number // minutes
   hostId: string
+  /** Board Room (quick meeting) vs Classroom. Tagged via metadata.kind at
+   *  creation. Board rooms skip the entire pre/post workflow — every
+   *  /session/[id]/* route redirects them to the shared call room. */
+  isBoardRoom: boolean
   steps: Record<SVStepKey, boolean>
   counts: { sources: number; learners: number; questions: number; participants: number; promo: number }
 }
@@ -102,8 +106,16 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
   const learners = counts.learners > 0 || hasLearnerPrepContent
   const questions = counts.questions > 0
   const promoDone = counts.promo > 0
-  const analytics = false // derived once the analytics surface is configured
+  // Analytics is an acknowledgement step — done once the host/faculty has
+  // reviewed the dashboard, persisted via markAnalyticsReviewedAction.
+  const meta = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+    ? (row.metadata as Record<string, unknown>)
+    : undefined
+  const analytics = meta?.analyticsReviewed === true
   const ready = studio && learners
+  // Board rooms are tagged at creation (createTeachingSessionAction). They skip
+  // the entire pre/post workflow; the session/[id] layout uses this to redirect.
+  const isBoardRoom = meta?.kind === 'BOARD_ROOM'
 
   return {
     id: row.id,
@@ -116,6 +128,7 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
     time: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     duration,
     hostId: row.hostId,
+    isBoardRoom,
     steps: { studio, learners, promo: promoDone, analytics, questions, ready },
     counts,
   }

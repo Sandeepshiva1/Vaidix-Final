@@ -71,6 +71,8 @@ export interface PromoBootstrap {
   assets: PromoAsset[]
   teaserVideo: TeaserVideoAsset | null
   storageOffline: boolean
+  /** Expected audience size (cohort + openToAll residents + already invited). */
+  audienceCount: number
 }
 
 // Demo format ↔ real template bridge. Video formats have no IMAGE template.
@@ -109,6 +111,11 @@ export function PromoClient({ session, bootstrap }: { session: SessionView; boot
     () => new Set(bootstrap.meta.approved.map((t) => TEMPLATE_FORMAT[t]))
   )
   const [sent, setSent] = useState(bootstrap.meta.sent)
+  // Real expected-audience size (from listSessionLearners). Once Send commits,
+  // we replace it with the actual number of invitees materialised so the success
+  // copy reflects what really went out.
+  const [audienceCount, setAudienceCount] = useState(bootstrap.audienceCount)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   // Real generated assets, keyed by demo Format for easy lookup in the grid.
   const [assets, setAssets] = useState<Record<Format, PromoAsset | undefined>>(() => {
@@ -285,10 +292,43 @@ export function PromoClient({ session, bootstrap }: { session: SessionView; boot
     })
   }
 
+  // "Send to learners" is the real delivery action: the PATCH materialises the
+  // session's configured audience into SessionInvite rows (server side) so the
+  // people invited actually show up on the learners dashboard. Unlike the
+  // best-effort toggle persists, we read the response here and only flip to the
+  // "Sent" state on success — a failed send must not look like it worked.
   const send = async () => {
-    setSent(true)
-    await persist({ sent: true })
-    setTimeout(() => router.push(`/session/${session.id}/pre`), 600)
+    if (audienceCount === 0) {
+      setSendError('No audience configured for this session yet — attach a cohort or make it open to all before sending.')
+      return
+    }
+    setSendError(null)
+    setSaving(true)
+    try {
+      const headers = await ensureCsrfHeaders()
+      const res = await fetch(`/api/classroom/sessions/${session.id}/promo`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...headers },
+        credentials: 'include',
+        body: JSON.stringify({ sent: true }),
+      })
+      if (!res.ok) {
+        setSendError(
+          res.status === 403
+            ? "You don't have permission to send this promo."
+            : 'Could not send right now — please try again.'
+        )
+        return
+      }
+      const json = (await res.json()) as { data?: { invited?: number; audienceCount?: number } }
+      if (typeof json.data?.audienceCount === 'number') setAudienceCount(json.data.audienceCount)
+      setSent(true)
+      setTimeout(() => router.push(`/session/${session.id}/pre`), 700)
+    } catch {
+      setSendError('Could not reach the server — check your connection and try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -474,27 +514,44 @@ export function PromoClient({ session, bootstrap }: { session: SessionView; boot
       {/* Send */}
       <div className="mt-6 flex flex-col gap-3 rounded-3xl border border-teal-500/20 bg-linear-to-br from-white via-teal-50/30 to-emerald-50/30 p-5 dark:from-card dark:via-card dark:to-card md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-[14px] font-semibold tracking-tight">{sent ? 'Promo sent to learners ✓' : 'Ready to share?'}</div>
+          <div className="text-[14px] font-semibold tracking-tight">
+            {sent
+              ? `Promo sent to ${audienceCount} learner${audienceCount === 1 ? '' : 's'} ✓`
+              : 'Ready to share?'}
+          </div>
           <p className="text-[12px] text-muted-foreground">
-            {approved.size > 0
-              ? `${approved.size} approved · will go to 142 learners across 3 cohorts.`
-              : 'Approve at least one asset above to enable Send.'}
+            {sent
+              ? 'Invitees can now see this session on their dashboard.'
+              : approved.size === 0
+                ? 'Approve at least one asset above to enable Send.'
+                : audienceCount === 0
+                  ? 'No audience yet — attach a cohort or open the session to all learners first.'
+                  : `${approved.size} approved · will go to ${audienceCount} learner${audienceCount === 1 ? '' : 's'}.`}
           </p>
+          {sendError && (
+            <p className="mt-1.5 text-[12px] font-medium text-rose-600 dark:text-rose-400">{sendError}</p>
+          )}
         </div>
         <button
           type="button"
           onClick={send}
-          disabled={approved.size === 0 || sent || saving}
+          disabled={approved.size === 0 || sent || saving || audienceCount === 0}
           className={cn(
             'inline-flex h-11 items-center gap-2 rounded-full px-6 text-[14px] font-medium transition-all',
-            approved.size === 0 || sent
+            approved.size === 0 || sent || audienceCount === 0
               ? 'cursor-not-allowed bg-foreground/10 text-muted-foreground'
               : 'bg-slate-700 text-white shadow-sm hover:scale-[1.02]'
           )}
         >
-          {sent ? <CheckCircle2 className="size-4" /> : <Send className="size-4" />}
+          {saving ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : sent ? (
+            <CheckCircle2 className="size-4" />
+          ) : (
+            <Send className="size-4" />
+          )}
           {sent ? 'Sent — continue' : 'Send to learners'}
-          {!sent && <ArrowRight className="size-4" />}
+          {!sent && !saving && <ArrowRight className="size-4" />}
         </button>
       </div>
     </div>

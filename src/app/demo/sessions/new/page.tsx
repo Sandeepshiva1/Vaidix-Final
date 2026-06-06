@@ -315,7 +315,6 @@ function ClassroomForm({
                   <ChevronIcon small />
                 </div>
                 <input value={r.name} onChange={(e) => updateRole(i, { name: e.target.value })} placeholder="Faculty name or email" className="h-9 flex-1 rounded-xl border border-current/20 bg-white/50 px-3 text-[12.5px] outline-none placeholder:text-current/40 dark:bg-black/20" />
-                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Approval pending</span>
                 {i > 0 && (
                   <button type="button" onClick={() => removeRole(i)} className="text-current/50 hover:text-current">
                     <span className="text-[16px] leading-none">×</span>

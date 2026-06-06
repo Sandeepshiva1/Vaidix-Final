@@ -171,6 +171,38 @@ export interface WizardCohort {
   name: string
 }
 
+// Sentinel cohort-picker values that target a whole program-wide role group
+// instead of a single cohort. Kept distinct from '' (the "Please select"
+// placeholder = no audience) and from real cohort ids. Each maps to a Role the
+// server fans out to (residents / faculty / heads-of-department). The edit page
+// maps a persisted audienceRole back to the matching value (see metadata.audienceRole).
+export const ROLE_AUDIENCE_VALUES = {
+  '__all_residents__': 'RESIDENT',
+  '__all_faculty__': 'FACULTY',
+  '__all_hod__': 'PROGRAM_DIRECTOR',
+} as const
+
+export type RoleAudienceValue = keyof typeof ROLE_AUDIENCE_VALUES
+
+const ROLE_AUDIENCE_OPTIONS: { value: RoleAudienceValue; label: string }[] = [
+  { value: '__all_residents__', label: 'All Residents' },
+  { value: '__all_faculty__', label: 'All Faculty' },
+  { value: '__all_hod__', label: 'All HODs' },
+]
+
+function isRoleAudience(v: string): v is RoleAudienceValue {
+  return v in ROLE_AUDIENCE_VALUES
+}
+
+/** Reverse of ROLE_AUDIENCE_VALUES: a stored audienceRole → its picker sentinel
+ *  (or '' when it isn't a recognised role audience). Used by the edit page to
+ *  re-select the right option. */
+export function roleAudienceValue(role: string): RoleAudienceValue | '' {
+  const match = (Object.entries(ROLE_AUDIENCE_VALUES) as [RoleAudienceValue, string][])
+    .find(([, r]) => r === role)
+  return match ? match[0] : ''
+}
+
 export function NewSessionWizard({
   cohorts,
   specialties,
@@ -455,7 +487,8 @@ function ClassroomForm({
         sessionType: mapSessionType(type),
         learnerLevel: subSpecialty || specialty,
         description: description.trim() || undefined,
-        cohortId: cohort || undefined,
+        cohortId: cohort && !isRoleAudience(cohort) ? cohort : undefined,
+        targetRole: isRoleAudience(cohort) ? ROLE_AUDIENCE_VALUES[cohort] : undefined,
         specialty,
         subSpecialty: subSpecialty || undefined,
         roles: roles
@@ -539,7 +572,8 @@ function ClassroomForm({
           <Field label="Cohort (optional)">
             <div className="relative">
               <select value={cohort} onChange={(e) => setCohort(e.target.value)} className="vfx-input appearance-none pr-9">
-                <option value="">All learners</option>
+                <option value="">Please select</option>
+                {ROLE_AUDIENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <ChevronIcon />
@@ -731,10 +765,8 @@ function ClassroomForm({
                     placeholder={i === 0 ? 'Search and assign a Presenter (required)' : 'Search users by name or email'}
                   />
                 </div>
-                {i === 0 ? (
+                {i === 0 && (
                   <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400">Required</span>
-                ) : (
-                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Approval pending</span>
                 )}
                 {i > 0 && (
                   <button type="button" onClick={() => removeRole(i)} className="text-current/50 hover:text-current">
@@ -785,7 +817,10 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
   const [duration, setDuration] = useState('30')
   const [startAt, setStartAt] = useState(defaultStart())
   const [minStart] = useState(nowLocalInput)
-  const [participants, setParticipants] = useState('')
+  // Board-room participants — picked from the real user directory (flat list, no
+  // Presenter/Moderator/Panelist roles). Mirrors the classroom role picker's
+  // search UX; each becomes a SessionInvite + an in-app invite alert.
+  const [participants, setParticipants] = useState<PickableUser[]>([])
 
   const startInPast = startAt !== '' && new Date(startAt).getTime() <= Date.now()
   const valid = subject.trim().length >= 3 && !startInPast
@@ -805,11 +840,15 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
         durationMinutes: Number(duration),
         sessionType: SessionType.CASE_CONFERENCE,
         description: description.trim() || undefined,
-        participants: participants.trim() || undefined,
+        participantUserIds: participants.map((p) => p.id),
         isBoardRoom: true,
       })
       if (result.ok) {
-        router.push(`/session/${result.sessionId}/pre`)
+        // Board rooms have no pre-conference. Land back on the dashboard, where
+        // the host (and every invited participant) joins directly via the card.
+        toast.success('Board room scheduled. Invitees can join from their dashboard.')
+        router.push('/dashboard')
+        router.refresh()
       } else {
         toast.error(result.error)
         setSubmitting(false)
@@ -867,8 +906,16 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
           </Field>
         </div>
 
-        <Field label="Participants (emails or names, comma-separated)">
-          <textarea value={participants} onChange={(e) => setParticipants(e.target.value)} rows={2} placeholder="dr.kumar@lvpei.org, dr.reddy@aiims.edu, …" className="vfx-input resize-none" />
+        <Field label="Participants">
+          <UserPicker
+            purpose="invite"
+            selected={participants}
+            onChange={setParticipants}
+            placeholder="Search users by name or email"
+          />
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+            Invited participants get an alert and see this board room in their upcoming sessions — they join directly, no preparation needed.
+          </p>
         </Field>
 
         <div className="mt-6 flex flex-wrap justify-end gap-2.5">

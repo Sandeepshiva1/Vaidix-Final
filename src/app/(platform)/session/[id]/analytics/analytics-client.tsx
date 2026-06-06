@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import {
   AlertTriangle,
   ArrowRight,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SessionHeader } from '@/components/medlearn/session-header'
+import { markAnalyticsReviewedAction } from '@/components/medlearn/actions'
 import type { SessionView } from '@/lib/medlearn/session-view'
 
 // ─── Real data contract (populated server-side; honest-empty pre-session) ──────
@@ -89,9 +91,18 @@ export function AnalyticsClient({ session, data }: { session: SessionView; data:
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<'overview' | 'quiz' | 'leaderboard' | 'engagement'>('overview')
+  const [isPending, startTransition] = useTransition()
 
   const finalize = () => {
-    router.push(`/session/${session.id}/pre`)
+    startTransition(async () => {
+      const res = await markAnalyticsReviewedAction(session.id)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      router.push(`/session/${session.id}/pre`)
+      router.refresh()
+    })
   }
 
   const cohortTotal = data.cohortTotal
@@ -533,9 +544,10 @@ export function AnalyticsClient({ session, data }: { session: SessionView; data:
         <button
           type="button"
           onClick={finalize}
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-slate-700 px-6 text-[14px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02]"
+          disabled={isPending}
+          className="inline-flex h-11 items-center gap-2 rounded-full bg-slate-700 px-6 text-[14px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
         >
-          Mark analytics reviewed
+          {isPending ? 'Saving…' : 'Mark analytics reviewed'}
           <ArrowRight className="size-4" />
         </button>
       </div>

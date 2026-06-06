@@ -349,9 +349,9 @@ export function PostClient({ session, data, canViewAnalytics = true }: { session
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <Link href={`/session/${session.id}/prepare`} className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground">
+          <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-3.5" />
-            Back to session
+            Back to My Sessions
           </Link>
           <h1 className="mt-1 text-[22px] font-bold tracking-tight">{session.title}</h1>
           <div className="mt-1 flex items-center gap-3 text-[12.5px] text-muted-foreground">

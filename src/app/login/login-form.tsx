@@ -157,7 +157,7 @@ export function LoginForm() {
             <h1 className="mb-7 text-6xl font-black leading-none tracking-tight text-white xl:text-7xl">
               Welcome
               <br />
-              back.
+              3H Professional.
             </h1>
             <p className="text-xl font-black leading-snug tracking-tight xl:text-2xl" style={{ color: '#5EEAD4' }}>
               We don&rsquo;t simulate knowledge.

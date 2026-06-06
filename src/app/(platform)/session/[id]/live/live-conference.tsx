@@ -50,6 +50,8 @@ import '@livekit/components-styles'
 import { isAgentParticipant } from '@/lib/livekit-helpers'
 import { cn } from '@/lib/utils'
 import { WhiteboardPanel } from '@/components/classroom/whiteboard-panel'
+import { BreakoutRoomView } from '@/components/classroom/breakout-room-view'
+import { HookOverlay } from '@/components/engagement/hook-overlay'
 import type { SessionView } from '@/lib/medlearn/session-view'
 import {
   useLiveToken, useEngagement, useLiveHooks, useLeaderboard, useBreakouts,
@@ -107,7 +109,28 @@ function downloadText(content: string, filename: string) {
 export function LiveConference({ session, isHost }: { session: SessionView; isHost: boolean }) {
   const tok = useLiveToken(session.id)
   const [lkError, setLkError] = useState(false)
+  // When set, the user has joined a breakout: we leave the main room entirely
+  // and connect to the child room (BreakoutRoomView mints its own token + runs
+  // its own <LiveKitRoom>). Lives above the main <LiveKitRoom> so the two never
+  // mount at once. Mirrors the participant room's breakout switch.
+  const [activeBreakout, setActiveBreakout] = useState<{ id: string; name: string } | null>(null)
   const canConnect = tok.status === 'joined' && !!tok.token && !!tok.url && !lkError
+
+  if (activeBreakout) {
+    const isFaculty = isHost || tok.role === 'HOST' || tok.role === 'CO_HOST'
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        <BreakoutRoomView
+          sessionId={session.id}
+          breakoutId={activeBreakout.id}
+          breakoutName={activeBreakout.name}
+          isFaculty={isFaculty}
+          onLeave={() => setActiveBreakout(null)}
+        />
+      </div>
+    )
+  }
+
   const body = (
     <LiveConferenceBody
       session={session}
@@ -115,6 +138,7 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
       connected={canConnect}
       role={tok.role}
       tokenStatus={lkError ? 'error' : tok.status}
+      onJoinBreakout={setActiveBreakout}
     />
   )
   if (canConnect) {
@@ -123,6 +147,12 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
         token={tok.token}
         serverUrl={tok.url}
         connect
+        // adaptiveStream: only subscribe/decode tiles that are actually on
+        // screen, at the resolution they're displayed (off-screen carousel
+        // tiles pause) — the Meet/Zoom approach to keeping video CPU bounded.
+        // dynacast: stop publishing layers no one is viewing. Together these
+        // are the biggest lever against the "Chrome maxes the CPU" report.
+        options={{ adaptiveStream: true, dynacast: true }}
         data-lk-theme="default"
         className="contents"
         onError={() => setLkError(true)}
@@ -136,18 +166,19 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
   return body
 }
 
-function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
+function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJoinBreakout }: {
   session: SessionView
   isHost: boolean
   connected: boolean
   role?: string
   tokenStatus: TokenState['status']
+  onJoinBreakout: (b: { id: string; name: string }) => void
 }) {
   const [viewMode, setViewMode]           = useState<ViewMode>('gallery')
   const [sharingScreen, setSharingScreen] = useState(false)
   const [leftCollapsed, setLeftCollapsed]   = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
-  const [rightTab, setRightTab]             = useState<RightTab>('hooks')
+  const [rightTab, setRightTab]             = useState<RightTab>(isHost ? 'hooks' : 'transcript')
   const [showWhiteboard, setShowWhiteboard] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [mediaError, setMediaError]         = useState<string | null>(null)
@@ -231,11 +262,16 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
     setTimeout(() => setRemoteReactions((prev) => prev.filter((r) => r.id !== id)), 4000)
   }, [])
 
-  // "Mute all" — optimistic local indicator, plus the real server-side mute of
-  // every other participant's mic when the room is connected.
-  const muteAll = async () => {
-    setMutedAll(true)
-    if (connected) await muteAllParticipants(session.id)
+  // "Mute all" toggle. Muting server-mutes every other participant's mic.
+  // Un-muting clears the local "all muted" indicator so the faculty tiles
+  // reflect reality again — WebRTC/LiveKit cannot force a remote mic back ON
+  // without that participant's consent, so "unmute all" lifts the room-wide
+  // mute state and lets people unmute themselves rather than silently failing
+  // (previously the button was one-way: once muted it could never be undone).
+  const toggleMuteAll = async () => {
+    const next = !mutedAll
+    setMutedAll(next)
+    if (next && connected) await muteAllParticipants(session.id)
   }
 
   const approveHook = async (hid: string, approved: boolean) => {
@@ -341,6 +377,11 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-950 text-slate-100">
       {connected && <ReactionsChannel reaction={myReaction} onRemote={addRemoteReaction} />}
+      {/* Non-hosts get the live hook-answer modal (the right-panel Hooks tab is
+          the host's authoring surface). Self-contained HTTP poller — works even
+          if this client's video socket is down, and closes the loop with the
+          presenter's now-live response counts. */}
+      {!isHost && <HookOverlay sessionId={session.id} />}
       {remoteReactions.length > 0 && (
         <div className="pointer-events-none fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 flex-col-reverse items-center gap-1.5">
           {remoteReactions.map((r) => (
@@ -355,7 +396,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
       {/* ── TOP STATUS BAR ─────────────────────────────────────────────── */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-600 bg-gray-700 px-3 backdrop-blur-sm md:gap-3 md:px-4">
         <Link
-          href={`/session/${session.id}/pre`}
+          href={isHost ? `/session/${session.id}/pre` : '/calendar'}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
         >
           <ArrowLeft className="size-3.5" />
@@ -434,15 +475,15 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                 </div>
               )}
 
-              <div className="mt-1 border-t border-gray-200 pt-2.5">
+              {isHost && <div className="mt-1 border-t border-gray-200 pt-2.5">
                 <div className="mb-1.5 text-[9px] font-semibold tracking-widest text-gray-400 uppercase">Mod tools</div>
                 <button
                   type="button"
-                  onClick={muteAll}
+                  onClick={toggleMuteAll}
                   className={cn('mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[10.5px] transition-colors hover:bg-gray-100', mutedAll ? 'text-rose-600 font-medium' : 'text-gray-600 hover:text-gray-900')}
                 >
-                  <MicOff className="size-3" />
-                  {mutedAll ? 'All muted' : 'Mute all'}
+                  {mutedAll ? <Mic className="size-3" /> : <MicOff className="size-3" />}
+                  {mutedAll ? 'Unmute all' : 'Mute all'}
                 </button>
                 <button
                   type="button"
@@ -460,7 +501,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                   <Monitor className="size-3" />
                   Spotlight
                 </button>
-              </div>
+              </div>}
             </div>
           )}
         </div>
@@ -497,13 +538,16 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
             {!rightCollapsed && <span className="ml-1 text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Panel</span>}
           </div>
           {!rightCollapsed && <>
-          <div className="grid shrink-0 grid-cols-4 border-b border-gray-200">
+          <div className={cn('grid shrink-0 border-b border-gray-200', isHost ? 'grid-cols-4' : 'grid-cols-2')}>
             {([
-              { key: 'hooks'      as RightTab, icon: <Zap className="size-[13px]" />,        label: 'Hooks' },
+              // Hooks authoring + AI co-facilitator are host-only moderator
+              // surfaces; learners get Captions + Rooms (and answer hooks via
+              // the HookOverlay modal, not this panel).
+              ...(isHost ? [{ key: 'hooks' as RightTab, icon: <Zap className="size-[13px]" />, label: 'Hooks' }] : []),
               { key: 'transcript' as RightTab, icon: <Globe className="size-[13px]" />,      label: 'Captions' },
-              { key: 'ai'         as RightTab, icon: <Sparkles className="size-[13px]" />,   label: 'AI' },
+              ...(isHost ? [{ key: 'ai' as RightTab, icon: <Sparkles className="size-[13px]" />, label: 'AI' }] : []),
               { key: 'breakout'   as RightTab, icon: <Layers className="size-[13px]" />,     label: 'Rooms' },
-            ] as const).map((tab) => (
+            ]).map((tab) => (
               <button key={tab.key} type="button" onClick={() => setRightTab(tab.key)}
                 className={cn('flex flex-col items-center gap-0.5 border-b-2 py-2 text-[9px] font-medium transition-colors', rightTab === tab.key ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-400 hover:text-gray-700')}>
                 {tab.icon}{tab.label}
@@ -513,7 +557,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
 
           <div className="min-h-0 flex-1 overflow-y-auto">
 
-            {rightTab === 'hooks' && (
+            {isHost && rightTab === 'hooks' && (
               <div className="space-y-2 p-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Attention Hooks</span>
@@ -669,7 +713,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
               )
             })()}
 
-            {rightTab === 'ai' && (
+            {isHost && rightTab === 'ai' && (
               <div className="p-3">
                 <div className="mb-3 flex items-center gap-2">
                   <Sparkles className="size-4 text-teal-600" />
@@ -718,8 +762,9 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                   <button type="button" onClick={refreshRooms} className="rounded-full border border-gray-200 px-2.5 py-0.5 text-[10px] text-gray-500 transition-colors hover:bg-gray-50">Refresh</button>
                 </div>
 
-                {/* Create — random auto-grouping (the real /breakouts contract) */}
-                <div className="mb-3 space-y-2 rounded-2xl border border-teal-200 bg-teal-50 p-2.5">
+                {/* Create — random auto-grouping (the real /breakouts contract).
+                    Host-only: learners can only join the room they're assigned. */}
+                {isHost && <div className="mb-3 space-y-2 rounded-2xl border border-teal-200 bg-teal-50 p-2.5">
                   <div className="text-[9px] font-bold uppercase tracking-wider text-teal-700">Split room into groups</div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10.5px] text-gray-600">Groups</span>
@@ -732,7 +777,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                   </div>
                   {breakoutErr && <p className="text-[10px] leading-snug text-rose-600">{breakoutErr}</p>}
                   <p className="text-[9px] leading-snug text-teal-700/70">Learners are auto-assigned at random. Each room gets its own video space.</p>
-                </div>
+                </div>}
 
                 {/* Real breakout rooms */}
                 {apiRooms === null ? (
@@ -756,6 +801,19 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
                                 <span key={m.userId} className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] text-gray-600">{(m.name || 'Learner').split(' ')[0]}</span>
                               ))}
                           </div>
+                          {/* Join the breakout — leaves the main room and connects to the
+                              child LiveKit room. Hosts/faculty can drop into any room;
+                              learners can join the one they're assigned to. */}
+                          {r.status === 'ACTIVE' && (
+                            <button
+                              type="button"
+                              onClick={() => onJoinBreakout({ id: r.id, name: r.name })}
+                              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-teal-500 py-1.5 text-[10px] font-semibold text-white transition-colors hover:bg-teal-400"
+                            >
+                              <Layers className="size-3" />
+                              Join room
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -789,7 +847,7 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
 
           <DockBtn active={showWhiteboard}  icon={<Pencil className="size-5" />}  label="Whiteboard"   onClick={() => setShowWhiteboard((v) => !v)} />
           <DockBtn active={showLeaderboard} icon={<Trophy className="size-5" />}  label="Leaderboard"  onClick={() => setShowLeaderboard((v) => !v)} />
-          <DockBtn icon={<Zap className="size-5" />}       label="Hooks"        onClick={() => setRightTab('hooks')} />
+          {isHost && <DockBtn icon={<Zap className="size-5" />}       label="Hooks"        onClick={() => setRightTab('hooks')} />}
           <DockBtn icon={<Layers className="size-5" />}    label="Rooms"        onClick={() => setRightTab('breakout')} />
 
           <div className="relative">
@@ -806,18 +864,28 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus }: {
 
           <div className="mx-1 h-8 w-px bg-white/[0.08]" />
 
-          <button type="button" onClick={openSjt}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/20">
-            <HelpCircle className="size-4" />End &amp; SJT
-          </button>
+          {isHost && (
+            <button type="button" onClick={openSjt}
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/20">
+              <HelpCircle className="size-4" />End &amp; SJT
+            </button>
+          )}
 
           <div className="mx-1 h-8 w-px bg-white/[0.08]" />
         </div>
 
-        <Link href={`/session/${session.id}/post`}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90">
-          <AlertCircle className="size-4" />End Session
-        </Link>
+        {/* Host ends the session for everyone; learners simply leave the room. */}
+        {isHost ? (
+          <Link href={`/session/${session.id}/post`}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90">
+            <AlertCircle className="size-4" />End Session
+          </Link>
+        ) : (
+          <Link href="/calendar"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-rose-500 px-4 text-[12.5px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500/90">
+            <ArrowLeft className="size-4" />Leave
+          </Link>
+        )}
       </div>
 
       {/* ── WHITEBOARD — real tldraw canvas. Persists to /whiteboard and

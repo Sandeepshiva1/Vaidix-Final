@@ -4,6 +4,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { presignDownload } from '@/lib/storage'
 import { loadSessionView } from '@/lib/medlearn/session-view'
+import { listSessionLearners } from '@/server/services/sessions/visibility'
 import {
   PromoClient,
   type PromoBootstrap,
@@ -54,6 +55,15 @@ function templateOfTitle(title: string): PromoTemplate | null {
 // to empty assets + a storageOffline flag so the client shows the offline state.
 async function loadBootstrap(sessionId: string, metadata: Prisma.JsonValue | null): Promise<PromoBootstrap> {
   const meta = readPromoMeta(metadata)
+  // Real expected-audience size for "will go to N learners" — the same roster
+  // the dashboard/readiness panel read, so the promo count and the dashboard
+  // agree. Independent of object storage, so compute it outside the asset try.
+  let audienceCount = 0
+  try {
+    audienceCount = (await listSessionLearners(sessionId)).length
+  } catch {
+    // Roster query failed — leave at 0; the client shows the zero-audience guard.
+  }
   try {
     const docs = await db.document.findMany({
       where: {
@@ -76,10 +86,10 @@ async function loadBootstrap(sessionId: string, metadata: Prisma.JsonValue | nul
       const svgUrl = await presignDownload(d.s3Key, 60 * 30)
       assets.push({ template, documentId: d.id, title: d.title, svgUrl, createdAt: d.createdAt.toISOString() })
     }
-    return { meta, assets, teaserVideo: null, storageOffline: false }
+    return { meta, assets, teaserVideo: null, storageOffline: false, audienceCount }
   } catch {
     // Object store unreachable → keep saved flags, drop the (unrenderable) assets.
-    return { meta, assets: [], teaserVideo: null, storageOffline: true }
+    return { meta, assets: [], teaserVideo: null, storageOffline: true, audienceCount }
   }
 }
 

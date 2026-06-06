@@ -25,7 +25,7 @@ import {
   parseBody,
   handleUnexpected,
 } from '@/server/services/api-helpers';
-import { presignUpload, BUCKET } from '@/lib/storage';
+import { presignUpload, BUCKET, isLocalStorageBackend } from '@/lib/storage';
 import { env } from '@/lib/env';
 import { mintToken } from '@/server/services/tokens';
 
@@ -53,6 +53,16 @@ export async function POST(req: Request) {
     if (!body.ok) return body.response;
 
     const ext = ALLOWED_TYPES[body.data.contentType];
+
+    // Local-FS dev backend: no MinIO/S3 is running, so a presigned URL would
+    // point at an unreachable host and the browser PUT fails with "Failed to
+    // fetch". Hand back a same-origin URL the dev app can serve instead. The
+    // same URL is used for both upload (PUT) and view (GET).
+    if (isLocalStorageBackend()) {
+      const localUrl = `/api/uploads/local-avatar/${mintToken(8)}.${ext}`;
+      return jsonOk({ uploadUrl: localUrl, avatarUrl: localUrl });
+    }
+
     const key = `avatars/${mintToken(8)}.${ext}`;
 
     const uploadUrl = await presignUpload(key, body.data.contentType);

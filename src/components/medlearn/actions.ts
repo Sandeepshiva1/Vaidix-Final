@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { Prisma, Role, SessionApprovalStatus, SessionStatus, SessionType } from '@prisma/client';
 import { forgeDeck, DeckForgeError } from '@/server/services/decks/deck-forge-service';
 import { audit, AUDIT_EVENTS } from '@/server/services/audit';
+import { emitToMany } from '@/server/services/notifications-service';
 
 export interface CreateSessionFormInput {
   title: string;
@@ -18,10 +19,20 @@ export interface CreateSessionFormInput {
   description?: string;
   /** Real cohort id (Classroom). Validated against the proposer's program. */
   cohortId?: string;
+  /** Classroom role-group audience — fan out invites to every active member of
+   *  the host's program whose effective role matches: RESIDENT ("All Residents"),
+   *  FACULTY ("All Faculty"), or PROGRAM_DIRECTOR ("All HODs"). Mutually
+   *  exclusive with `cohortId` (the wizard sends one or the other). */
+  targetRole?: 'RESIDENT' | 'FACULTY' | 'PROGRAM_DIRECTOR';
   specialty?: string;
   subSpecialty?: string;
-  /** Board Room: free-text "emails or names, comma-separated". */
+  /** Board Room: free-text "emails or names, comma-separated". @deprecated — the
+   *  Board Room wizard now uses the directory picker (participantUserIds). Kept
+   *  for backwards compatibility with any external caller. */
   participants?: string;
+  /** Board Room: real users picked from the directory (flat list, no roles).
+   *  Become SessionInvite rows + an in-app "you're invited" notification. */
+  participantUserIds?: string[];
   /** Classroom: role assignments. Each name is a real user picked from search. */
   roles?: { role: string; userId?: string; name?: string }[];
   /** True for the Board Room variant (quick meeting, 30-day TTL). */
@@ -35,6 +46,35 @@ export interface CreateSessionFormInput {
 export type CreateSessionResult =
   | { ok: true; sessionId: string }
   | { ok: false; error: string };
+
+// Role-group audiences the Classroom picker can target program-wide.
+const ROLE_AUDIENCE_ROLES: Role[] = [Role.RESIDENT, Role.FACULTY, Role.PROGRAM_DIRECTOR];
+
+/**
+ * Every active member of a program whose effective role matches `role`. Used by
+ * the Classroom "All Residents / All Faculty / All HODs" picker options to fan
+ * out invites. Effective role honours the per-program override
+ * (ProgramMembership.role ?? User.role). The host is excluded (they're the
+ * presenter, not an invitee).
+ */
+async function listProgramRoleAudienceIds(
+  programId: string,
+  role: Role,
+  excludeUserId: string,
+): Promise<string[]> {
+  const members = await db.programMembership.findMany({
+    where: { programId, user: { status: 'ACTIVE', deletedAt: null } },
+    select: { role: true, user: { select: { id: true, role: true } } },
+  });
+
+  const ids = new Set<string>();
+  for (const m of members) {
+    const effectiveRole = m.role ?? m.user.role;
+    if (effectiveRole === role) ids.add(m.user.id);
+  }
+  ids.delete(excludeUserId);
+  return [...ids];
+}
 
 /**
  * Lightweight session creator for the MedLearn workflow surface.
@@ -132,7 +172,35 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
     });
     roleInviteeIds = existing.map((e) => e.id).filter((id) => id !== user.id);
   }
-  const allInviteeIds = Array.from(new Set([...inviteeUserIds, ...roleInviteeIds]));
+
+  // ── Board Room participants — real users picked from the directory (no roles) ──
+  // The picker only surfaces real program users, but validate against the DB to
+  // guard the SessionInvite FK against a stale/forged payload before createMany.
+  const participantUserIds = Array.from(new Set(input.participantUserIds ?? [])).filter(Boolean);
+  let participantInviteeIds: string[] = [];
+  if (participantUserIds.length > 0) {
+    const existing = await db.user.findMany({
+      where: { id: { in: participantUserIds }, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    participantInviteeIds = existing.map((e) => e.id).filter((id) => id !== user.id);
+  }
+
+  // ── Role-group audience (Classroom) — fan out to all program members of a
+  // role (All Residents / All Faculty / All HODs). Concrete SessionInvite rows
+  // (built below from allInviteeIds) give every targeted user feed/calendar
+  // visibility AND an in-app "you're invited" alert.
+  const targetRole = ROLE_AUDIENCE_ROLES.includes(input.targetRole as Role)
+    ? (input.targetRole as Role)
+    : null;
+  let roleAudienceIds: string[] = [];
+  if (targetRole && !input.isBoardRoom) {
+    roleAudienceIds = await listProgramRoleAudienceIds(user.activeProgramId, targetRole, user.id);
+  }
+
+  const allInviteeIds = Array.from(
+    new Set([...inviteeUserIds, ...roleInviteeIds, ...participantInviteeIds, ...roleAudienceIds]),
+  );
 
   // ── Fields with no dedicated column are preserved in metadata ──
   const metadata: Record<string, unknown> = {};
@@ -143,6 +211,9 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
   }
   if (input.specialty) metadata.specialty = input.specialty;
   if (input.subSpecialty) metadata.subSpecialty = input.subSpecialty;
+  // Remember the role-group audience so the edit form can re-select it (the
+  // session stores no cohortId in that case — the audience is the invite fan-out).
+  if (targetRole) metadata.audienceRole = targetRole;
   const namedRoles = (input.roles ?? []).filter((r) => r.userId);
   if (namedRoles.length > 0) metadata.roles = namedRoles;
   if (participantTokens.length > 0) {
@@ -205,6 +276,23 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
       })),
       skipDuplicates: true,
     });
+
+    // In-app "you're invited" alert. Deep-links to /classroom/{id} (the shared
+    // call room) via the notifications-service default resolver — exactly where
+    // a board-room participant joins. Fire-and-forget; never blocks creation.
+    const kind = input.isBoardRoom ? 'session.invited.boardroom' : 'session.invited';
+    const startLabel = start.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+    await emitToMany(
+      allInviteeIds.map((uid) => ({
+        userId: uid,
+        kind,
+        title: input.isBoardRoom ? `Board room invite: ${title}` : `You're invited: ${title}`,
+        body: `${start < new Date() ? 'Started' : 'Starts'} ${startLabel}`,
+        payload: { sessionId: created.id },
+      })),
+    );
   }
 
   await audit({
@@ -311,6 +399,10 @@ export async function updateTeachingSessionAction(
       : {};
   if (input.specialty) meta.specialty = input.specialty; else delete meta.specialty;
   if (input.subSpecialty) meta.subSpecialty = input.subSpecialty; else delete meta.subSpecialty;
+  const editTargetRole = ROLE_AUDIENCE_ROLES.includes(input.targetRole as Role)
+    ? (input.targetRole as Role)
+    : null;
+  if (editTargetRole) meta.audienceRole = editTargetRole; else delete meta.audienceRole;
   const namedRoles = (input.roles ?? []).filter((r) => r.userId);
   if (namedRoles.length > 0) meta.roles = namedRoles; else delete meta.roles;
 
@@ -343,11 +435,16 @@ export async function updateTeachingSessionAction(
     },
   });
 
-  // Add any newly-assigned role users as invitees (idempotent). We don't delete
-  // existing invites here so cohort/manual invitees are preserved.
-  if (roleInviteeIds.length > 0) {
+  // Add any newly-assigned role users as invitees (idempotent). When "All
+  // learners" is (re)selected, also fan out to the whole program audience. We
+  // don't delete existing invites here so cohort/manual invitees are preserved.
+  const editRoleAudienceIds = editTargetRole
+    ? await listProgramRoleAudienceIds(existing.programId, editTargetRole, existing.hostId)
+    : [];
+  const editInviteeIds = Array.from(new Set([...roleInviteeIds, ...editRoleAudienceIds]));
+  if (editInviteeIds.length > 0) {
     await db.sessionInvite.createMany({
-      data: roleInviteeIds.map((uid) => ({ sessionId, userId: uid, invitedBy: user.id })),
+      data: editInviteeIds.map((uid) => ({ sessionId, userId: uid, invitedBy: user.id })),
       skipDuplicates: true,
     });
   }
@@ -465,6 +562,51 @@ export async function attachDocumentAndForgeAction(
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, code, error: msg };
   }
+}
+
+/**
+ * Mark the "Responses & Analytics" pre-conference step as reviewed. Unlike the
+ * other steps (which derive from real data — an approved deck, invites, promo
+ * docs, pre-questions), analytics is an acknowledgement: the host/faculty has
+ * looked at the readiness + quiz dashboard. We persist that as a metadata flag
+ * (`analyticsReviewed`) which loadSessionView reads back to light up the step.
+ *
+ * Backs the "Mark analytics reviewed" CTA on /session/[id]/analytics.
+ */
+export async function markAnalyticsReviewedAction(sessionId: string): Promise<CreateSessionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'Not signed in.' };
+
+  const existing = await db.teachingSession.findUnique({
+    where: { id: sessionId },
+    select: { id: true, hostId: true, deletedAt: true, metadata: true },
+  });
+  if (!existing || existing.deletedAt) return { ok: false, error: 'Session not found.' };
+
+  // Mirror the access guard on the analytics page: host or faculty-like.
+  const isHost = existing.hostId === session.user.id;
+  const isFacultyLike =
+    session.user.role === Role.FACULTY ||
+    session.user.role === Role.PROGRAM_DIRECTOR ||
+    session.user.role === Role.ADMIN;
+  if (!isHost && !isFacultyLike) return { ok: false, error: 'You can’t review analytics for this session.' };
+
+  // Merge so we don't clobber other metadata keys (roles, specialty, learnerPrep, …).
+  const meta: Record<string, unknown> =
+    existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+      ? { ...(existing.metadata as Record<string, unknown>) }
+      : {};
+  meta.analyticsReviewed = true;
+
+  await db.teachingSession.update({
+    where: { id: sessionId },
+    data: { metadata: meta as Prisma.InputJsonValue },
+  });
+
+  revalidatePath(`/session/${sessionId}/pre`);
+  revalidatePath(`/session/${sessionId}/analytics`);
+  revalidatePath(`/session/${sessionId}/ready`);
+  return { ok: true, sessionId };
 }
 
 /**

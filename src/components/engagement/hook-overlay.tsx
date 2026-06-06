@@ -7,7 +7,8 @@
 // fired hook arrives, surfaces a centered modal with options. Submitting POSTs
 // to /[hookId]/respond. Records latency client-side and sends with the response.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useVisibleInterval } from '@/lib/use-visible-interval';
 
 interface LiveHookDTO {
   id: string;
@@ -57,11 +58,9 @@ export function HookOverlay({ sessionId }: { sessionId: string }) {
     }
   }, [sessionId, activeHook, respondedIds]);
 
-  useEffect(() => {
-    void poll();
-    const iv = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(iv);
-  }, [poll]);
+  // Visibility-aware poll — pauses when the tab is backgrounded (Meet/Zoom
+  // pattern) so an idle learner tab stops hammering the hooks endpoint.
+  useVisibleInterval(poll, POLL_INTERVAL_MS);
 
   const options = useMemo(
     () => activeHook?.options ?? (activeHook ? defaultOptions(activeHook.kind) : null),

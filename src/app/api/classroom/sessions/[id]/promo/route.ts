@@ -37,6 +37,8 @@ import {
   requestTeaserVideo,
   TeaserVideoAccessError,
 } from '@/server/services/promo/teaser-video-service';
+import { materializeSessionAudience } from '@/server/services/session-service';
+import { listSessionLearners } from '@/server/services/sessions/visibility';
 
 const FACULTY_LIKE: Role[] = [Role.FACULTY, Role.PROGRAM_DIRECTOR, Role.ADMIN];
 
@@ -206,6 +208,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   try {
     const meta = readPromoMeta(gate.session.metadata);
+    // Real expected-audience size so the UI can show "will go to N learners"
+    // instead of a hardcoded figure. Same roster the dashboard/readiness panel
+    // read, so the promo count and the dashboard never disagree.
+    const audienceCount = (await listSessionLearners(id)).length;
     const assets = await loadAssets(id);
     // The teaser Document is loaded separately (its READY presign can fail
     // independently of the image presigns) so an offline storage backend for
@@ -218,12 +224,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       // surface it as RENDERING rather than dropping it entirely.
       if (!isStorageUnreachable(err)) throw err;
     }
-    return jsonOk({ meta, assets, teaserVideo });
+    return jsonOk({ meta, assets, teaserVideo, audienceCount });
   } catch (err) {
     // Storage unreachable (network-blocked env) → still return the saved meta so
-    // the UI can render its select/approve state; assets degrade to empty.
+    // the UI can render its select/approve state; assets degrade to empty. The
+    // audience size is independent of object storage, so still surface it.
     if (isStorageUnreachable(err)) {
-      return jsonOk({ meta: readPromoMeta(gate.session.metadata), assets: [], teaserVideo: null, storageOffline: true });
+      let audienceCount = 0;
+      try {
+        audienceCount = (await listSessionLearners(id)).length;
+      } catch {
+        // Roster query failed too — fall back to 0; UI shows the zero-audience guard.
+      }
+      return jsonOk({ meta: readPromoMeta(gate.session.metadata), assets: [], teaserVideo: null, storageOffline: true, audienceCount });
     }
     return handleUnexpected(err);
   }
@@ -352,6 +365,31 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     updatedAt: new Date().toISOString(),
   };
 
+  // ── "Send to learners" — the actual delivery side-effect ────────────────────
+  // Clicking Send is what turns the promo's configured audience into real
+  // SessionInvite rows. Until this existed, Send only flipped the `sent` flag in
+  // metadata, so no invites were created and the learners dashboard stayed empty
+  // even though the host believed the flyer had gone out. We materialise BEFORE
+  // persisting `sent` so we never report "sent" on a send that actually failed.
+  // Only fires on the false→true transition so repeat PATCHes (toggling
+  // approvals after sending) don't re-run the roster write — and even if one did,
+  // materialiseSessionAudience is idempotent (skipDuplicates).
+  const justSent = body.data.sent === true && !prev.sent;
+  let invited: number | undefined;
+  let audienceCount: number | undefined;
+  if (justSent) {
+    try {
+      const res = await materializeSessionAudience(id, auth.user.id, auth.user.role);
+      invited = res.invited;
+      audienceCount = res.audienceSize;
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (msg === 'NOT_AUTHORIZED') return jsonError('FORBIDDEN', 'Not allowed to send this promo', 403);
+      if (msg === 'SESSION_NOT_FOUND') return jsonError('NOT_FOUND', 'Session not found', 404);
+      return handleUnexpected(err);
+    }
+  }
+
   // Merge into the existing metadata object so we don't clobber sibling keys
   // (prereqItems, etc.) written by other steps.
   const baseMeta =
@@ -364,7 +402,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     data: { metadata: { ...baseMeta, promoAssets: next } as unknown as Prisma.InputJsonValue },
   });
 
-  return jsonOk({ meta: next });
+  return jsonOk({ meta: next, ...(justSent ? { invited, audienceCount } : {}) });
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

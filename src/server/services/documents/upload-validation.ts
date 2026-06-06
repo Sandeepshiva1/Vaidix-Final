@@ -35,7 +35,9 @@ const ALLOWED: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   csv: 'text/csv',
   txt: 'text/plain',
+  md: 'text/markdown',
   mp4: 'video/mp4',
+  mov: 'video/quicktime',
   webm: 'video/webm',
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
@@ -84,6 +86,13 @@ function magicMatches(ext: string, buf: Buffer): boolean {
     case 'mp4':
     case 'm4a':
       return startsWith(buf, [0x66, 0x74, 0x79, 0x70], 4); // ....ftyp
+    case 'mov': {
+      // QuickTime: a 4-byte atom-size prefix then a 4-char atom type. Accept the
+      // common top-level atoms a .mov can legitimately open with.
+      if (buf.length < 8) return false;
+      const atom = buf.toString('latin1', 4, 8);
+      return ['ftyp', 'moov', 'mdat', 'wide', 'free', 'skip', 'pnot'].includes(atom);
+    }
     case 'webm':
       return startsWith(buf, [0x1a, 0x45, 0xdf, 0xa3]);
     case 'mp3':
@@ -92,6 +101,7 @@ function magicMatches(ext: string, buf: Buffer): boolean {
       return startsWith(buf, [0x52, 0x49, 0x46, 0x46]) && startsWith(buf, [0x57, 0x41, 0x56, 0x45], 8);
     case 'csv':
     case 'txt':
+    case 'md':
       return true;
     default:
       return false;
@@ -110,6 +120,24 @@ export function validateUpload(filename: string, bytes: Buffer): UploadValidatio
   }
   if (!magicMatches(ext, bytes)) {
     return { ok: false, reason: 'File content does not match its extension' };
+  }
+  return { ok: true, mimeType: canonical };
+}
+
+/**
+ * Allowlist a file by extension alone, returning the canonical content-type.
+ * Used by the presigned-URL upload path where the server never sees the bytes
+ * (they go browser → object store directly) and so cannot sniff magic numbers.
+ * The client-declared `mimeType` is intentionally ignored — it's attacker-
+ * controlled — and the canonical type is substituted instead.
+ */
+export function validateUploadMeta(
+  filename: string,
+): UploadValidationOk | UploadValidationErr {
+  const ext = extOf(filename);
+  const canonical = ALLOWED[ext];
+  if (!canonical) {
+    return { ok: false, reason: `File type ".${ext || 'unknown'}" is not allowed` };
   }
   return { ok: true, mimeType: canonical };
 }

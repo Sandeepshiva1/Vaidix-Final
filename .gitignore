@@ -76,8 +76,12 @@ scripts/test-*.ts
 scripts/test-*.sh
 scripts/e2e-*.ts
 scripts/e2e-*.sh
+scripts/e2e-*.mjs
 scripts/cleanup-test-users.ts
 src/lib/smoke-test.ts
+# root-level e2e scratch scripts + their screenshots (one-off, never shipped)
+/e2e-*.mjs
+/e2e-*.png
 
 # editor / OS
 .idea/

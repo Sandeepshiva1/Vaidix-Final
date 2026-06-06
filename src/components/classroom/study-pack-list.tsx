@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { validateStudyPackFile, STUDY_PACK_ACCEPT } from '@/lib/upload-accept'
 import { PreQuestionsBoard } from '@/components/classroom/pre-questions-board'
 import { PreQuestionsDashboard } from '@/components/classroom/pre-questions-dashboard'
 import { PollsManager } from '@/components/classroom/polls-manager'
@@ -522,6 +523,12 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
  // ── Inline upload ──
   async function handleUpload() {
     if (!uploadFile || !uploadTitle.trim() || uploadPhase !== 'idle') return
+    const check = validateStudyPackFile(uploadFile)
+    if (!check.ok) {
+      toast.error(check.reason)
+      setUploadFile(null)
+      return
+    }
     setUploadPhase('uploading')
     try {
       const form = new FormData()
@@ -782,7 +789,9 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
       } catch { /* non-critical */ }
     }
     void poll()
-    const interval = activeTab === 'questions' ? 3000 : 30_000
+    // 3s was needlessly aggressive (a top CPU/network offender). Live question
+    // counts don't change that fast; 12s on the active tab is plenty responsive.
+    const interval = activeTab === 'questions' ? 12_000 : 30_000
     const t = setInterval(poll, interval)
     return () => { cancelled = true; clearInterval(t) }
   }, [sessionId, activeTab])
@@ -1088,10 +1097,18 @@ function FacultyPrepPanel({ sessionId, sessionTitle, questionCount }: { sessionI
                   ref={fileRef}
                   type="file"
                   className="sr-only"
-                  accept=".ppt,.pptx,.pdf,.doc,.docx,.md,.png,.jpg,.jpeg,.mp4,.mov"
+                  accept={STUDY_PACK_ACCEPT}
                   onChange={e => {
                     const f = e.target.files?.[0]
-                    if (f) { setUploadFile(f); if (!uploadTitle.trim()) setUploadTitle(f.name.replace(/\.[^.]+$/, '')) }
+                    if (!f) return
+                    const check = validateStudyPackFile(f)
+                    if (!check.ok) {
+                      toast.error(check.reason)
+                      e.target.value = ''
+                      return
+                    }
+                    setUploadFile(f)
+                    if (!uploadTitle.trim()) setUploadTitle(f.name.replace(/\.[^.]+$/, ''))
                   }}
                 />
 

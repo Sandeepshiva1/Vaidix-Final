@@ -87,7 +87,9 @@ const TERMINAL_DISCONNECT_REASONS = new Set<DisconnectReason>([
 // lost" panel. 30s matches the LiveKit SDK's own reconnect timeout and lines
 // up with what users perceive as "should have come back by now."
 const RECONNECT_BUDGET_MS = 30_000
-const RECONNECT_POLL_MS = 1500
+// 1.5s was a tight loop that spiked network/CPU during any blip. 4s still
+// recovers well within the budget without hammering the endpoint.
+const RECONNECT_POLL_MS = 4000
 
 export interface GuestPrejoinProps {
   sessionId: string

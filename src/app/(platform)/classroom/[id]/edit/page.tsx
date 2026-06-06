@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { Role, CohortStatus, SessionStatus, SessionType } from '@prisma/client'
-import { NewSessionWizard, type ClassroomEditInit } from '@/app/(platform)/sessions/new/new-session-wizard'
+import { NewSessionWizard, roleAudienceValue, type ClassroomEditInit } from '@/app/(platform)/sessions/new/new-session-wizard'
 import type { PickableUser } from '@/components/user-picker'
 
 export const dynamic = 'force-dynamic'
@@ -86,6 +86,10 @@ export default async function EditSessionPage({ params }: PageProps) {
   const meta = s.metadata && typeof s.metadata === 'object' && !Array.isArray(s.metadata)
     ? (s.metadata as Record<string, unknown>)
     : {}
+  // Board rooms have no classroom-style edit form (no specialty / roles /
+  // recurrence). Editing one here would mis-render and could strip its kind, so
+  // send it back to the call room. (Board-room editing is a separate follow-up.)
+  if (meta.kind === 'BOARD_ROOM') redirect(`/classroom/${id}`)
   const specialty = typeof meta.specialty === 'string' ? meta.specialty : ''
   const subSpecialty = typeof meta.subSpecialty === 'string' ? meta.subSpecialty : ''
   const metaRoles = Array.isArray(meta.roles)
@@ -114,7 +118,12 @@ export default async function EditSessionPage({ params }: PageProps) {
     title: s.title,
     specialty,
     subSpecialty,
-    cohortId: s.cohortId ?? '',
+    // A session targeted at a role group (All Residents / Faculty / HODs) stores
+    // no cohortId — the audience is the invite fan-out. Re-select that picker
+    // option from the persisted marker; otherwise fall back to the real cohort.
+    cohortId:
+      (typeof meta.audienceRole === 'string' && roleAudienceValue(meta.audienceRole)) ||
+      (s.cohortId ?? ''),
     description: s.description ?? '',
     startAtISO: s.scheduledStart.toISOString(),
     durationMinutes: Math.max(15, Math.round((s.scheduledEnd.getTime() - s.scheduledStart.getTime()) / 60000)),

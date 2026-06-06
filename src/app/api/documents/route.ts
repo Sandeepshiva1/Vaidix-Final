@@ -19,6 +19,7 @@ import {
   listDocuments,
   DocumentAccessError,
 } from '@/server/services/documents/document-service';
+import { validateUploadMeta } from '@/server/services/documents/upload-validation';
 import { env } from '@/lib/env';
 import { audit, AUDIT_EVENTS, extractRequestMetadata } from '@/server/services/audit';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
@@ -51,7 +52,18 @@ export async function POST(req: Request) {
 
   const body = await parseBody(req, createSchema);
   if (!body.ok) return body.response;
-  const { title, description, filename, mimeType, sizeBytes } = body.data;
+  const { title, description, filename, sizeBytes } = body.data;
+
+  // Allowlist by extension and substitute the canonical content-type. The
+  // client-declared mimeType is attacker-controlled and intentionally ignored.
+  // (Magic-byte sniffing isn't possible here — the bytes go straight to object
+  // storage via the presigned PUT — so /api/documents/upload is preferred for
+  // untrusted uploads; this is the floor for the presigned path.)
+  const meta = validateUploadMeta(filename);
+  if (!meta.ok) {
+    return jsonError('UNSUPPORTED_FILE', meta.reason, 415);
+  }
+  const mimeType = meta.mimeType;
 
   const maxBytes = env.MAX_UPLOAD_SIZE_MB * 1024 * 1024;
   if (sizeBytes > maxBytes) {

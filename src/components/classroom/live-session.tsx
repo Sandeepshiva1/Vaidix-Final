@@ -398,6 +398,9 @@ function LiveRoom({
         token={token}
         serverUrl={url}
         connect
+        // Decode only on-screen tiles at display resolution + stop publishing
+        // unviewed layers — the Meet/Zoom approach to bounded video CPU.
+        options={{ adaptiveStream: true, dynacast: true }}
         data-lk-theme="default"
         onConnected={handleConnected}
         onDisconnected={handleDisconnected}

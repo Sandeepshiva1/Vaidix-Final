@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ensureCsrfHeaders } from '@/lib/csrf-client'
+import { useVisibleInterval } from '@/lib/use-visible-interval'
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: { code: string; message: string } }
 
@@ -82,17 +83,12 @@ export interface EngagementAggregate {
 
 export function useEngagement(sessionId: string, enabled: boolean): EngagementAggregate | null {
   const [agg, setAgg] = useState<EngagementAggregate | null>(null)
-  useEffect(() => {
-    if (!enabled) return
-    let cancelled = false
-    const tick = async () => {
-      const r = await getJson<EngagementAggregate>(`/api/classroom/sessions/${sessionId}/engagement-signals`)
-      if (!cancelled && r.ok) setAgg(r.data)
-    }
-    tick()
-    const i = setInterval(tick, 5000)
-    return () => { cancelled = true; clearInterval(i) }
-  }, [sessionId, enabled])
+  const tick = useCallback(async () => {
+    const r = await getJson<EngagementAggregate>(`/api/classroom/sessions/${sessionId}/engagement-signals`)
+    if (r.ok) setAgg(r.data)
+  }, [sessionId])
+  // Visibility-aware: stops polling while the tab is backgrounded.
+  useVisibleInterval(tick, 5000, enabled)
   return agg
 }
 
@@ -116,7 +112,12 @@ export function useLiveHooks(sessionId: string) {
     const r = await getJson<{ hooks: ApiHook[] }>(`/api/classroom/sessions/${sessionId}/hooks`)
     if (r.ok) { setHooks(r.data.hooks); setError(null) } else setError(r.error.message)
   }, [sessionId])
-  useEffect(() => { refresh() }, [refresh])
+  // Poll while mounted so the presenter sees live response counts as learners
+  // answer — previously this fetched once on mount (and again only on
+  // create/fire), so `responseCount` stayed at 0 for the whole session and the
+  // tally only appeared after a remount/reload. 4s matches the learner-side
+  // hook-overlay poll cadence. Visibility-aware so it pauses when backgrounded.
+  useVisibleInterval(refresh, 4000)
 
   const create = useCallback(async (input: { kind: ApiHookKind; prompt: string; options?: string[]; correctOption?: string }) => {
     const r = await sendJson<{ hook: { id: string } }>(`/api/classroom/sessions/${sessionId}/hooks`, 'POST', input)
@@ -153,17 +154,12 @@ export interface LeaderEntry {
 
 export function useLeaderboard(sessionId: string, enabled: boolean) {
   const [entries, setEntries] = useState<LeaderEntry[] | null>(null)
-  useEffect(() => {
-    if (!enabled) return
-    let cancelled = false
-    const tick = async () => {
-      const r = await getJson<{ leaderboard: LeaderEntry[] }>(`/api/classroom/sessions/${sessionId}/leaderboard`)
-      if (!cancelled && r.ok) setEntries(r.data.leaderboard)
-    }
-    tick()
-    const i = setInterval(tick, 5000)
-    return () => { cancelled = true; clearInterval(i) }
-  }, [sessionId, enabled])
+  const tick = useCallback(async () => {
+    const r = await getJson<{ leaderboard: LeaderEntry[] }>(`/api/classroom/sessions/${sessionId}/leaderboard`)
+    if (r.ok) setEntries(r.data.leaderboard)
+  }, [sessionId])
+  // Visibility-aware + already gated by `enabled` (only when the panel is open).
+  useVisibleInterval(tick, 5000, enabled)
   return entries
 }
 

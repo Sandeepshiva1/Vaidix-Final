@@ -24,7 +24,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useDataChannel, useLocalParticipant, useRoomContext } from '@livekit/components-react'
+import { useConnectionState, useDataChannel, useLocalParticipant, useRoomContext } from '@livekit/components-react'
 import { ConnectionState } from 'livekit-client'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Lock, Unlock, Maximize2, Minimize2 } from 'lucide-react'
@@ -73,6 +73,7 @@ export function WhiteboardPanel({
 }) {
   const { localParticipant } = useLocalParticipant()
   const room = useRoomContext()
+  const connState = useConnectionState()
   const { message: lastDc } = useDataChannel(DC_TOPIC)
 
   const [editableByResidents, setEditableByResidents] = useState(false)
@@ -84,8 +85,49 @@ export function WhiteboardPanel({
   const saveTimerRef = useRef<number | null>(null)
   const versionRef = useRef(0)
   const hydratingRef = useRef(false)
+  // Latest snapshot we *wanted* peers to have, plus the version we last
+  // actually got onto the wire. When a broadcast is skipped because the engine
+  // was reconnecting (see onLocalChange), these diverge — and the reconnect
+  // effect below re-sends the latest the moment the room is Connected again.
+  const lastBroadcastRef = useRef<{ version: number; snapshot: unknown } | null>(null)
+  const lastSentVersionRef = useRef(0)
 
   const canEdit = isHostish || editableByResidents
+
+  // Publish a snapshot to peers over the data channel. Returns true only if it
+  // was actually handed to a connected engine with a known identity — callers
+  // use that to know whether a later re-broadcast is still owed.
+  const broadcastSnapshot = useCallback((version: number, snapshot: unknown): boolean => {
+    if (room.state !== ConnectionState.Connected) return false
+    const authorId = localParticipant.identity
+    if (!authorId) return false // identity not assigned yet (mid-connect)
+    try {
+      void localParticipant
+        .publishData(
+          encoder.encode(
+            JSON.stringify({ kind: 'snapshot', version, authorId, snapshot } satisfies WhiteboardWireMessage)
+          ),
+          { topic: DC_TOPIC, reliable: true }
+        )
+        .then(() => { lastSentVersionRef.current = version })
+        .catch(() => {/* late-rejection — reconnect effect will retry */})
+      return true
+    } catch {
+      return false
+    }
+  }, [room, localParticipant])
+
+  // Re-send the latest snapshot once the room is healthy again. A stroke made
+  // during a blip (or before identity was assigned) was persisted to the DB but
+  // never reached peers — without this, the board stayed a "ghost board" where
+  // only the drawer saw their own work until someone remounted and re-hydrated.
+  useEffect(() => {
+    if (connState !== ConnectionState.Connected) return
+    const pending = lastBroadcastRef.current
+    if (pending && pending.version > lastSentVersionRef.current) {
+      broadcastSnapshot(pending.version, pending.snapshot)
+    }
+  }, [connState, broadcastSnapshot])
 
   // Initial hydrate — fetch latest snapshot once tldraw mounts.
   const onSurfaceMount = useCallback((handle: SurfaceHandle) => {
@@ -141,25 +183,12 @@ export function WhiteboardPanel({
       versionRef.current += 1
       const version = versionRef.current
       setSaveStatus('saving')
-      // Fire-and-forget broadcast first so peers see the update without
-      // waiting on the persistence round-trip. Skipped entirely when the
-      // engine is closed/reconnecting — LiveKit logs a NegotiationError
-      // synchronously before publishData rejects, so .catch() doesn't help.
-      if (room.state === ConnectionState.Connected) {
-        void localParticipant
-          .publishData(
-            encoder.encode(
-              JSON.stringify({
-                kind: 'snapshot',
-                version,
-                authorId: localParticipant.identity,
-                snapshot,
-              } satisfies WhiteboardWireMessage)
-            ),
-            { topic: DC_TOPIC, reliable: true }
-          )
-          .catch(() => {/* late-rejection — persistence still attempts below */})
-      }
+      // Remember the latest snapshot so the reconnect effect can re-send it if
+      // this broadcast is skipped (engine closed/reconnecting). LiveKit logs a
+      // NegotiationError synchronously before publishData rejects when closed,
+      // so a bare .catch() can't recover it — the reconnect retry does.
+      lastBroadcastRef.current = { version, snapshot }
+      broadcastSnapshot(version, snapshot)
       try {
         const res = await fetch(`/api/classroom/sessions/${sessionId}/whiteboard`, {
           method: 'POST',
@@ -177,7 +206,7 @@ export function WhiteboardPanel({
         setSaveStatus('error')
       }
     }, SAVE_DEBOUNCE_MS)
-  }, [canEdit, localParticipant, sessionId, room])
+  }, [canEdit, sessionId, broadcastSnapshot])
 
   // Toggle editableByResidents (host-only). Sends a no-op snapshot save
   // alongside the toggle so the round-trip looks atomic to the user.

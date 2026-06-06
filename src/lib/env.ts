@@ -27,7 +27,13 @@ const envSchema = z.object({
   EMAIL_FROM: z.string(),
 
   // LiveKit
-  LIVEKIT_URL: z.string(),
+  // Scheme is validated to be ws:// or wss:// here; the production gate below
+  // additionally REFUSES ws:// at runtime so the LiveKit join token (carried in
+  // the wss:// URL query string) and all A/V media can never traverse cleartext.
+  LIVEKIT_URL: z
+    .string()
+    .url()
+    .refine((u) => /^wss?:\/\//i.test(u), 'LIVEKIT_URL must be a ws:// or wss:// URL'),
   LIVEKIT_API_KEY: z.string(),
   LIVEKIT_API_SECRET: z.string().min(16),
 
@@ -170,6 +176,18 @@ if (env.NODE_ENV === 'production' && !isBuildPhase && !gateDisabled) {
   // Gate 5: self-hosted transcription requires its URL.
   if (env.TRANSCRIPTION_PROVIDER === 'self_hosted' && !env.SELF_HOSTED_TRANSCRIPTION_URL) {
     violations.push("TRANSCRIPTION_PROVIDER=self_hosted requires SELF_HOSTED_TRANSCRIPTION_URL.");
+  }
+
+  // Gate 6b: LIVEKIT_URL must be wss:// in production. The LiveKit join JWT is
+  // carried in the WebSocket URL query string (browser WS handshakes can't use
+  // headers); ws:// would put that token AND all patient-visible A/V media on
+  // the wire in cleartext. TLS (wss) makes the whole URL, query string included,
+  // confidential in transit. Refuse to boot otherwise.
+  if (/^ws:\/\//i.test(env.LIVEKIT_URL)) {
+    violations.push(
+      `LIVEKIT_URL=${env.LIVEKIT_URL} uses cleartext ws:// in production. ` +
+      `The join token + all media would be unencrypted on the wire. Use wss://.`
+    );
   }
 
   // Gate 6: NEXTAUTH_URL must not be localhost in production. Invitation,
