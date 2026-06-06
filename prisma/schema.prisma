@@ -3816,7 +3816,8 @@ model WebinarRegistration {
   roleTitle    String?
   /// SHA-256 hash of the email confirmation token. The raw token is sent in
   /// the confirmation email link; only its hash is stored so a DB dump cannot
-  /// be used to confirm registrations. Single-use: cleared after confirmation.
+  /// be used to confirm registrations. The hash persists; confirmedAt is the
+  /// guard against double-confirmation.
   confirmTokenHash String    @unique
   confirmedAt  DateTime?
   /// Linked to a User row once the webinar registrant signs in or is auto-
