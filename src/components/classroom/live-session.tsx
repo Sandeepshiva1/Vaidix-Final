@@ -1141,7 +1141,7 @@ function ControlBar({
   }, [isSharing, localParticipant])
 
   return (
-    <div className="absolute bottom-5 inset-x-0 z-20 flex items-end justify-center gap-3 px-4">
+    <div className="absolute bottom-5 inset-x-0 z-20 flex flex-wrap items-end justify-center gap-3 px-4">
       {/* Device-error toast (auto-dismiss after 4s) */}
       <AnimatePresence>
         {deviceError && (
@@ -1162,7 +1162,7 @@ function ControlBar({
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.15, type: 'spring', damping: 22, stiffness: 220 }}
-        className="flex items-center gap-2 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-[28px] px-4 py-3 shadow-2xl shadow-black/70"
+        className="flex max-w-full flex-wrap items-center justify-center gap-2 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-[28px] px-4 py-3 shadow-2xl shadow-black/70 lg:max-w-none lg:flex-nowrap"
       >
         {/* Mic */}
         {role !== 'VIEWER' && (
@@ -1312,16 +1312,21 @@ function ControlBar({
           variant={sidebarOpen && activeTab === 'leaderboard' ? 'active' : 'default'}
         />
 
-        <Divider />
+        {/* PiP + pop-out + mute-notifications accessories — desktop-only.
+            `hidden lg:contents` drops them from the wrapped mobile control bar
+            (they're desktop conveniences) while keeping the desktop row
+            byte-identical. */}
+        <div className="hidden lg:contents">
+          <Divider />
 
-        {/* PiP + pop-out + mute-notifications accessories */}
-        <PictureInPictureButton
-          sessionId={sessionId}
-          sessionTitle={sessionTitle}
-          selfDisplayName={selfDisplayName}
-        />
-        <PopOutWindowButton sessionId={sessionId} />
-        <NotificationSoundsToggle />
+          <PictureInPictureButton
+            sessionId={sessionId}
+            sessionTitle={sessionTitle}
+            selfDisplayName={selfDisplayName}
+          />
+          <PopOutWindowButton sessionId={sessionId} />
+          <NotificationSoundsToggle />
+        </div>
 
         {/* Headless always-on noise suppression — no UI rendered */}
         <NoiseSuppressionToggle sessionId={sessionId} />
