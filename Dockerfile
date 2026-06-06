@@ -45,6 +45,7 @@ ENV LIVEKIT_API_KEY=buildplaceholderkey
 ENV LIVEKIT_API_SECRET=buildplaceholdersecret16chars
 ENV S3_ENDPOINT=http://localhost:9000
 ENV S3_BUCKET=build
+ENV S3_RECORDINGS_BUCKET=build
 ENV S3_ACCESS_KEY=build
 ENV S3_SECRET_KEY=build
 ENV VAIDIX_DATA_ROOT=/var/lib/vaidix-data
