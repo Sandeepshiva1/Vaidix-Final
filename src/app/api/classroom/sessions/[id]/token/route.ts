@@ -9,7 +9,7 @@
 //   { state: 'WAITING', admissionId }           — request admission, poll
 //   { state: 'DENIED', reason }                 — admission previously denied
 //
-// Share-token query param bypasses visibility into the waiting-room path.
+// Share-token POST body field bypasses visibility into the waiting-room path.
 
 import { z } from 'zod';
 import { jsonOk, jsonError, requireAuth, handleUnexpected } from '@/server/services/api-helpers';
