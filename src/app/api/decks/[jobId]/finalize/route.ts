@@ -76,6 +76,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ jobId: string 
     // Refresh the saved Document copy to the finalized slide set. Best-effort.
     await persistDeckAsDocument({ jobId });
 
+    // Make the deck visible to all session invitees as pre-session material.
+    // The deck's Document is linked to sessions via DocumentSessionLink; set
+    // isPreSession = true so learners can see the slides before the session.
+    const updatedJob = await db.deckForgeJob.findUnique({
+      where: { id: jobId },
+      select: { documentId: true },
+    });
+    if (updatedJob?.documentId) {
+      await db.documentSessionLink.updateMany({
+        where: { documentId: updatedJob.documentId },
+        data: { isPreSession: true },
+      });
+    }
+
     await audit({
       actorId: auth.user.id,
       actorRole: auth.user.role,

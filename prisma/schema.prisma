@@ -303,6 +303,7 @@ enum DeckImportMode {
 enum SlideLayout {
   TITLE_ONLY // hero / section divider — large title, no bullets
   TITLE_BULLETS // standard content slide
+  TITLE_BODY // free-form paragraph text (no bullets)
   TWO_COLUMN // bullets split L/R
   IMAGE_FOCUS // big image, caption below
   QUOTE // pull-quote with attribution
@@ -535,6 +536,7 @@ model User {
   // and the distilled rule profile that gets injected into the next forge prompt.
   facultyEditSignals      FacultyEditSignal[]
   facultyStyleProfile     FacultyStyleProfile?
+  quizResponses           SessionQuizResponse[]
 
   @@index([email])
   @@index([role])
@@ -811,6 +813,42 @@ model Topic {
   @@index([parentTopicId])
   @@index([subspecialty])
   @@map("topics")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SPECIALTY TAXONOMY (session-create dropdowns)
+// ════════════════════════════════════════════════════════════════════════════
+// Editable, global lists backing the Classroom wizard's Specialty / Sub-specialty
+// pickers. Seeded from the original hardcoded ophthalmology list; the wizard's
+// inline "+ new" persists additions here so they're reusable for everyone.
+// Sessions still store the chosen label as a string (metadata/tags) — these
+// tables are the option source, not an FK on TeachingSession.
+
+model Specialty {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subSpecialties SubSpecialty[]
+
+  @@map("specialties")
+}
+
+model SubSpecialty {
+  id           String   @id @default(cuid())
+  name         String
+  displayOrder Int      @default(0)
+  specialtyId  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  specialty Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([specialtyId, name])
+  @@index([specialtyId])
+  @@map("sub_specialties")
 }
 
 model Level {
@@ -1539,6 +1577,8 @@ model TeachingSession {
   objectiveAchievements  SessionObjectiveAchievement[]
   liveTranscripts        SessionTranscript[]
   promoShares            PromoShare[]
+  sessionShares          SessionShare[]
+  quizResponses          SessionQuizResponse[]
 
   @@index([programId])
   @@index([hostId])
@@ -1840,6 +1880,26 @@ model SessionApprovalAudit {
   @@index([sessionId, createdAt])
   @@index([actorId])
   @@map("session_approval_audits")
+}
+
+// Learner answers to presenter-configured pre-session MCQ / open-ended questions.
+// Stored with upsert semantics so a learner can change their answer before the session starts.
+model SessionQuizResponse {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userId      String
+  questionId  String
+  answer      Int      // option index for MCQ; -1 for open-ended
+  answerText  String?  // filled for open-ended questions
+  isCorrect   Boolean? // null until evaluated against the presenter-configured correct option
+  submittedAt DateTime @default(now())
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId, questionId])
+  @@index([sessionId])
+  @@map("session_quiz_responses")
 }
 
 model Recording {
@@ -2169,6 +2229,17 @@ model Slide {
   // "Original" view. Only set on VERBATIM-import decks; null for AI-generated
   // slides. Distinct from imageS3Key (an AI illustration painted INTO a slide).
   sourceImageS3Key String?
+  // Faithful-import EDITABLE overlay: positioned text boxes laid over the
+  // rasterised original so faculty can edit the deck in place (PowerPoint-like)
+  // without losing the original look. Shape:
+  //   { boxes: Array<{ slotId:string; text:string;
+  //       x:number; y:number; w:number; h:number;   // all 0..1 (% of slide)
+  //       fillHex?:string|null; colorHex?:string|null; fontPct?:number|null;
+  //       bold?:boolean; italic?:boolean; align?:'l'|'ctr'|'r'|'just';
+  //       valign?:'t'|'ctr'|'b' }> }
+  // Only set on VERBATIM PPTX imports that carried per-shape geometry; null
+  // otherwise (the editor then falls back to the themed SlideCanvas).
+  overlayJson      Json?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -3430,6 +3501,38 @@ model PromoShare {
   @@index([sessionId])
   @@index([expiresAt])
   @@map("promo_shares")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Public Session Share (no-login landing page at /s/[token])
+// ════════════════════════════════════════════════════════════════════════════
+// A host mints a public link so external people can open a read-only session
+// landing (title, host, when, objectives) WITHOUT a Vaidix account — distinct
+// from the `?t=` guest-join token (which still requires sign-in). Mirrors the
+// RecordingShare / PromoShare security shape: raw token returned once, indexed
+// by sha256 tokenHash, revocable, default 90-day expiry, access-counted.
+// createdById is a plain column (no relation) to keep the User model untouched.
+model SessionShare {
+  id           String    @id @default(cuid())
+  sessionId    String
+  /// Encrypted-at-rest raw token (a DB dump can't replay the link). Lookup is
+  /// by tokenHash; decrypted only to re-display the URL to the host.
+  token        String
+  /// sha256 hex of the raw token — the lookup index. Never reversible.
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  createdById  String
+  revokedAt    DateTime?
+  accessCount  Int       @default(0)
+  lastAccessAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  session TeachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("session_shares")
 }
 
 // ════════════════════════════════════════════════════════════════════════════

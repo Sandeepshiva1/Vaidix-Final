@@ -7,10 +7,123 @@
 // export so on-screen and exported decks read the same.
 // ════════════════════════════════════════════════════════════════════════════
 
-import type { CSSProperties } from 'react';
+import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { SlideLayout } from '@prisma/client';
 import { getDeckTheme, type DeckTheme } from '@/lib/deck-themes';
+import { cn } from '@/lib/utils';
+
+// ── Inline editable text ──────────────────────────────────────────────────────
+// Wraps a native element as contentEditable. The DOM manages its own content
+// while the user is typing (no React reconciliation conflicts). On blur the
+// final text is committed via `onCommit`. Pressing Enter commits immediately;
+// Escape discards and restores the original value.
+function EditText({
+  value,
+  onCommit,
+  placeholder,
+  tag: Tag = 'span',
+  style,
+  className,
+  singleLine = false,
+  autoFocus = false,
+  onEnter,
+  onDeleteEmpty,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  placeholder?: string;
+  tag?: 'h1' | 'h2' | 'p' | 'span';
+  style?: CSSProperties;
+  className?: string;
+  singleLine?: boolean;
+  autoFocus?: boolean;
+  onEnter?: () => void;
+  onDeleteEmpty?: () => void;
+}) {
+  const ref = useRef<HTMLElement>(null);
+
+  // Sync DOM ← React only when element is not focused (prevents caret reset while typing).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || el === document.activeElement) return;
+    if (el.textContent !== value) el.textContent = value;
+  }, [value]);
+
+  // Auto-focus for newly created rows (PPT behaviour: Enter creates + focuses next bullet).
+  useEffect(() => {
+    if (!autoFocus || !ref.current) return;
+    const el = ref.current;
+    el.focus();
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocus]);
+
+  return (
+    <Tag
+      ref={ref as never}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck
+      data-placeholder={placeholder}
+      onFocus={(e: React.FocusEvent<HTMLElement>) => {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(e.currentTarget);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }}
+      onBlur={(e: React.FocusEvent<HTMLElement>) => {
+        const text = (e.currentTarget.textContent ?? '').trim();
+        if (!text) {
+          e.currentTarget.textContent = value;
+          return;
+        }
+        if (text !== value) onCommit(text);
+      }}
+      onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => {
+        const el = e.currentTarget;
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (onEnter) {
+            // Commit current content first, then fire onEnter to create next row.
+            const text = (el.textContent ?? '').trim();
+            if (text && text !== value) onCommit(text);
+            onEnter();
+          } else if (singleLine) {
+            el.blur();
+          }
+        }
+        if (e.key === 'Escape') {
+          el.textContent = value;
+          el.blur();
+        }
+        if (e.key === 'Backspace' && !el.textContent?.trim() && onDeleteEmpty) {
+          e.preventDefault();
+          onDeleteEmpty();
+        }
+      }}
+      onPaste={(e: React.ClipboardEvent<HTMLElement>) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain');
+        document.execCommand('insertText', false, text);
+      }}
+      style={{ ...style, cursor: 'text', outline: 'none' }}
+      className={cn(
+        className,
+        'rounded-sm transition-all min-w-0.5',
+        'hover:ring-1 hover:ring-white/25',
+        'focus:ring-1 focus:ring-white/60 focus:bg-black/8',
+      )}
+    />
+  );
+}
 
 /** An inserted table: a rectangular grid of cell strings (row 0 = header). */
 export interface SlideTable {
@@ -41,6 +154,12 @@ export interface SlideViewModel {
   fontScale?: number;
   /** Optional table inserted via Insert > Table; null/undefined = none. */
   tableJson?: SlideTable | null;
+  /**
+   * Faithful-import editable overlay: text boxes positioned over sourceImageUrl
+   * (from the original PPTX geometry). When present, the editor edits the deck
+   * in place on the original instead of the themed canvas. Null on AI decks.
+   */
+  overlay?: import('@/lib/deck-overlay').SlideOverlay | null;
 }
 
 interface SlideCanvasProps {
@@ -58,11 +177,28 @@ interface SlideCanvasProps {
    * keeps its structure.
    */
   backgroundHex?: string | null;
+  /** CSS font-family string to apply to all slide text (deck-wide selection). */
+  fontFamily?: string;
+  /** When true, title and bullets are directly editable on the canvas (PPT-style). */
+  editable?: boolean;
+  onTitleChange?: (title: string) => void;
+  onBulletChange?: (index: number, value: string) => void;
+  /** Called when the user types into the empty "new bullet" row and blurs. */
+  onCommitNewBullet?: (value: string) => void;
+  /** Called when Enter is pressed on a bullet or the explicit "add" row is clicked. */
+  onAddBullet?: () => void;
+  /** Called when Backspace is pressed on an empty bullet to remove it. */
+  onDeleteBullet?: (index: number) => void;
+  /** Index of the bullet that should auto-focus (used after adding a new bullet). */
+  focusBulletIndex?: number;
+  /** Called with the full new rows grid when a table cell is edited on-canvas. */
+  onTableChange?: (rows: string[][]) => void;
 }
 
 const LAYOUT_LABEL: Record<SlideLayout, string> = {
   TITLE_ONLY: 'TITLE',
   TITLE_BULLETS: 'CONTENT',
+  TITLE_BODY: 'BODY TEXT',
   TWO_COLUMN: 'TWO COLUMN',
   IMAGE_FOCUS: 'IMAGE',
   QUOTE: 'QUOTE',
@@ -78,6 +214,15 @@ export function SlideCanvas({
   mode = 'preview',
   themeId,
   backgroundHex,
+  fontFamily,
+  editable = false,
+  onTitleChange,
+  onBulletChange,
+  onCommitNewBullet,
+  onAddBullet,
+  onDeleteBullet,
+  focusBulletIndex,
+  onTableChange,
 }: SlideCanvasProps) {
   const theme = getDeckTheme(themeId);
   const isPresent = mode === 'present';
@@ -90,13 +235,10 @@ export function SlideCanvas({
       className="relative w-full overflow-hidden"
       style={{
         aspectRatio: '16 / 9',
-        // Establish a container-query context so the `cqw` font units below
-        // resolve against THIS canvas's width, not the viewport. Without it a
-        // 250px thumbnail renders the same giant font as a full slide and
-        // overflows (mirrors slide-shell.tsx which already does this).
         containerType: 'inline-size',
         background: slideBg,
         color: theme.text,
+        fontFamily: fontFamily ?? undefined,
         borderRadius: isPresent ? 0 : 12,
         border: isPresent ? 'none' : `1px solid ${theme.border}`,
       }}
@@ -150,6 +292,14 @@ export function SlideCanvas({
         accentColor={accentColor}
         isPresent={isPresent}
         theme={theme}
+        editable={editable}
+        onTitleChange={onTitleChange}
+        onBulletChange={onBulletChange}
+        onCommitNewBullet={onCommitNewBullet}
+        onAddBullet={onAddBullet}
+        onDeleteBullet={onDeleteBullet}
+        focusBulletIndex={focusBulletIndex}
+        onTableChange={onTableChange}
       />
 
       {/* Footer */}
@@ -191,12 +341,28 @@ function SlideBody({
   accentColor,
   isPresent,
   theme,
+  editable = false,
+  onTitleChange,
+  onBulletChange,
+  onCommitNewBullet,
+  onAddBullet,
+  onDeleteBullet,
+  focusBulletIndex,
+  onTableChange,
 }: {
   slide: SlideViewModel;
   deckTitle: string;
   accentColor: string;
   isPresent: boolean;
   theme: DeckTheme;
+  editable?: boolean;
+  onTitleChange?: (v: string) => void;
+  onBulletChange?: (idx: number, v: string) => void;
+  onCommitNewBullet?: (v: string) => void;
+  onAddBullet?: () => void;
+  onDeleteBullet?: (idx: number) => void;
+  focusBulletIndex?: number;
+  onTableChange?: (rows: string[][]) => void;
 }) {
   const padX = '6%';
   const padTop = '11%';
@@ -211,6 +377,14 @@ function SlideBody({
   const fmt = textFormat(slide);
 
   // A table (if inserted) renders below the slide body in every layout.
+  const handleCell =
+    editable && onTableChange && slide.tableJson
+      ? (r: number, c: number, v: string) => {
+          const rows = slide.tableJson!.rows.map((row) => row.slice());
+          rows[r][c] = v;
+          onTableChange(rows);
+        }
+      : undefined;
   const tableNode =
     slide.tableJson && Array.isArray(slide.tableJson.rows) && slide.tableJson.rows.length > 0 ? (
       <SlideTableBlock
@@ -218,7 +392,7 @@ function SlideBody({
         theme={theme}
         accent={accentColor}
         fontSize={bodySize}
-        fmt={fmt}
+        onCellChange={handleCell}
       />
     ) : null;
 
@@ -242,10 +416,24 @@ function SlideBody({
             className="font-bold leading-[1.05]"
             style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
           </motion.h1>
           <div style={{ width: '14%', height: '0.5%', background: accentColor }} />
           {tableNode}
+          {/* Add-bullet affordance: only in edit mode on layouts with no body yet */}
+          {editable && onAddBullet && (
+            <button
+              type="button"
+              onClick={onAddBullet}
+              className="flex items-center gap-2 opacity-30 hover:opacity-70 transition-opacity"
+              style={{ color: theme.subtle, fontSize: bodySize, marginTop: '1%' }}
+            >
+              <span style={{ color: accentColor, fontSize: titleSize }}>+</span>
+              <span>Click to add bullets</span>
+            </button>
+          )}
         </div>
       );
 
@@ -262,10 +450,12 @@ function SlideBody({
             className="font-bold leading-[1.05]"
             style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
           </motion.h1>
           {slide.bullets.length > 0 && (
-            <p style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}>
+            <p style={{ color: theme.subtle, fontSize: bodySize }}>
               {slide.bullets.join(' · ')}
             </p>
           )}
@@ -289,10 +479,12 @@ function SlideBody({
             className="font-medium"
             style={{ fontSize: bodySize, color: theme.text, lineHeight: 1.4, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} />
+              : slide.title}
           </motion.p>
           {slide.bullets[0] && (
-            <span style={{ color: theme.subtle, fontSize: bodySize, fontStyle: 'italic', ...fmt }}>
+            <span style={{ color: theme.subtle, fontSize: bodySize, fontStyle: 'italic' }}>
               — {slide.bullets[0]}
             </span>
           )}
@@ -322,9 +514,11 @@ function SlideBody({
             className="font-bold leading-tight"
             style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
           </motion.h2>
-          <ul className="grid gap-3" style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}>
+          <ul className="grid gap-3" style={{ color: theme.subtle, fontSize: bodySize }}>
             {slide.bullets.map((b, i) => (
               <motion.li
                 key={i}
@@ -335,7 +529,9 @@ function SlideBody({
                 style={{ background: theme.panel, border: `1px solid ${theme.border}` }}
               >
                 <span style={{ color: accentColor }}>{String.fromCharCode(65 + i)}.</span>
-                <span>{b}</span>
+                {editable && onBulletChange
+                  ? <EditText value={b} onCommit={(v) => onBulletChange(i, v)} tag="span" style={{ flex: 1 }} />
+                  : <span>{b}</span>}
               </motion.li>
             ))}
           </ul>
@@ -358,27 +554,34 @@ function SlideBody({
             className="font-bold leading-tight"
             style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
           </motion.h2>
           <div className="grid grid-cols-2 gap-6">
             {[left, right].map((col, ci) => (
               <ul
                 key={ci}
                 className="grid gap-2"
-                style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}
+                style={{ color: theme.subtle, fontSize: bodySize }}
               >
-                {col.map((b, i) => (
-                  <motion.li
-                    key={i}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + (ci * col.length + i) * 0.04 }}
-                    className="flex gap-2"
-                  >
-                    <span style={{ color: accentColor }}>▸</span>
-                    <span>{b}</span>
-                  </motion.li>
-                ))}
+                {col.map((b, i) => {
+                  const globalIdx = ci * half + i;
+                  return (
+                    <motion.li
+                      key={i}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 + (ci * col.length + i) * 0.04 }}
+                      className="flex gap-2"
+                    >
+                      <span style={{ color: accentColor }}>▸</span>
+                      {editable && onBulletChange
+                        ? <EditText value={b} onCommit={(v) => onBulletChange(globalIdx, v)} tag="span" style={{ flex: 1 }} />
+                        : <span>{b}</span>}
+                    </motion.li>
+                  );
+                })}
               </ul>
             ))}
           </div>
@@ -399,7 +602,9 @@ function SlideBody({
             className="font-bold leading-tight"
             style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
           </motion.h2>
           {slide.imageUrl ? (
             <motion.div
@@ -430,8 +635,45 @@ function SlideBody({
             </div>
           )}
           {slide.bullets[0] && (
-            <p style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}>{slide.bullets[0]}</p>
+            <p style={{ color: theme.subtle, fontSize: bodySize }}>{slide.bullets[0]}</p>
           )}
+          {tableNode}
+        </div>
+      );
+
+    case 'TITLE_BODY':
+      return (
+        <div
+          className="absolute flex flex-col gap-4"
+          style={{ left: padX, right: padX, top: padTop, bottom: '10%' }}
+        >
+          <motion.h2
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="font-bold leading-tight"
+            style={{ fontSize: titleSize, color: theme.text, ...fmt }}
+          >
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
+          </motion.h2>
+          <div style={{ width: '8%', height: '0.4%', background: accentColor }} />
+          <motion.p
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            style={{ color: theme.subtle, fontSize: bodySize, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}
+          >
+            {editable && onBulletChange
+              ? <EditText
+                  value={slide.bullets[0] ?? ''}
+                  onCommit={(v) => onBulletChange(0, v)}
+                  placeholder="Click to add body text…"
+                  tag="span"
+                  style={{ display: 'block' }}
+                />
+              : (slide.bullets[0] ?? '')}
+          </motion.p>
           {tableNode}
         </div>
       );
@@ -449,28 +691,56 @@ function SlideBody({
             className="font-bold leading-tight"
             style={{ fontSize: titleSize, color: theme.text, ...fmt }}
           >
-            {slide.title}
+            {editable && onTitleChange
+              ? <EditText value={slide.title} onCommit={onTitleChange} tag="span" style={{ display: 'block' }} singleLine />
+              : slide.title}
           </motion.h2>
           <div style={{ width: '8%', height: '0.4%', background: accentColor }} />
-          {/* When an AI image is present, give bullets the left half and the
-              image the right half; otherwise bullets span full width. */}
           <div className={slide.imageUrl ? 'grid min-h-0 flex-1 grid-cols-2 gap-6' : ''}>
             <ul
-              className="grid gap-3 self-start"
-              style={{ color: theme.subtle, fontSize: bodySize, ...fmt }}
+              className="grid gap-2 self-start"
+              style={{ color: theme.subtle, fontSize: bodySize }}
             >
+              {/* Existing bullets — each is directly editable */}
               {slide.bullets.map((b, i) => (
                 <motion.li
-                  key={i}
-                  initial={{ opacity: 0, y: 6 }}
+                  key={`${i}-${b.slice(0, 8)}`}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.12 + i * 0.05 }}
+                  transition={{ delay: editable ? 0 : 0.12 + i * 0.05 }}
                   className="flex gap-3"
                 >
-                  <span style={{ color: accentColor }}>▸</span>
-                  <span>{b}</span>
+                  <span style={{ color: accentColor, flexShrink: 0 }}>▸</span>
+                  {editable && onBulletChange ? (
+                    <EditText
+                      value={b}
+                      onCommit={(v) => onBulletChange(i, v)}
+                      placeholder="Type bullet text…"
+                      tag="span"
+                      style={{ flex: 1 }}
+                      autoFocus={focusBulletIndex === i}
+                      onEnter={slide.bullets.length < 8 ? onAddBullet : undefined}
+                      onDeleteEmpty={onDeleteBullet ? () => onDeleteBullet(i) : undefined}
+                    />
+                  ) : (
+                    <span>{b}</span>
+                  )}
                 </motion.li>
               ))}
+              {/* PPT-style "type here" row — always visible in edit mode when < 8 bullets */}
+              {editable && onCommitNewBullet && slide.bullets.length < 8 && (
+                <li className="flex gap-3">
+                  <span style={{ color: accentColor, flexShrink: 0, opacity: 0.4 }}>▸</span>
+                  <EditText
+                    key={`new-${slide.bullets.length}`}
+                    value=""
+                    onCommit={(v) => { if (v.trim()) onCommitNewBullet(v) }}
+                    placeholder="Click to add a bullet point…"
+                    tag="span"
+                    style={{ flex: 1 }}
+                  />
+                </li>
+              )}
             </ul>
             {slide.imageUrl && (
               <motion.div
@@ -505,13 +775,14 @@ function SlideTableBlock({
   theme,
   accent,
   fontSize,
-  fmt,
+  onCellChange,
 }: {
   rows: string[][];
   theme: DeckTheme;
   accent: string;
   fontSize: string;
-  fmt: CSSProperties;
+  /** When set, cells are editable on-canvas; called with the absolute row index. */
+  onCellChange?: (row: number, col: number, value: string) => void;
 }) {
   if (rows.length === 0) return null;
   const [head, ...body] = rows;
@@ -519,7 +790,7 @@ function SlideTableBlock({
     <div className="min-h-0 overflow-auto rounded-lg" style={{ border: `1px solid ${theme.border}` }}>
       <table
         className="w-full border-collapse text-left"
-        style={{ fontSize, color: theme.subtle, ...fmt }}
+        style={{ fontSize, color: theme.subtle }}
       >
         <thead>
           <tr>
@@ -534,7 +805,11 @@ function SlideTableBlock({
                   borderRight: `1px solid ${theme.border}`,
                 }}
               >
-                {cell}
+                {onCellChange ? (
+                  <EditableCell value={cell} onCommit={(v) => onCellChange(0, i, v)} />
+                ) : (
+                  cell
+                )}
               </th>
             ))}
           </tr>
@@ -551,7 +826,11 @@ function SlideTableBlock({
                     borderRight: `1px solid ${theme.border}`,
                   }}
                 >
-                  {cell}
+                  {onCellChange ? (
+                    <EditableCell value={cell} onCommit={(v) => onCellChange(ri + 1, ci, v)} />
+                  ) : (
+                    cell
+                  )}
                 </td>
               ))}
             </tr>
@@ -559,5 +838,51 @@ function SlideTableBlock({
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ── Inline editable table cell ───────────────────────────────────────────────
+// Like EditText, but commits on blur ALLOWING empty values (table cells may be
+// intentionally blank) and never restores. DOM owns content while focused.
+function EditableCell({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || el === document.activeElement) return;
+    if (el.textContent !== value) el.textContent = value;
+  }, [value]);
+  return (
+    <span
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck
+      onBlur={(e) => {
+        const text = e.currentTarget.textContent ?? '';
+        if (text !== value) onCommit(text);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+        if (e.key === 'Escape') {
+          e.currentTarget.textContent = value;
+          e.currentTarget.blur();
+        }
+      }}
+      onPaste={(e) => {
+        e.preventDefault();
+        document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+      }}
+      style={{ cursor: 'text', outline: 'none', display: 'block', minWidth: '0.5em', minHeight: '1em' }}
+      className="rounded-sm transition-all hover:ring-1 hover:ring-white/25 focus:ring-1 focus:ring-white/60 focus:bg-black/8"
+    />
   );
 }

@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { Prisma, Role, SessionApprovalStatus, SessionStatus, SessionType } from '@prisma/client';
 import { forgeDeck, DeckForgeError } from '@/server/services/decks/deck-forge-service';
+import { audit, AUDIT_EVENTS } from '@/server/services/audit';
 
 export interface CreateSessionFormInput {
   title: string;
@@ -70,7 +71,15 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
 
   const start = new Date(input.scheduledStart);
   if (Number.isNaN(start.getTime())) return { ok: false, error: 'Invalid start time.' };
-  const duration = Math.max(15, Math.min(360, input.durationMinutes));
+  // Block back-dated sessions. 5-minute grace absorbs clock skew + the seconds
+  // spent filling the form; matches the client guard in the create wizard and
+  // the /calendar/new scheduler.
+  if (start.getTime() < Date.now() - 5 * 60 * 1000) {
+    return { ok: false, error: 'Start time has already passed — pick a future time.' };
+  }
+  // Sessions cap at 240 minutes (4h); manual entry in the wizard enforces the
+  // same ceiling client-side.
+  const duration = Math.max(15, Math.min(240, input.durationMinutes));
   const end = new Date(start.getTime() + duration * 60_000);
 
   // ── Cohort (optional, Classroom) — must belong to the proposer's program ──
@@ -198,8 +207,165 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
     });
   }
 
+  await audit({
+    actorId: user.id,
+    actorRole: user.role,
+    eventType: AUDIT_EVENTS.SESSION_CREATED,
+    entityType: 'session',
+    entityId: created.id,
+    summary: `${input.isBoardRoom ? 'Created board room' : 'Scheduled session'} "${title}"`,
+    details: {
+      sessionType: input.sessionType,
+      isBoardRoom: Boolean(input.isBoardRoom),
+      scheduledStart: start.toISOString(),
+      specialty: input.specialty ?? null,
+      recurring: Boolean(recurrenceRule),
+    },
+  });
+
   revalidatePath('/dashboard');
   return { ok: true, sessionId: created.id };
+}
+
+/**
+ * Edit an existing classroom session — the "Create a Classroom" wizard in edit
+ * mode, pre-filled with the session's details. Editable only until the session
+ * starts (status SCHEDULED) and only by the host, the proposer, or an ADMIN /
+ * PROGRAM_DIRECTOR. Host, program and approval state are preserved; just the
+ * schedulable details change (title, schedule, format, audience, recurrence,
+ * role assignments).
+ */
+export async function updateTeachingSessionAction(
+  sessionId: string,
+  input: CreateSessionFormInput,
+): Promise<CreateSessionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'You must be signed in.' };
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, role: true, status: true },
+  });
+  if (!user || user.status !== 'ACTIVE') return { ok: false, error: 'Your account is not active.' };
+
+  const existing = await db.teachingSession.findUnique({
+    where: { id: sessionId },
+    select: { id: true, hostId: true, proposedBy: true, programId: true, status: true, deletedAt: true, metadata: true },
+  });
+  if (!existing || existing.deletedAt) return { ok: false, error: 'Session not found.' };
+
+  const canEdit =
+    existing.hostId === user.id ||
+    existing.proposedBy === user.id ||
+    user.role === Role.ADMIN ||
+    user.role === Role.PROGRAM_DIRECTOR;
+  if (!canEdit) return { ok: false, error: 'You can’t edit this session.' };
+
+  // Edit is allowed up until the session starts — a LIVE or ENDED session is
+  // locked. (Matches the "edit until it starts" rule on the dashboard card.)
+  if (existing.status !== SessionStatus.SCHEDULED) {
+    return { ok: false, error: 'Only upcoming sessions can be edited.' };
+  }
+
+  const title = input.title.trim();
+  if (!title) return { ok: false, error: 'Title is required.' };
+
+  const start = new Date(input.scheduledStart);
+  if (Number.isNaN(start.getTime())) return { ok: false, error: 'Invalid start time.' };
+  if (start.getTime() < Date.now() - 5 * 60 * 1000) {
+    return { ok: false, error: 'Start time has already passed — pick a future time.' };
+  }
+  const duration = Math.max(15, Math.min(360, input.durationMinutes));
+  const end = new Date(start.getTime() + duration * 60_000);
+
+  // Cohort must belong to the SESSION's program (not the editor's active one).
+  let cohortId: string | null = null;
+  if (input.cohortId) {
+    const cohort = await db.cohort.findUnique({
+      where: { id: input.cohortId },
+      select: { id: true, programId: true, deletedAt: true },
+    });
+    if (!cohort || cohort.deletedAt) return { ok: false, error: 'Selected cohort no longer exists.' };
+    if (cohort.programId !== existing.programId) return { ok: false, error: 'Cohort belongs to a different program.' };
+    cohortId = cohort.id;
+  }
+
+  // Role assignments → invitees (validated against the FK; host excluded).
+  const roleUserIds = (input.roles ?? [])
+    .map((r) => r.userId)
+    .filter((id): id is string => Boolean(id));
+  let roleInviteeIds: string[] = [];
+  if (roleUserIds.length > 0) {
+    const ex = await db.user.findMany({
+      where: { id: { in: roleUserIds }, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    roleInviteeIds = ex.map((e) => e.id).filter((id) => id !== existing.hostId);
+  }
+
+  // Merge metadata so we don't clobber keys the wizard doesn't manage (kind,
+  // autoDeleteAt, participants, prereq, …).
+  const meta: Record<string, unknown> =
+    existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+      ? { ...(existing.metadata as Record<string, unknown>) }
+      : {};
+  if (input.specialty) meta.specialty = input.specialty; else delete meta.specialty;
+  if (input.subSpecialty) meta.subSpecialty = input.subSpecialty; else delete meta.subSpecialty;
+  const namedRoles = (input.roles ?? []).filter((r) => r.userId);
+  if (namedRoles.length > 0) meta.roles = namedRoles; else delete meta.roles;
+
+  const rawRule = input.recurrenceRule?.trim();
+  const recurrenceRule =
+    rawRule && /^FREQ=/.test(rawRule) && rawRule.length <= 500 ? rawRule : null;
+  let recurrenceUntil: Date | null = null;
+  if (recurrenceRule && input.recurrenceUntil) {
+    const until = new Date(input.recurrenceUntil);
+    if (!Number.isNaN(until.getTime())) recurrenceUntil = until;
+  }
+
+  const tags = Array.from(
+    new Set([input.learnerLevel, input.specialty, input.subSpecialty].filter(Boolean) as string[]),
+  );
+
+  await db.teachingSession.update({
+    where: { id: sessionId },
+    data: {
+      title,
+      description: input.description?.trim() ? input.description.trim() : null,
+      sessionType: input.sessionType,
+      scheduledStart: start,
+      scheduledEnd: end,
+      recurrenceRule,
+      recurrenceUntil,
+      cohortId,
+      tags,
+      metadata: Object.keys(meta).length > 0 ? (meta as Prisma.InputJsonValue) : Prisma.JsonNull,
+    },
+  });
+
+  // Add any newly-assigned role users as invitees (idempotent). We don't delete
+  // existing invites here so cohort/manual invitees are preserved.
+  if (roleInviteeIds.length > 0) {
+    await db.sessionInvite.createMany({
+      data: roleInviteeIds.map((uid) => ({ sessionId, userId: uid, invitedBy: user.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  await audit({
+    actorId: user.id,
+    actorRole: user.role,
+    eventType: AUDIT_EVENTS.SESSION_CREATED,
+    entityType: 'session',
+    entityId: sessionId,
+    summary: `Edited session "${title}"`,
+    details: { scheduledStart: start.toISOString(), recurring: Boolean(recurrenceRule) },
+  }).catch(() => { /* audit is best-effort */ });
+
+  revalidatePath('/dashboard');
+  revalidatePath(`/classroom/${sessionId}`);
+  revalidatePath(`/session/${sessionId}/pre`);
+  return { ok: true, sessionId };
 }
 
 /**

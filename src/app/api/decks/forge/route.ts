@@ -29,6 +29,8 @@ const ForgeBody = z
     topic: z.string().trim().min(6).max(300).optional(),
     inputTitle: z.string().min(1).max(120).optional(),
     learnerLevel: z.string().min(1).max(80).optional(),
+    /** Topic path: desired number of slides (clamped 4–40 server-side). */
+    slideCount: z.number().int().min(4).max(40).optional(),
     /**
      * When true, bypass the same-source dedupe and force a fresh forge even
      * if a usable job already exists for this document/recording. Faculty
@@ -109,6 +111,7 @@ export async function POST(req: Request) {
       topic: parsed.data.topic ?? null,
       inputTitle: parsed.data.inputTitle,
       learnerLevel: parsed.data.learnerLevel,
+      slideCount: parsed.data.slideCount,
       requestedById: auth.user.id,
     });
 

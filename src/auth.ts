@@ -111,4 +111,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    // Audit explicit sign-outs. JWT session strategy → the event carries the
+    // decoded `token`, so we get the user id without a DB round-trip. Login
+    // success/failure/locked are audited in authorize() above.
+    async signOut(message) {
+      const sub = 'token' in message ? (message.token?.sub ?? null) : null;
+      if (!sub) return;
+      await audit({
+        actorId: sub,
+        eventType: AUDIT_EVENTS.LOGOUT,
+        entityType: 'user',
+        entityId: sub,
+        summary: 'User signed out',
+      });
+    },
+  },
 });

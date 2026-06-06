@@ -123,7 +123,7 @@ function toDoubt(d: PostData['doubts'][number]): Doubt {
   }
 }
 
-export function PostClient({ session, data }: { session: SessionView; data: PostData }) {
+export function PostClient({ session, data, canViewAnalytics = true }: { session: SessionView; data: PostData; canViewAnalytics?: boolean }) {
   // Real session materials from DocumentSessionLink (split pre-session vs presentation).
   const sourceFiles = data.materials.filter((m) => !m.isPreSession)
   const prereadFiles = data.materials.filter((m) => m.isPreSession)
@@ -371,7 +371,7 @@ export function PostClient({ session, data }: { session: SessionView; data: Post
 
       {/* Tab bar */}
       <div className="mb-6 flex items-center gap-0.5 overflow-x-auto rounded-2xl border border-border/60 bg-card p-1 scrollbar-hide">
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.key !== 'analytics' || canViewAnalytics).map((t) => (
           <button
             key={t.key}
             type="button"
@@ -954,7 +954,7 @@ export function PostClient({ session, data }: { session: SessionView; data: Post
       )}
 
       {/* ── ANALYTICS ────────────────────────────────────────────────────── */}
-      {activeTab === 'analytics' && (
+      {activeTab === 'analytics' && canViewAnalytics && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <div>

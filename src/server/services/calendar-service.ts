@@ -25,13 +25,20 @@ export interface CalendarEvent {
   sessionType: string;
   host: { id: string; name: string; role: string } | null;
   /**
-   * The VIEWER's role on this session — drives the calendar badge. 'HOST' when
-   * the viewer hosts it, otherwise their SessionParticipant.role
-   * ('CO_HOST' | 'PARTICIPANT' | 'VIEWER'), or null when they're neither
-   * (e.g. an openToAll session they can see but haven't joined). Never the
-   * host's role — that conflation was the "everyone is PRESENTER" bug.
+   * The VIEWER's role on this session — drives the calendar badge. This is the
+   * viewer's OWN standing, never the host's (that conflation was the "everyone
+   * is PRESENTER" bug):
+   *   PRESENTER  — explicitly assigned Presenter, or the owner who is presenting.
+   *   MODERATOR  — explicitly assigned Moderator, or a genuine co-host.
+   *   PANELIST   — explicitly assigned Panelist.
+   *   ORGANISER  — the owner who delegated presenting to someone else (they
+   *                scheduled it but aren't a speaker — NOT a "Moderator").
+   *   ATTENDEE   — invited / participant / viewer; being invited never implies a
+   *                speaking role.
+   *   null       — visible but unaffiliated (e.g. an openToAll session they
+   *                haven't joined); the client falls back to the session format.
    */
-  userRole: 'HOST' | 'CO_HOST' | 'PARTICIPANT' | 'VIEWER' | null;
+  userRole: 'PRESENTER' | 'MODERATOR' | 'PANELIST' | 'ORGANISER' | 'ATTENDEE' | null;
   isRecurring: boolean;
   isOccurrence: boolean;       // true when expanded from an RRULE
   cohortId: string | null;
@@ -51,19 +58,26 @@ async function buildVisibilityWhere(userId: string, role: Role, from: Date, to: 
   const visibility = await buildSessionVisibilityWhere({ userId, role, activeProgramId });
   const approvalGate = buildApprovalGate({ userId, role });
 
-  // Compose under `AND` so the two independent OR-clauses (time-window vs.
-  // visibility) don't collide on a shared top-level `OR` key.
+  // Mirror the dashboard page WHERE exactly — same AND ordering, same status
+  // filter — so the calendar fetches the same rows the dashboard does.
+  // expandOccurrences below then filters to the [from, to] window in JS,
+  // which handles both single-session overlap and recurring-rule expansion.
   return {
-    // narrow to the actor's active program. Defensive when missing.
     ...(activeProgramId ? { programId: activeProgramId } : {}),
     deletedAt: null,
-    scheduledStart: { lt: to },
     AND: [
-      approvalGate,
-      // Single sessions must overlap [from, to]; recurring masters may start
-      // earlier but still have occurrences in-window (filtered in JS below).
-      { OR: [{ scheduledEnd: { gt: from } }, { recurrenceRule: { not: null } }] },
       visibility,
+      approvalGate,
+      {
+        OR: [
+          { status: SessionStatus.LIVE },
+          { status: SessionStatus.SCHEDULED, scheduledStart: { lt: to } },
+          { status: SessionStatus.ENDED, scheduledEnd: { gt: from } },
+          // Recurring masters may start before `from` — include them so JS can
+          // expand occurrences that fall inside the window.
+          { recurrenceRule: { not: null } },
+        ],
+      },
     ],
   };
 }
@@ -185,6 +199,7 @@ export async function listCalendarEvents(
       openToAll: true,
       cohortId: true,
       hostId: true,
+      metadata: true,
     },
     orderBy: { scheduledStart: 'asc' },
   });
@@ -220,13 +235,40 @@ export async function listCalendarEvents(
   const cohortById = new Map(cohorts.map((c) => [c.id, c]));
   const myRoleBySession = new Map(myParticipations.map((p) => [p.sessionId, p.role]));
 
-  // Resolve the viewer's role for a session: hosting wins over any participant
-  // row; otherwise use their SessionParticipant.role; null when neither.
-  const VALID_ROLES = new Set(['HOST', 'CO_HOST', 'PARTICIPANT', 'VIEWER']);
-  const viewerRoleFor = (sessionId: string, hostId: string): CalendarEvent['userRole'] => {
-    if (hostId === userId) return 'HOST';
-    const r = myRoleBySession.get(sessionId);
-    return r && VALID_ROLES.has(r) ? (r as CalendarEvent['userRole']) : null;
+  // Resolve the viewer's badge role for a session.
+  // Priority: explicit metadata.roles assignment > ownership > participant row.
+  // A badge is only a SPEAKING role (Presenter/Moderator/Panelist) when the
+  // viewer was explicitly given it or is a genuine co-host; being merely the
+  // owner-who-delegated or an invitee never yields one.
+  const viewerRoleFor = (sessionId: string, hostId: string, metadata: unknown): CalendarEvent['userRole'] => {
+    const meta = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>) : null;
+    const metaRoles = Array.isArray(meta?.roles)
+      ? (meta!.roles as { role: string; userId: string }[]) : [];
+
+    // 1. Explicit role assignment in metadata wins over everything else.
+    const myMetaRole = metaRoles.find((r) => r.userId === userId);
+    if (myMetaRole?.role === 'Presenter') return 'PRESENTER';
+    if (myMetaRole?.role === 'Moderator') return 'MODERATOR';
+    if (myMetaRole?.role === 'Panelist') return 'PANELIST';
+
+    // 2. Session owner. If presenting was delegated to someone else, the owner
+    //    is the ORGANISER — they scheduled it but were never assigned a speaking
+    //    role, so they must NOT show as "Moderator".
+    if (hostId === userId) {
+      const hasOtherPresenter = metaRoles.some((r) => r.role === 'Presenter' && r.userId !== userId);
+      return hasOtherPresenter ? 'ORGANISER' : 'PRESENTER';
+    }
+
+    // 3. A real participant row. CO_HOST is a genuine moderator; HOST (rare for a
+    //    non-owner) presents; PARTICIPANT/VIEWER are plain attendees.
+    const partRole = myRoleBySession.get(sessionId);
+    if (partRole === 'CO_HOST') return 'MODERATOR';
+    if (partRole === 'HOST') return 'PRESENTER';
+    if (partRole === 'PARTICIPANT' || partRole === 'VIEWER') return 'ATTENDEE';
+
+    // 4. Visible but unaffiliated (e.g. openToAll, not joined).
+    return null;
   };
 
   return sessions.flatMap((s) =>
@@ -235,7 +277,7 @@ export async function listCalendarEvents(
         ...s,
         host: hostById.get(s.hostId) ?? null,
         cohortName: s.cohortId ? (cohortById.get(s.cohortId)?.name ?? null) : null,
-        userRole: viewerRoleFor(s.id, s.hostId),
+        userRole: viewerRoleFor(s.id, s.hostId, s.metadata),
       },
       from,
       to

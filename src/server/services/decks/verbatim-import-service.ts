@@ -16,43 +16,104 @@
 
 import { db } from '@/lib/db';
 import { DeckForgeStatus, SlideLayout, type Prisma } from '@prisma/client';
-import { PptxDocument } from '../pptx/pptx-document';
+import { PptxDocument, CHROME_PH_TYPES, type PptxShape, type PptxSlide } from '../pptx/pptx-document';
 import { rasterizeSource, uploadSourceImages } from './slide-raster-service';
 import { persistDeckAsDocument } from './deck-pptx-renderer';
+import type { SlideOverlay } from '@/lib/deck-overlay';
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const EMU_PER_PT = 12700; // 1 point = 12700 EMU
 
 interface ImportedRow {
   layout: SlideLayout;
   title: string;
   bullets: string[];
   speakerNotes: string | null;
+  /** Faithful editable overlay boxes (PPTX geometry), or null when unavailable. */
+  overlay: SlideOverlay | null;
+}
+
+/**
+ * Build the faithful editable overlay for one slide: every text shape that
+ * carries an explicit frame becomes a box normalised to 0..1 of the slide, with
+ * the style needed to render an editable box that sits over the rasterised
+ * original. Returns null when no shape had usable geometry (the editor then
+ * falls back to the themed canvas).
+ */
+function buildOverlay(slide: PptxSlide, size: { cx: number; cy: number }): SlideOverlay | null {
+  const boxes = slide.shapes
+    .filter((s) => s.frameEmu && s.text.trim())
+    .map((s) => {
+      const f = s.frameEmu!;
+      return {
+        slotId: s.slotId,
+        text: s.text,
+        x: f.x / size.cx,
+        y: f.y / size.cy,
+        w: f.cx / size.cx,
+        h: f.cy / size.cy,
+        fillHex: s.fillHex,
+        colorHex: s.colorHex,
+        fontPct: s.fontSizePt ? (s.fontSizePt * EMU_PER_PT) / size.cy : null,
+        bold: s.bold,
+        italic: s.italic,
+        align: s.align,
+        valign: s.valign,
+      };
+    });
+  return boxes.length ? { boxes } : null;
+}
+
+/** A shape's text is just a page number / chrome token (e.g. "2", "12 / 22"). */
+function isPageNumberish(text: string): boolean {
+  return /^[\s\d/.,–—-]+$/.test(text); // digits + separators only
+}
+
+/** True when this shape is deck chrome (slide number, footer, date) — never content. */
+function isChromeShape(s: PptxShape): boolean {
+  return s.phType != null && CHROME_PH_TYPES.has(s.phType);
+}
+
+/**
+ * Choose the title shape for a slide. Prefer the real title placeholder; if the
+ * template has none (common in custom institutional decks), fall back to the
+ * first *content* shape that isn't deck chrome (slide number / footer / date)
+ * and isn't a bare page number — so the title never collapses to "2".
+ */
+function pickTitleShape(content: PptxShape[]): PptxShape | undefined {
+  const titlePh = content.find((s) => s.isTitle && s.text.trim());
+  if (titlePh) return titlePh;
+  return content.find((s) => !isPageNumberish(s.text.trim()));
 }
 
 /**
  * Parse a .pptx into editable rows that mirror the deck 1:1. Title shape →
  * title; remaining text shapes → bullets (split on the shape's own line breaks);
- * notes slide → speakerNotes. First slide becomes a TITLE_ONLY hero, the rest
- * TITLE_BULLETS — a faithful-enough structure the faculty can refine. Throws
- * (caller catches) only on a corrupt archive.
+ * notes slide → speakerNotes. Deck chrome (slide number / footer / date
+ * placeholders) is dropped so it can't masquerade as the title or pollute the
+ * bullets. First slide becomes a TITLE_ONLY hero, the rest TITLE_BULLETS — a
+ * faithful-enough structure the faculty can refine. Throws (caller catches)
+ * only on a corrupt archive.
  */
 function pptxToRows(buf: Buffer): ImportedRow[] {
   const doc = PptxDocument.fromBuffer(buf);
+  const size = doc.slideSize();
   return doc.slides().map((slide, i): ImportedRow => {
-    const titleShape = slide.shapes.find((s) => s.isTitle && s.text.trim());
-    const bodyShapes = slide.shapes.filter(
-      (s) => (!titleShape || s.slotId !== titleShape.slotId) && s.text.trim(),
-    );
-    // Title: the placeholder title, else the first text shape, else a stub.
-    const title = (titleShape?.text ?? bodyShapes.shift()?.text ?? `Slide ${slide.index}`)
+    // Authored content only — exclude chrome placeholders and empty shapes.
+    const content = slide.shapes.filter((s) => s.text.trim() && !isChromeShape(s));
+    const titleShape = pickTitleShape(content);
+    const bodyShapes = content.filter((s) => s.slotId !== titleShape?.slotId);
+    // Title: the chosen content title, else a stub (never a page number).
+    const title = (titleShape?.text ?? `Slide ${slide.index}`)
       .trim()
       .replace(/\s+/g, ' ')
       .slice(0, 200);
-    // Bullets: each body shape's paragraphs (PptxShape.text joins them with \n).
+    // Bullets: each body shape's paragraphs (PptxShape.text joins them with \n),
+    // minus any stray page-number tokens.
     const bullets = bodyShapes
       .flatMap((s) => s.text.split('\n'))
       .map((b) => b.trim())
-      .filter(Boolean)
+      .filter((b) => b && !isPageNumberish(b))
       .slice(0, 12)
       .map((b) => b.slice(0, 300));
     const notes = doc.notes(slide.index).trim() || null;
@@ -61,6 +122,7 @@ function pptxToRows(buf: Buffer): ImportedRow[] {
       title,
       bullets,
       speakerNotes: notes,
+      overlay: buildOverlay(slide, size),
     };
   });
 }
@@ -112,6 +174,7 @@ export async function importVerbatimDeck(opts: {
         title: `Slide ${i + 1}`,
         bullets: [],
         speakerNotes: null,
+        overlay: null,
       }),
     );
   }
@@ -134,6 +197,7 @@ export async function importVerbatimDeck(opts: {
     bullets: r.bullets,
     speakerNotes: r.speakerNotes,
     sourceImageS3Key: imageKeys[i] ?? null,
+    overlayJson: r.overlay ? (r.overlay as unknown as Prisma.InputJsonValue) : undefined,
   }));
 
   await db.$transaction(async (tx) => {

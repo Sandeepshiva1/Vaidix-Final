@@ -9,39 +9,69 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WorkflowHeader } from '@/components/medlearn/workflow-header'
-import type { SessionView, SVStepKey } from '@/lib/medlearn/session-view'
+import type { SessionView, SVStepKey, SessionRole } from '@/lib/medlearn/session-view'
+import { ROLE_STEP_ACCESS } from '@/lib/medlearn/session-view'
 
-const PREP_STEPS: { key: SVStepKey; label: string; sub: string; sub2: string }[] = [
-  { key: 'studio', label: 'My Presentation', sub: 'Upload or create slides with AI', sub2: 'studio' },
-  { key: 'learners', label: 'Prepare Learners', sub: 'Prereads, mind maps & quiz', sub2: 'learners' },
-  { key: 'promo', label: 'Invitations & Teasers', sub: 'Flyers, WhatsApp & Instagram posts', sub2: 'promo' },
-  { key: 'analytics', label: 'Responses & Analytics', sub: 'Quiz results, engagement & leaderboard', sub2: 'analytics' },
-  { key: 'questions', label: 'Incoming Questions', sub: 'Review what learners are asking', sub2: 'questions' },
-  { key: 'ready', label: 'Session Ready', sub: 'Final checks & go-live', sub2: 'ready' },
+const ALL_PREP_STEPS: { key: SVStepKey; label: string; sub: string; sub2: string }[] = [
+  { key: 'studio',    label: 'My Presentation',      sub: 'Upload or create slides with AI',          sub2: 'studio' },
+  { key: 'learners',  label: 'Prepare Learners',      sub: 'Prereads, mind maps & quiz',               sub2: 'learners' },
+  { key: 'promo',     label: 'Invitations & Teasers', sub: 'Flyers, WhatsApp & Instagram posts',       sub2: 'promo' },
+  { key: 'analytics', label: 'Responses & Analytics', sub: 'Quiz results, engagement & leaderboard',   sub2: 'analytics' },
+  { key: 'questions', label: 'Incoming Questions',    sub: 'Review what learners are asking',           sub2: 'questions' },
+  { key: 'ready',     label: 'Session Ready',         sub: 'Final checks & go-live',                    sub2: 'ready' },
 ]
 
 const STEP_ICON: Record<string, React.ReactNode> = {
-  studio: <Wand2 className="size-[18px]" />,
-  learners: <Users2 className="size-[18px]" />,
-  promo: <ImageIcon className="size-[18px]" />,
+  studio:    <Wand2 className="size-[18px]" />,
+  learners:  <Users2 className="size-[18px]" />,
+  promo:     <ImageIcon className="size-[18px]" />,
   analytics: <BarChart3 className="size-[18px]" />,
   questions: <HelpCircle className="size-[18px]" />,
-  ready: <Sparkles className="size-[18px]" />,
+  ready:     <Sparkles className="size-[18px]" />,
 }
 
-export function PrepareClient({ session }: { session: SessionView }) {
+const ROLE_LABEL: Record<SessionRole, string> = {
+  host:      'Host',
+  presenter: 'Presenter',
+  moderator: 'Moderator',
+  panelist:  'Panelist',
+  attendee:  'Attendee',
+}
+
+const ROLE_COLOR: Record<SessionRole, string> = {
+  host:      'bg-teal-500/10 text-teal-700 dark:text-teal-300',
+  presenter: 'bg-teal-500/10 text-teal-700 dark:text-teal-300',
+  moderator: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  panelist:  'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300',
+  attendee:  'bg-foreground/5 text-muted-foreground',
+}
+
+export function PrepareClient({
+  session,
+  userRole,
+}: {
+  session: SessionView
+  userRole: SessionRole
+}) {
   const router = useRouter()
   const [hovered, setHovered] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
+  const allowedKeys = ROLE_STEP_ACCESS[userRole]
+  const PREP_STEPS = ALL_PREP_STEPS.filter((s) => allowedKeys.includes(s.key))
+
   const steps = session.steps
   const done = PREP_STEPS.filter((s) => steps[s.key]).length
   const total = PREP_STEPS.length
-  const pct = Math.round((done / total) * 100)
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
 
-  const mandatoryDone = steps.studio // slides uploaded is the gate to go live
+  const mandatoryDone = userRole === 'moderator' || userRole === 'panelist'
+    ? done > 0  // moderators/panelists can start if they've done any task
+    : steps.studio  // presenter/host still need slides
   const learnersSkipped = !steps.learners
   const href = (k: string) => `/session/${session.id}/${k}`
+
+  const canGoLive = userRole === 'host' || userRole === 'presenter'
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -55,6 +85,18 @@ export function PrepareClient({ session }: { session: SessionView }) {
         eyebrow="Pre-Conference Workflow"
       />
 
+      {/* Role badge */}
+      <div className="mb-4 flex items-center gap-2">
+        <span className={cn('inline-flex items-center rounded-full px-3 py-1 text-[11.5px] font-semibold', ROLE_COLOR[userRole])}>
+          {ROLE_LABEL[userRole]}
+        </span>
+        <span className="text-[12px] text-muted-foreground">
+          {userRole === 'moderator' && 'You can manage learners, invitations, and incoming questions.'}
+          {userRole === 'panelist' && 'You can review incoming learner questions before the session.'}
+          {(userRole === 'host' || userRole === 'presenter') && 'You have full access to all pre-conference steps.'}
+        </span>
+      </div>
+
       {/* Progress strip */}
       <div className="mb-8 rounded-3xl border border-border/60 bg-card p-6 shadow-[0_1px_2px_oklch(0.85_0.01_200/0.4)]">
         <div className="flex items-center justify-between">
@@ -64,7 +106,9 @@ export function PrepareClient({ session }: { session: SessionView }) {
           </div>
           <div className="text-right">
             <div className="font-mono text-[40px] font-semibold tabular-nums text-teal-700 dark:text-teal-300">{pct}%</div>
-            <div className="text-[11.5px] font-medium text-muted-foreground">Ready to go live when 100%</div>
+            <div className="text-[11.5px] font-medium text-muted-foreground">
+              {canGoLive ? 'Ready to go live when 100%' : 'Your pre-session tasks'}
+            </div>
           </div>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-foreground/5">
@@ -83,19 +127,21 @@ export function PrepareClient({ session }: { session: SessionView }) {
         </div>
       </div>
 
-      {/* Link materials from My Documents */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border/60 bg-card p-5">
-        <div className="flex items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-teal-500/10 text-teal-700 dark:text-teal-300"><FolderOpen className="size-5" /></div>
-          <div>
-            <div className="text-[14px] font-semibold tracking-tight">Materials & My Documents</div>
-            <div className="text-[12.5px] text-muted-foreground">Link existing documents to this session, or upload new material.</div>
+      {/* Materials link — presenter/host only */}
+      {(userRole === 'host' || userRole === 'presenter') && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border/60 bg-card p-5">
+          <div className="flex items-center gap-3">
+            <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-teal-500/10 text-teal-700 dark:text-teal-300"><FolderOpen className="size-5" /></div>
+            <div>
+              <div className="text-[14px] font-semibold tracking-tight">Materials & My Documents</div>
+              <div className="text-[12.5px] text-muted-foreground">Link existing documents to this session, or upload new material.</div>
+            </div>
           </div>
+          <Link href={`/teacher/documents?session=${session.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-700 px-4 text-[13px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02]">
+            <FolderOpen className="size-4" /> Link from My Documents
+          </Link>
         </div>
-        <Link href={`/teacher/documents?session=${session.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-700 px-4 text-[13px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02]">
-          <FolderOpen className="size-4" /> Link from My Documents
-        </Link>
-      </div>
+      )}
 
       {/* Step cards */}
       <ol className="relative space-y-3">
@@ -127,22 +173,37 @@ export function PrepareClient({ session }: { session: SessionView }) {
         })}
       </ol>
 
-      {/* CTA */}
-      <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-linear-to-br from-white via-teal-50/30 to-emerald-50/30 p-8 text-center dark:from-card dark:via-card dark:to-card">
-        <div className="grid size-12 place-items-center rounded-full bg-linear-to-br from-teal-500/15 to-emerald-500/10 text-teal-700 dark:text-teal-300"><PlayCircle className="size-6" /></div>
-        <div>
-          <h3 className="text-[18px] font-semibold tracking-tight">{mandatoryDone ? "You're ready to go live." : 'Add your presentation to enable Start Session.'}</h3>
-          <p className="mt-1 text-[13px] text-muted-foreground">{mandatoryDone ? 'Open the Ready screen for a final check before going live.' : 'Vaidix will keep your work in sync across each step.'}</p>
+      {/* CTA — presenter/host only */}
+      {canGoLive && (
+        <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-linear-to-br from-white via-teal-50/30 to-emerald-50/30 p-8 text-center dark:from-card dark:via-card dark:to-card">
+          <div className="grid size-12 place-items-center rounded-full bg-linear-to-br from-teal-500/15 to-emerald-500/10 text-teal-700 dark:text-teal-300"><PlayCircle className="size-6" /></div>
+          <div>
+            <h3 className="text-[18px] font-semibold tracking-tight">{mandatoryDone ? "You're ready to go live." : 'Add your presentation to enable Start Session.'}</h3>
+            <p className="mt-1 text-[13px] text-muted-foreground">{mandatoryDone ? 'Open the Ready screen for a final check before going live.' : 'Vaidix will keep your work in sync across each step.'}</p>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2.5">
+            <button type="button" disabled={!mandatoryDone} onClick={() => { if (learnersSkipped) setShowConfirm(true); else router.push(href('ready')) }} className={cn('inline-flex h-11 items-center gap-2 rounded-full px-5 text-[14px] font-medium transition-all', mandatoryDone ? 'bg-slate-700 text-white shadow-sm hover:scale-[1.02]' : 'cursor-not-allowed bg-foreground/10 text-muted-foreground')}>
+              <Sparkles className="size-4" />I&apos;m Ready — Start Session<ArrowRight className="size-4" />
+            </button>
+            <Link href={href('live')} className="inline-flex h-11 items-center gap-2 rounded-full border border-border/60 bg-background/60 px-5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
+              Preview live screen<ArrowRight className="size-4" />
+            </Link>
+          </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-2.5">
-          <button type="button" disabled={!mandatoryDone} onClick={() => { if (learnersSkipped) setShowConfirm(true); else router.push(href('ready')) }} className={cn('inline-flex h-11 items-center gap-2 rounded-full px-5 text-[14px] font-medium transition-all', mandatoryDone ? 'bg-slate-700 text-white shadow-sm hover:scale-[1.02]' : 'cursor-not-allowed bg-foreground/10 text-muted-foreground')}>
-            <Sparkles className="size-4" />I&apos;m Ready — Start Session<ArrowRight className="size-4" />
-          </button>
-          <Link href={href('live')} className="inline-flex h-11 items-center gap-2 rounded-full border border-border/60 bg-background/60 px-5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
-            Preview live screen<ArrowRight className="size-4" />
-          </Link>
+      )}
+
+      {/* Panelist/Moderator CTA */}
+      {!canGoLive && (
+        <div className="mt-8 flex items-center gap-3 rounded-3xl border border-border/60 bg-card p-6">
+          <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-teal-500/10 text-teal-700 dark:text-teal-300"><Sparkles className="size-5" /></div>
+          <div>
+            <div className="text-[14px] font-semibold tracking-tight">All set for the session?</div>
+            <div className="text-[12.5px] text-muted-foreground">
+              {userRole === 'moderator' ? 'Ensure learners are prepared and review the incoming Q&A before joining.' : 'Review learner questions above and join when the session goes live.'}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

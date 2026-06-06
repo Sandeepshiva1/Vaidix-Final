@@ -18,7 +18,7 @@ interface ApiEvent {
   openToAll: boolean
   sessionType: string
   host: { id: string; name: string; role: string } | null
-  userRole: 'HOST' | 'CO_HOST' | 'PARTICIPANT' | 'VIEWER' | null
+  userRole: 'PRESENTER' | 'MODERATOR' | 'PANELIST' | 'ORGANISER' | 'ATTENDEE' | null
   isRecurring: boolean
   isOccurrence: boolean
   cohortId: string | null
@@ -26,12 +26,13 @@ interface ApiEvent {
 }
 
 // ── Demo role/colour vocabulary (decorative styling, mapped from real data) ─────
-type RoleType = 'Presenter' | 'Moderator' | 'Panelist' | 'Meeting' | 'Board Room' | 'Class Room' | 'Attendee'
+type RoleType = 'Presenter' | 'Moderator' | 'Panelist' | 'Organiser' | 'Meeting' | 'Board Room' | 'Class Room' | 'Attendee'
 
 const ROLE_COLORS: Record<RoleType, { bg: string; text: string; dot: string }> = {
   Presenter:  { bg: 'bg-teal-500/12',   text: 'text-teal-700 dark:text-teal-300',     dot: 'bg-teal-500'   },
   Moderator:  { bg: 'bg-amber-500/12',  text: 'text-amber-700 dark:text-amber-300',   dot: 'bg-amber-500'  },
   Panelist:   { bg: 'bg-indigo-500/12', text: 'text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
+  Organiser:  { bg: 'bg-rose-500/12',   text: 'text-rose-700 dark:text-rose-300',     dot: 'bg-rose-500'   },
   Meeting:    { bg: 'bg-sky-500/12',    text: 'text-sky-700 dark:text-sky-300',       dot: 'bg-sky-500'    },
   'Board Room':{ bg: 'bg-violet-500/12',text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
   'Class Room':{ bg: 'bg-emerald-500/12',text: 'text-emerald-700 dark:text-emerald-300',dot: 'bg-emerald-500'},
@@ -49,12 +50,21 @@ const SESSION_TYPE_VENUE: Record<string, RoleType> = {
 }
 
 // Resolve the badge from the VIEWER's own role on the session — NOT the session
-// type (that conflation was the "everyone shows as Presenter" bug). Hosting or
-// co-hosting → Presenter; otherwise a venue-type shows its format and anyone
-// else (invitee / participant / viewer) is an Attendee.
+// type (that conflation was the "everyone shows as Presenter" bug). The service
+// already resolved the viewer's standing; we just label it. A speaking badge
+// (Presenter / Moderator / Panelist) only appears when it was explicitly
+// assigned or earned (co-host). The owner-who-delegated is the Organiser. When
+// the viewer has no standing at all (null), a venue-type session shows its
+// format; everyone else is an Attendee.
 function roleForViewer(userRole: ApiEvent['userRole'], sessionType: string): RoleType {
-  if (userRole === 'HOST' || userRole === 'CO_HOST') return 'Presenter'
-  return SESSION_TYPE_VENUE[sessionType] ?? 'Attendee'
+  switch (userRole) {
+    case 'PRESENTER': return 'Presenter'
+    case 'MODERATOR': return 'Moderator'
+    case 'PANELIST':  return 'Panelist'
+    case 'ORGANISER': return 'Organiser'
+    case 'ATTENDEE':  return 'Attendee'
+    default:          return SESSION_TYPE_VENUE[sessionType] ?? 'Attendee'
+  }
 }
 
 const SESSION_TYPE_LABEL: Record<string, string> = {
@@ -185,8 +195,18 @@ export function CalendarClient({ currentUserId }: CalendarClientProps) {
   }
 
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  // "Upcoming" means not yet finished — drop events whose end is already in the
+  // past so a session earlier this month (e.g. Jun 2 when today is Jun 6) no
+  // longer shows under "Upcoming this month".
+  const nowMs = now.getTime()
+  const eventEndMs = (e: CalEvent) => {
+    const [yy, mm, dd] = e.date.split('-').map(Number)
+    const [hh, min] = e.time.split(':').map(Number)
+    return new Date(yy, mm - 1, dd, hh, min).getTime() + e.duration * 60000
+  }
   const upcoming = events
     .filter((e) => e.date.startsWith(monthPrefix))
+    .filter((e) => eventEndMs(e) >= nowMs)
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
 
   return (

@@ -13,6 +13,7 @@ import {
   handleUnexpected,
 } from '@/server/services/api-helpers';
 import { createInvitation } from '@/server/services/invitation-service';
+import { ADMIN_LIMIT_CODE, adminLimitMessage } from '@/server/services/admin-limits';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
 
 export async function GET(req: Request) {
@@ -117,6 +118,7 @@ export async function POST(req: Request) {
       if (code === 'INVALID_PD') return jsonError('INVALID', 'Selected user is not a Program Director', 400);
       if (code === 'INVALID_MENTOR') return jsonError('INVALID', 'Selected user is not a Faculty member', 400);
       if (code === 'INVALID_COHORT') return jsonError('INVALID', 'Selected cohort no longer exists', 400);
+      if (code === ADMIN_LIMIT_CODE) return jsonError('ADMIN_LIMIT', adminLimitMessage, 409);
       throw err;
     }
   } catch (err) {

@@ -19,7 +19,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ensureCsrfHeaders } from '@/lib/csrf-client'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -332,32 +332,41 @@ export function InboxClient({ role }: { role: string }) {
         onValueChange={(v) => setActiveTab(v as TabId)}
         className="w-full"
       >
-        <TabsList variant="line" className="w-full justify-start gap-0 border-b border-border/40 pb-0 rounded-none bg-transparent h-auto p-0">
+        <div className="flex flex-wrap gap-2 pb-2">
           {(
             [
-              { id: 'all',          label: 'All',          icon: Bell },
-              { id: 'sessions',     label: 'Sessions',     icon: Video },
-              { id: 'questions',    label: 'Questions',    icon: MessageSquare },
-              { id: 'achievements', label: 'Achievements', icon: Trophy },
-              { id: 'recordings',   label: 'Recordings',   icon: Video },
-              ...(showInvitationsTab ? [{ id: 'invitations', label: 'Invitations', icon: Users }] : []),
-            ] as { id: TabId; label: string; icon: React.ElementType }[]
-          ).map(({ id, label, icon: Icon }) => (
-            <TabsTrigger
+              { id: 'all',          label: 'All',          icon: Bell,          activeColor: 'bg-teal-500 text-white border-teal-500' },
+              { id: 'sessions',     label: 'Sessions',     icon: Video,         activeColor: 'bg-blue-500 text-white border-blue-500' },
+              { id: 'questions',    label: 'Questions',    icon: MessageSquare, activeColor: 'bg-amber-500 text-white border-amber-500' },
+              { id: 'achievements', label: 'Achievements', icon: Trophy,        activeColor: 'bg-purple-500 text-white border-purple-500' },
+              { id: 'recordings',   label: 'Recordings',   icon: Video,         activeColor: 'bg-rose-500 text-white border-rose-500' },
+              ...(showInvitationsTab ? [{ id: 'invitations', label: 'Invitations', icon: Users, activeColor: 'bg-emerald-500 text-white border-emerald-500' }] : []),
+            ] as { id: TabId; label: string; icon: React.ElementType; activeColor: string }[]
+          ).map(({ id, label, icon: Icon, activeColor }) => (
+            <button
               key={id}
-              value={id}
-              className="rounded-none border-b-2 border-transparent px-3 pb-2.5 pt-1 text-[13px] data-active:border-teal-500 data-active:text-teal-600 dark:data-active:text-teal-400"
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition-all',
+                activeTab === id
+                  ? activeColor
+                  : 'border-border bg-background text-foreground/70 hover:border-foreground/30 hover:text-foreground',
+              )}
             >
               <Icon className="size-3.5" />
               {label}
               {badges[id] > 0 && (
-                <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[9px] font-bold text-white">
+                <span className={cn(
+                  'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold',
+                  activeTab === id ? 'bg-white/25 text-white' : 'bg-foreground/10 text-foreground/70',
+                )}>
                   {badges[id] > 99 ? '99+' : badges[id]}
                 </span>
               )}
-            </TabsTrigger>
+            </button>
           ))}
-        </TabsList>
+        </div>
 
         {/* Content — shared panel, filtered by activeTab */}
         {(['all', 'sessions', 'questions', 'achievements', 'recordings', 'invitations'] as TabId[]).map((tid) => (
@@ -437,7 +446,7 @@ function NotificationList({
                 {...wrapperProps}
                 className={cn(
                   'group flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/40 cursor-pointer',
-                  unreadRow && 'bg-teal-500/[0.03]'
+                  unreadRow && 'bg-teal-500/3'
                 )}
               >
                 {/* Unread dot */}

@@ -31,7 +31,9 @@ export default async function StudioPage({ params }: PageProps) {
   // can deep-link to /teacher/decks/[jobId]. Documents with no usable job yet
   // are still shown honestly (e.g. AI was offline at upload time).
   const links = await db.documentSessionLink.findMany({
-    where: { sessionId: id },
+    // Exclude links whose document was deleted ("Delete entire PPT") so a
+    // removed presentation disappears from My PPTs instead of lingering.
+    where: { sessionId: id, document: { deletedAt: null } },
     orderBy: { createdAt: 'desc' },
     select: {
       createdAt: true,

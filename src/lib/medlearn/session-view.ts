@@ -7,7 +7,7 @@
 
 import { cache } from 'react'
 import { db } from '@/lib/db'
-import { SessionStatus, SessionType, DocumentRoute } from '@prisma/client'
+import { DeckForgeStatus, SessionStatus, SessionType, DocumentRoute } from '@prisma/client'
 
 export type SVStage = 'PRE' | 'LIVE' | 'POST'
 export type SVStepKey = 'studio' | 'learners' | 'promo' | 'analytics' | 'questions' | 'ready'
@@ -55,6 +55,7 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
       scheduledStart: true,
       scheduledEnd: true,
       tags: true,
+      metadata: true,
       _count: { select: { documentLinks: true, invites: true, preQuestions: true, participants: true } },
     },
   })
@@ -73,6 +74,15 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
   const start = row.scheduledStart
   const duration = Math.max(0, Math.round((row.scheduledEnd.getTime() - start.getTime()) / 60000))
 
+  // "My Presentation" is only DONE when a finalized (APPROVED) deck is linked.
+  const approvedDeck = await db.deckForgeJob.findFirst({
+    where: {
+      status: DeckForgeStatus.APPROVED,
+      document: { sessionLinks: { some: { sessionId: id } } },
+    },
+    select: { id: true },
+  })
+
   const counts = {
     sources: row._count.documentLinks,
     learners: row._count.invites,
@@ -81,8 +91,15 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
     promo,
   }
 
-  const studio = counts.sources > 0
-  const learners = counts.learners > 0
+  const studio = !!approvedDeck
+  // "Prepare Learners" done when learners are invited OR quiz content is configured.
+  const lp = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+    ? ((row.metadata as Record<string, unknown>).learnerPrep as Record<string, unknown> | undefined)
+    : undefined
+  const hasLearnerPrepContent =
+    (Array.isArray(lp?.mcqs) && (lp!.mcqs as unknown[]).length > 0) ||
+    (Array.isArray(lp?.openEnded) && (lp!.openEnded as unknown[]).length > 0)
+  const learners = counts.learners > 0 || hasLearnerPrepContent
   const questions = counts.questions > 0
   const promoDone = counts.promo > 0
   const analytics = false // derived once the analytics surface is configured
@@ -117,4 +134,42 @@ export function stepProgress(steps: Record<SVStepKey, boolean>): { done: number;
   const total = PREP_STEPS.length
   const done = PREP_STEPS.filter((s) => steps[s.key]).length
   return { done, total, pct: Math.round((done / total) * 100) }
+}
+
+export type SessionRole = 'host' | 'presenter' | 'moderator' | 'panelist' | 'attendee'
+
+/**
+ * Resolves a user's semantic role for a given session.
+ * Priority: host ownership > explicit metadata role assignment > attendee.
+ */
+export function resolveSessionRole(
+  metadata: unknown,
+  hostId: string,
+  userId: string,
+): SessionRole {
+  if (hostId === userId) return 'host'
+
+  const meta =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : null
+  const metaRoles = Array.isArray(meta?.roles)
+    ? (meta!.roles as { role: string; userId: string }[])
+    : []
+
+  const myRole = metaRoles.find((r) => r.userId === userId)
+  if (myRole?.role === 'Presenter') return 'presenter'
+  if (myRole?.role === 'Moderator') return 'moderator'
+  if (myRole?.role === 'Panelist') return 'panelist'
+
+  return 'attendee'
+}
+
+/** Steps each role is permitted to access in the pre-conference workflow. */
+export const ROLE_STEP_ACCESS: Record<SessionRole, SVStepKey[]> = {
+  host:      ['studio', 'learners', 'promo', 'analytics', 'questions', 'ready'],
+  presenter: ['studio', 'learners', 'promo', 'analytics', 'questions', 'ready'],
+  moderator: ['learners', 'promo', 'analytics', 'questions', 'ready'],
+  panelist:  ['questions', 'ready'],
+  attendee:  [],
 }

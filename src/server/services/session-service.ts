@@ -984,12 +984,16 @@ export async function addSessionInvitees(
 ) {
   await assertInviteEditor(sessionId, actorId, actorRole);
 
-  // Keep only users that exist and are ACTIVE; silently drop the rest.
+  // Include ACTIVE and PENDING_INVITE users. PENDING_INVITE users exist in the
+  // system (created by admin) but haven't completed registration yet. Pre-inviting
+  // them to a session is valid — they'll see it on their dashboard once they
+  // activate. SUSPENDED users are still excluded (access revoked intentionally).
   const users = await db.user.findMany({
-    where: { id: { in: userIds }, status: 'ACTIVE' },
+    where: { id: { in: userIds }, status: { in: ['ACTIVE', 'PENDING_INVITE'] } },
     select: { id: true },
   });
-  if (users.length === 0) return { added: 0 };
+  const skipped = userIds.length - users.length;
+  if (users.length === 0) return { added: 0, skipped };
 
   const result = await db.sessionInvite.createMany({
     data: users.map((u) => ({
@@ -1005,11 +1009,11 @@ export async function addSessionInvitees(
     eventType: 'SESSION_INVITES_ADDED',
     entityType: 'teaching_session',
     entityId: sessionId,
-    summary: `Added ${result.count} invitee(s)`,
-    details: { userIds: users.map((u) => u.id) },
+    summary: `Added ${result.count} invitee(s)${skipped > 0 ? `, skipped ${skipped} not found/suspended` : ''}`,
+    details: { userIds: users.map((u) => u.id), skipped },
   });
 
-  return { added: result.count };
+  return { added: result.count, skipped };
 }
 
 export async function removeSessionInvitee(

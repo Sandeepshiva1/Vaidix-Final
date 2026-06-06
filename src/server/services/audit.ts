@@ -188,6 +188,12 @@ export const AUDIT_EVENTS = {
   RECORDING_SHARE_BLOCKED: 'recording_share.blocked',
   RECORDING_SHARE_REVOKED: 'recording_share.revoked',
 
+  // Sessions (teaching sessions / classrooms / board rooms)
+  SESSION_CREATED: 'session.created',
+  SESSION_CANCELLED: 'session.cancelled',
+  SESSION_SHARE_CREATED: 'session_share.created',
+  SESSION_SHARE_ACCESSED: 'session_share.accessed',
+
   // ─── events ───────────────────────────────────────────────────────
   // Cases
   CASE_STARTED: 'case.started',

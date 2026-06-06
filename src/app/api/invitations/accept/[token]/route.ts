@@ -6,6 +6,7 @@ import {
   handleUnexpected,
 } from '@/server/services/api-helpers';
 import { acceptInvitation } from '@/server/services/invitation-service';
+import { ADMIN_LIMIT_CODE, adminLimitMessage } from '@/server/services/admin-limits';
 import { checkRateLimit, LIMITS } from '@/server/services/rate-limit';
 import { extractRequestMetadata } from '@/server/services/audit';
 
@@ -40,6 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       if (code === 'NOT_PENDING') return jsonError('NOT_PENDING', 'This invitation cannot be accepted', 410);
       if (code === 'EXPIRED') return jsonError('EXPIRED', 'This invitation has expired', 410);
       if (code === 'USER_EXISTS') return jsonError('USER_EXISTS', 'An account already exists for this email', 409);
+      if (code === ADMIN_LIMIT_CODE) return jsonError('ADMIN_LIMIT', adminLimitMessage, 409);
       throw err;
     }
   } catch (err) {

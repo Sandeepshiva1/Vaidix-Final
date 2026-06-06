@@ -65,19 +65,36 @@ interface NavItem {
   label: string
   icon: ReactNode
   match: (path: string) => boolean
-  href: (sessionId: string | null) => string
+  href: (sessionId: string | null, isLearner: boolean) => string
+  /** If set, only these roles see this nav item. Omit to show to all teaching roles. */
+  allowedRoles?: UserRole[]
 }
 
 // Teaching workflow nav — faculty / resident / program-director / guest.
 const TEACHING_NAV: NavItem[] = [
-  { label: 'Pre-Conference', icon: <Clock className="size-[18px]" />, match: (p) => /\/session\/[^/]+\/(pre|prepare|studio|learners|promo|questions|ready)/.test(p), href: (sid) => (sid ? `/session/${sid}/pre` : '/dashboard') },
-  { label: 'Live Conference', icon: <PlayCircle className="size-[18px]" />, match: (p) => /\/session\/[^/]+\/live/.test(p), href: (sid) => (sid ? `/session/${sid}/live` : '/dashboard') },
-  { label: 'Post-Conference', icon: <CheckCircle2 className="size-[18px]" />, match: (p) => /\/session\/[^/]+\/post/.test(p), href: (sid) => (sid ? `/session/${sid}/post` : '/dashboard') },
-  { label: 'My Sessions', icon: <CalendarDays className="size-[18px]" />, match: (p) => p === '/dashboard', href: () => '/dashboard' },
-  { label: 'My Calendar', icon: <CalendarDays className="size-[18px]" />, match: (p) => p.startsWith('/calendar'), href: () => '/calendar' },
-  { label: 'Active Learners', icon: <Users2 className="size-[18px]" />, match: (p) => p.startsWith('/teacher/learners'), href: () => '/teacher/learners' },
-  { label: 'My Documents', icon: <FolderOpen className="size-[18px]" />, match: (p) => p.startsWith('/teacher/documents'), href: () => '/teacher/documents' },
-  { label: 'Settings', icon: <Settings className="size-[18px]" />, match: (p) => p.startsWith('/profile') || p.startsWith('/settings'), href: () => '/profile' },
+  {
+    label: 'Pre-Conference',
+    icon: <Clock className="size-4.5" />,
+    match: (p) => /\/session\/[^/]+\/(pre|prepare|studio|learners|promo|questions|ready)/.test(p) || /\/classroom\/[^/]+\/prepare/.test(p),
+    href: (sid, isLearner) => sid ? (isLearner ? `/classroom/${sid}/prepare` : `/session/${sid}/pre`) : '/dashboard',
+  },
+  {
+    label: 'Live Conference',
+    icon: <PlayCircle className="size-4.5" />,
+    match: (p) => /\/session\/[^/]+\/live/.test(p) || /\/classroom\/[^/]+$/.test(p),
+    href: (sid, isLearner) => sid ? (isLearner ? `/classroom/${sid}` : `/session/${sid}/live`) : '/dashboard',
+  },
+  {
+    label: 'Post-Conference',
+    icon: <CheckCircle2 className="size-4.5" />,
+    match: (p) => /\/session\/[^/]+\/post/.test(p) || /\/classroom\/[^/]+\/post/.test(p) || p === '/sessions/completed',
+    href: (sid, isLearner) => sid ? (isLearner ? `/classroom/${sid}/post` : `/session/${sid}/post`) : '/sessions/completed',
+  },
+  { label: 'My Sessions', icon: <CalendarDays className="size-4.5" />, match: (p) => p === '/dashboard', href: () => '/dashboard' },
+  { label: 'My Calendar', icon: <CalendarDays className="size-4.5" />, match: (p) => p.startsWith('/calendar'), href: () => '/calendar' },
+  { label: 'Active Learners', icon: <Users2 className="size-4.5" />, match: (p) => p.startsWith('/teacher/learners'), href: () => '/teacher/learners', allowedRoles: ['faculty', 'program_director'] },
+  { label: 'My Documents', icon: <FolderOpen className="size-4.5" />, match: (p) => p.startsWith('/teacher/documents'), href: () => '/teacher/documents' },
+  { label: 'Settings', icon: <Settings className="size-4.5" />, match: (p) => p.startsWith('/profile') || p.startsWith('/settings'), href: () => '/profile' },
 ]
 
 // Admin-console nav — ADMIN role only. Maps to the real /admin/* routes. The
@@ -85,14 +102,14 @@ const TEACHING_NAV: NavItem[] = [
 // the security boundary; this nav is UX so admins can reach the console they're
 // already authorised for instead of navigating by raw URL.
 const ADMIN_NAV: NavItem[] = [
-  { label: 'Users', icon: <Users2 className="size-[18px]" />, match: (p) => p.startsWith('/admin/users'), href: () => '/admin/users' },
-  { label: 'Invitations', icon: <Mail className="size-[18px]" />, match: (p) => p.startsWith('/admin/invitations'), href: () => '/admin/invitations' },
-  { label: 'Cohorts', icon: <Users2 className="size-[18px]" />, match: (p) => p.startsWith('/admin/cohorts'), href: () => '/admin/cohorts' },
-  { label: 'Institution', icon: <Building2 className="size-[18px]" />, match: (p) => p.startsWith('/admin/institution'), href: () => '/admin/institution' },
-  { label: 'Knowledge Base', icon: <BookOpen className="size-[18px]" />, match: (p) => p.startsWith('/admin/knowledge-base'), href: () => '/admin/knowledge-base' },
-  { label: 'Training Queue', icon: <ListChecks className="size-[18px]" />, match: (p) => p.startsWith('/admin/training-queue'), href: () => '/admin/training-queue' },
-  { label: 'Audit Logs', icon: <ScrollText className="size-[18px]" />, match: (p) => p.startsWith('/admin/audit-logs'), href: () => '/admin/audit-logs' },
-  { label: 'Settings', icon: <Settings className="size-[18px]" />, match: (p) => p.startsWith('/admin/settings'), href: () => '/admin/settings' },
+  { label: 'Users', icon: <Users2 className="size-4.5" />, match: (p) => p.startsWith('/admin/users'), href: () => '/admin/users' },
+  { label: 'Invitations', icon: <Mail className="size-4.5" />, match: (p) => p.startsWith('/admin/invitations'), href: () => '/admin/invitations' },
+  { label: 'Cohorts', icon: <Users2 className="size-4.5" />, match: (p) => p.startsWith('/admin/cohorts'), href: () => '/admin/cohorts' },
+  { label: 'Institution', icon: <Building2 className="size-4.5" />, match: (p) => p.startsWith('/admin/institution'), href: () => '/admin/institution' },
+  { label: 'Knowledge Base', icon: <BookOpen className="size-4.5" />, match: (p) => p.startsWith('/admin/knowledge-base'), href: () => '/admin/knowledge-base' },
+  { label: 'Training Queue', icon: <ListChecks className="size-4.5" />, match: (p) => p.startsWith('/admin/training-queue'), href: () => '/admin/training-queue' },
+  { label: 'Audit Logs', icon: <ScrollText className="size-4.5" />, match: (p) => p.startsWith('/admin/audit-logs'), href: () => '/admin/audit-logs' },
+  { label: 'Settings', icon: <Settings className="size-4.5" />, match: (p) => p.startsWith('/admin/settings'), href: () => '/admin/settings' },
 ]
 
 // Pick the nav set + section label + landing route for the signed-in role.
@@ -123,10 +140,14 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
     setMobileNavOpen(false)
   }
 
-  const sessionIdFromPath = useMemo(() => {
-    const m = pathname.match(/\/session\/([^/]+)/)
-    const id = m?.[1] ?? null
-    return id === 'new' ? null : id
+  const { sessionIdFromPath, isLearnerContext } = useMemo(() => {
+    const hostMatch = pathname.match(/\/session\/([^/]+)/)
+    const hostId = hostMatch?.[1] ?? null
+    if (hostId && hostId !== 'new') return { sessionIdFromPath: hostId, isLearnerContext: false }
+    // Attendee/learner paths: /classroom/[id]/prepare|post|study|pre-questions|recording
+    const learnerMatch = pathname.match(/\/classroom\/([^/]+)/)
+    const learnerId = learnerMatch?.[1] ?? null
+    return { sessionIdFromPath: learnerId, isLearnerContext: !!learnerId }
   }, [pathname])
 
   const roleLabel = ROLE_LABEL[identity.role] ?? 'Member'
@@ -162,12 +183,12 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
   // sidebar (collapsible) and the mobile drawer (always expanded), so the two
   // can never drift apart.
   const renderNavLinks = (collapsed: boolean, onNavigate?: () => void) =>
-    navItems.map((item) => {
+    navItems.filter((item) => !item.allowedRoles || item.allowedRoles.includes(identity.role)).map((item) => {
       const active = item.match(pathname)
       return (
         <Link
           key={item.label}
-          href={item.href(sessionIdFromPath)}
+          href={item.href(sessionIdFromPath, isLearnerContext)}
           title={collapsed ? item.label : undefined}
           onClick={onNavigate}
           aria-current={active ? 'page' : undefined}
@@ -191,7 +212,7 @@ export function WorkflowShell({ identity, children }: { identity: ShellIdentity;
       <div className="flex">
         {/* Sidebar — desktop only (md+). On mobile it's hidden and replaced by
             the hamburger-triggered drawer below. */}
-        <aside className={cn('sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border/60 bg-white/80 backdrop-blur-xl transition-[width] duration-200 md:flex dark:bg-background/80', sidebarCollapsed ? 'w-[56px]' : 'w-64')}>
+        <aside className={cn('premium-sidebar sticky top-0 hidden h-screen shrink-0 flex-col transition-[width] duration-200 md:flex', sidebarCollapsed ? 'w-14' : 'w-64')}>
           {/* Logo + collapse toggle */}
           <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border/60 px-3">
             {!sidebarCollapsed && (

@@ -72,6 +72,13 @@ interface DateTimePickerProps {
   disablePast?: boolean
   /** Compact trigger button — smaller padding for dense forms. */
   compact?: boolean
+  /**
+   * Date-only mode: hides the time picker and the time line on the trigger.
+   * The value still carries a time component (callers can pin it, e.g. 23:59
+   * for an end-of-day cutoff); only the time UI is suppressed. Use for fields
+   * where the time is irrelevant, like a recurrence end date.
+   */
+  dateOnly?: boolean
 }
 
 function todayMidnightLocal(): string {
@@ -85,7 +92,7 @@ const PANEL_H = 360
 
 type View = 'calendar' | 'year' | 'month'
 
-export function DateTimePicker({ label, required, value, onChange, min, disablePast }: DateTimePickerProps) {
+export function DateTimePicker({ label, required, value, onChange, min, disablePast, dateOnly }: DateTimePickerProps) {
   const now = new Date()
   const parsed = parseValue(value)
   // Effective floor = max(today-midnight, explicit min). `disablePast` is the
@@ -107,7 +114,11 @@ export function DateTimePicker({ label, required, value, onChange, min, disableP
   const [selYear, setSelYear] = useState(parsed?.year ?? now.getFullYear())
   const [selMonth, setSelMonth] = useState(parsed?.month ?? now.getMonth() + 1)
   const [selDay, setSelDay] = useState(parsed?.day ?? 0)
-  const [hour, setHour] = useState(parsed?.hour ?? 9)
+  // `hour` holds the 12-hour clock value (1–12) the time field edits. parsed.hour
+  // is 24-hour, so convert on init — otherwise an initial value like 17:00 left
+  // `hour=17`, and commit() did `17 + 12 = 29`, rolling the date to the NEXT day
+  // at 5 AM (the "pick the 6th, get the 7th" bug).
+  const [hour, setHour] = useState(parsed ? (parsed.hour % 12 || 12) : 9)
   const [minute, setMinute] = useState(parsed?.minute ?? 0)
   const [ampm, setAmpm] = useState<'AM' | 'PM'>(parsed ? (parsed.hour >= 12 ? 'PM' : 'AM') : 'AM')
   const [monthDir, setMonthDir] = useState(1)
@@ -309,10 +320,12 @@ export function DateTimePicker({ label, required, value, onChange, min, disableP
         {display ? (
           <span className="relative flex-1 min-w-0">
             <span className="block text-sm font-semibold leading-tight text-foreground">{display.date}</span>
-            <span className="mt-0.5 flex items-center gap-1">
-              <Clock className="size-3 text-primary/70" />
-              <span className="text-xs font-semibold text-primary tabular-nums">{display.time}</span>
-            </span>
+            {!dateOnly && (
+              <span className="mt-0.5 flex items-center gap-1">
+                <Clock className="size-3 text-primary/70" />
+                <span className="text-xs font-semibold text-primary tabular-nums">{display.time}</span>
+              </span>
+            )}
           </span>
         ) : (
           <span className="relative flex-1 min-w-0">
@@ -507,7 +520,8 @@ export function DateTimePicker({ label, required, value, onChange, min, disableP
                 {/* Time picker — values auto-commit; click outside closes the panel.
                     Spinner controls are hidden so the box stays clean; users edit by
                     typing or by tapping AM/PM. Tailwind arbitrary CSS handles the
-                    cross-browser spinner suppression inline. */}
+                    cross-browser spinner suppression inline. Hidden in date-only mode. */}
+                {!dateOnly && (
                 <div className="border-t border-border bg-muted/30 px-3 py-3">
                   <p className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                     <Clock className="size-3" /> Time
@@ -560,6 +574,7 @@ export function DateTimePicker({ label, required, value, onChange, min, disableP
                     </p>
                   )}
                 </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>,

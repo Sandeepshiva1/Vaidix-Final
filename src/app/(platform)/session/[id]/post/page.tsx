@@ -1,7 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { Role } from '@prisma/client'
-import { loadSessionView } from '@/lib/medlearn/session-view'
+import { db } from '@/lib/db'
+import { loadSessionView, resolveSessionRole } from '@/lib/medlearn/session-view'
 import { loadPostData } from './post-data'
 import { PostClient } from './post-client'
 
@@ -21,11 +22,30 @@ export default async function PostConferencePage({ params }: PageProps) {
   const view = await loadSessionView(id)
   if (!view) notFound()
 
-  // Post-conference review is host / faculty-only.
-  const isHost = view.hostId === session.user.id
-  if (!isHost && !FACULTY_LIKE.includes(session.user.role)) redirect('/dashboard')
+  const row = await db.teachingSession.findFirst({
+    where: { id, deletedAt: null },
+    select: { metadata: true },
+  })
+
+  const userRole = resolveSessionRole(row?.metadata, view.hostId, session.user.id)
+
+  // Attendees / panelists are redirected to their post page.
+  if (userRole === 'attendee' || userRole === 'panelist') {
+    if (!FACULTY_LIKE.includes(session.user.role)) {
+      redirect(`/classroom/${id}/post`)
+    }
+  }
+
+  // Plain faculty (no explicit role assignment) still get full access for backwards compat.
+  if (userRole === 'attendee' && FACULTY_LIKE.includes(session.user.role)) {
+    const data = await loadPostData(id, { userId: session.user.id, role: session.user.role })
+    return <PostClient session={view} data={data} canViewAnalytics={true} />
+  }
 
   const data = await loadPostData(id, { userId: session.user.id, role: session.user.role })
 
-  return <PostClient session={view} data={data} />
+  // Per-learner analytics (sensitive) only for host, presenter, and moderator.
+  const canViewAnalytics = userRole === 'host' || userRole === 'presenter' || userRole === 'moderator'
+
+  return <PostClient session={view} data={data} canViewAnalytics={canViewAnalytics} />
 }

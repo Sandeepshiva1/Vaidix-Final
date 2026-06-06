@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Video, Calendar, Clock, Users, Plus, PlayCircle, Radio,
   Search, Share2, Bookmark, Gem, SortDesc, X, Check, ThumbsUp,
-  BookOpen, MessageCircleQuestion, RefreshCw, CheckCircle2, Pencil,
+  BookOpen, MessageCircleQuestion, RefreshCw, CheckCircle2, Pencil, Copy, ExternalLink, Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { ensureCsrfHeaders } from '@/lib/csrf-client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -696,7 +699,7 @@ function UpcomingCard({ session: s, nowMs, isHost, canManage }: { session: Liste
 
       {/* Bottom row — Share + Edit (host) + Study hub + Join */}
       <div className="mx-3 mt-3 mb-3 flex items-center gap-1.5">
-        <ShareButton href={href} title={s.title} />
+        <ShareButton sessionId={s.id} title={s.title} fallbackHref={href} canShare={isHost || canManage} />
         {/* Editable until the session starts — host always, admins/PDs for any session. */}
         {(isHost || canManage) && <EditButton sessionId={s.id} />}
         <Link
@@ -769,29 +772,141 @@ function EditButton({ sessionId }: { sessionId: string }) {
   )
 }
 
-function ShareButton({ href, title }: { href: string; title: string }) {
+function ShareButton({
+  sessionId,
+  title,
+  fallbackHref,
+  canShare,
+}: {
+  sessionId: string
+  title: string
+  /** Plain in-app session URL used when the viewer can't mint a public link. */
+  fallbackHref: string
+  /** Host / PD / admin can mint a public no-login link; others copy the in-app URL. */
+  canShare: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [url, setUrl] = useState('')
+  const [isPublic, setIsPublic] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
-  async function handleShare(e: React.MouseEvent) {
+  async function resolveShareUrl(): Promise<{ url: string; isPublic: boolean }> {
+    if (canShare) {
+      try {
+        const res = await fetch(`/api/classroom/sessions/${sessionId}/public-share`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...(await ensureCsrfHeaders()) },
+        })
+        const body = await res.json().catch(() => null)
+        if (res.ok && body?.data?.url) return { url: body.data.url as string, isPublic: true }
+      } catch { /* fall through to in-app URL */ }
+    }
+    return { url: `${window.location.origin}${fallbackHref}`, isPublic: false }
+  }
+
+  // Open the popup, minting the link on the way in.
+  async function handleOpen(e: React.MouseEvent) {
     e.preventDefault()
-    const url = `${window.location.origin}${href}`
+    if (busy) return
+    setBusy(true)
+    setCopied(false)
     try {
-      if (navigator.share) { await navigator.share({ title, url }); return }
+      const { url: u, isPublic: pub } = await resolveShareUrl()
+      setUrl(u)
+      setIsPublic(pub)
+      setOpen(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copy() {
+    try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
+      toast.success('Link copied to clipboard')
       setTimeout(() => setCopied(false), 2000)
-    } catch { /* cancelled */ }
+    } catch {
+      toast.error('Could not copy — select the link and copy manually.')
+    }
   }
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.93 }}
-      onClick={handleShare}
-      title={copied ? 'Link copied!' : 'Share session link'}
-      className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-    >
-      {copied ? <Check className="size-4 text-primary" /> : <Share2 className="size-4" />}
-    </motion.button>
+    <>
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={handleOpen}
+        disabled={busy}
+        title="Share session link"
+        className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/60 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+      </motion.button>
+
+      {mounted && open && createPortal(
+        <div
+          className="fixed inset-0 z-9999 grid place-items-center bg-black/40 p-4 backdrop-blur-[2px]"
+          onClick={() => setOpen(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.14 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl shadow-black/20"
+          >
+            <div className="mb-1 flex items-start justify-between gap-3">
+              <h3 className="text-[15px] font-semibold text-foreground">Share “{title}”</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="mb-3 text-[12.5px] text-muted-foreground">
+              {isPublic
+                ? 'Anyone with this link can view the session details — no login required.'
+                : 'Copy the link to this session.'}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={url}
+                onFocus={(e) => e.currentTarget.select()}
+                className="h-10 flex-1 rounded-xl border border-input bg-muted/40 px-3 text-[12.5px] text-foreground outline-none"
+                aria-label="Share link"
+              />
+              <button
+                type="button"
+                onClick={copy}
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-teal-500"
+              >
+                {copied ? <><Check className="size-4" />Copied</> : <><Copy className="size-4" />Copy</>}
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[12.5px] font-medium text-foreground transition-colors hover:bg-foreground/5"
+              >
+                <ExternalLink className="size-3.5" /> Open
+              </a>
+            </div>
+          </motion.div>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 

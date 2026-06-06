@@ -43,6 +43,15 @@ export interface AnalyticsData {
   questionThemes: Array<{ label: string; summary: string; questionCount: number }>
   totalQuestions: number
   mcqs: Array<{ id: string; q: string; optionCount: number }>
+  quizStats: Array<{
+    questionId: string
+    q: string
+    totalResponses: number
+    optionTally: number[]
+    correctOption: number
+    correctCount: number
+    accuracyPct: number | null
+  }>
   engagement: {
     participants: number
     chat: number
@@ -163,6 +172,37 @@ export function AnalyticsClient({ session, data }: { session: SessionView; data:
               <div className="text-[10.5px] text-muted-foreground">of {cohortTotal} learners</div>
             </div>
           </div>
+
+          {/* Quiz response summary — visible on Overview without needing to switch tab */}
+          {data.quizStats.length > 0 && (() => {
+            // Unique respondents ≈ max responses across questions (each user answers each q once)
+            const uniqueRespondents = Math.max(...data.quizStats.map((q) => q.totalResponses))
+            const responseRate = cohortTotal > 0 ? Math.round((uniqueRespondents / cohortTotal) * 100) : 0
+            const avgAccuracy = uniqueRespondents === 0 ? null
+              : Math.round(data.quizStats.reduce((s, q) => s + (q.accuracyPct ?? 0), 0) / data.quizStats.length)
+            return (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-500/20 bg-teal-500/5 px-5 py-3.5 cursor-pointer hover:bg-teal-500/10 transition-colors"
+                onClick={() => setActiveTab('quiz')}
+              >
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-teal-700 dark:text-teal-300">
+                  <Trophy className="size-4" />
+                  Pre-Quiz Responses
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-[12.5px]">
+                  <span className="font-mono font-semibold tabular-nums">
+                    {uniqueRespondents} of {cohortTotal} learners responded ({responseRate}%)
+                  </span>
+                  {avgAccuracy !== null && (
+                    <span className={cn('font-semibold', avgAccuracy >= 70 ? 'text-emerald-600' : avgAccuracy >= 40 ? 'text-amber-600' : 'text-rose-600')}>
+                      {avgAccuracy}% accuracy among those who answered
+                    </span>
+                  )}
+                  <span className="text-muted-foreground text-[11px]">→ click for per-question breakdown</span>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Existing 2-col grid */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -316,29 +356,63 @@ export function AnalyticsClient({ session, data }: { session: SessionView; data:
         <div className="space-y-3">
           <div className="rounded-3xl border border-border/60 bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
-              <div className="text-[13.5px] font-semibold">Authored MCQs</div>
-              <div className="text-[12px] text-muted-foreground">{data.mcqs.length} questions</div>
+              <div className="text-[13.5px] font-semibold">Pre-Quiz Responses</div>
+              <div className="text-[12px] text-muted-foreground">
+                {data.mcqs.length} question{data.mcqs.length !== 1 ? 's' : ''}
+                {data.quizStats.length > 0 && ` · ${data.quizStats.reduce((s, q) => s + q.totalResponses, 0)} total responses`}
+              </div>
             </div>
             {data.mcqs.length === 0 ? (
-              <EmptyNote>No MCQs authored yet — add them in the Prepare Learners step. Response rates appear after the session.</EmptyNote>
+              <EmptyNote>No MCQs authored yet — add them in the Prepare Learners step. Response rates appear after learners answer.</EmptyNote>
             ) : (
-              <div className="space-y-3">
-                {data.mcqs.map((m, i) => (
-                  <div key={m.id} className="rounded-2xl border border-border/60 bg-background/60 p-3.5">
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-teal-500/15 text-[10.5px] font-semibold text-teal-700 dark:text-teal-300">Q{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] font-medium leading-snug">{m.q}</p>
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/5">
-                            <div className="h-full rounded-full bg-foreground/15" style={{ width: '100%' }} />
+              <div className="space-y-4">
+                {data.quizStats.length === 0 ? (
+                  <EmptyNote>No learner responses yet. Share the session with learners and ask them to complete the pre-quiz.</EmptyNote>
+                ) : (
+                  data.quizStats.map((stat, i) => {
+                    const maxTally = Math.max(...stat.optionTally, 1)
+                    return (
+                      <div key={stat.questionId} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                        <div className="flex items-start gap-2 mb-3">
+                          <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-teal-500/15 text-[10.5px] font-semibold text-teal-700 dark:text-teal-300">Q{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12.5px] font-medium leading-snug">{stat.q}</p>
+                            <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+                              <span className="font-mono">{stat.totalResponses}/{cohortTotal} responded</span>
+                              {stat.accuracyPct !== null && (
+                                <span className={cn('font-semibold', stat.accuracyPct >= 70 ? 'text-emerald-600' : stat.accuracyPct >= 40 ? 'text-amber-600' : 'text-rose-600')}>
+                                  {stat.accuracyPct}% correct
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <span className="w-24 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{m.optionCount} options</span>
+                        </div>
+                        {/* Per-option bars */}
+                        <div className="pl-8 space-y-1.5">
+                          {stat.optionTally.map((count, oi) => {
+                            const pct = maxTally === 0 ? 0 : Math.round((count / maxTally) * 100)
+                            const isCorrect = oi === stat.correctOption
+                            return (
+                              <div key={oi} className="flex items-center gap-2">
+                                <span className={cn('grid size-5 shrink-0 place-items-center rounded-md text-[10px] font-bold',
+                                  isCorrect ? 'bg-emerald-500/15 text-emerald-700' : 'bg-foreground/8 text-muted-foreground')}>
+                                  {String.fromCharCode(65 + oi)}
+                                </span>
+                                <div className="flex-1 h-2 overflow-hidden rounded-full bg-foreground/5">
+                                  <div
+                                    className={cn('h-full rounded-full transition-[width] duration-500', isCorrect ? 'bg-emerald-500' : 'bg-foreground/20')}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="w-16 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{count} ({stat.totalResponses > 0 ? Math.round((count / stat.totalResponses) * 100) : 0}%)</span>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    )
+                  })
+                )}
               </div>
             )}
           </div>
@@ -351,7 +425,18 @@ export function AnalyticsClient({ session, data }: { session: SessionView; data:
                 <p className="mt-1 text-[12.5px] leading-snug text-foreground/85">
                   {data.mcqs.length === 0
                     ? 'Author a short preread quiz to capture readiness gaps before the session — per-question accuracy will surface here once learners respond.'
-                    : `You have authored ${data.mcqs.length} MCQ${data.mcqs.length === 1 ? '' : 's'}. Per-question accuracy will surface here once learners submit their responses.`}
+                    : data.quizStats.length === 0
+                    ? `${data.mcqs.length} MCQ${data.mcqs.length === 1 ? '' : 's'} ready. Share the session link so learners can complete the pre-quiz.`
+                    : (() => {
+                        const uniqueR = Math.max(...data.quizStats.map((q) => q.totalResponses))
+                        const rate = cohortTotal > 0 ? Math.round(uniqueR / cohortTotal * 100) : 0
+                        const avg = data.quizStats.reduce((s, q) => s + (q.accuracyPct ?? 0), 0) / data.quizStats.length
+                        if (rate < 30) return `Only ${uniqueR} of ${cohortTotal} learners have answered (${rate}%) — remind them to complete the pre-quiz before the session.`
+                        return avg < 60
+                          ? `${uniqueR}/${cohortTotal} responded. Average accuracy ${Math.round(avg)}% — plan to cover weak areas during the session.`
+                          : `${uniqueR}/${cohortTotal} responded with ${Math.round(avg)}% average accuracy. Good engagement — focus on questions below 60%.`
+                      })()
+                  }
                 </p>
               </div>
             </div>

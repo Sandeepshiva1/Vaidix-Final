@@ -223,22 +223,37 @@ export async function computeSessionReadiness(
     const pq = preQuestionByUser.get(l.id) ?? 0;
     const last = lastSignalByUser.get(l.id) ?? null;
 
-    const readingsRatio = totalReadings === 0 ? 1 : Math.min(1, sp.readings / totalReadings);
-    const videosRatio = totalVideos === 0 ? 1 : Math.min(1, sp.videos / totalVideos);
-    const preCaseRatio = totalPreCases === 0 ? 1 : Math.min(1, pc.completed / totalPreCases);
+    // Exclude components with no content assigned — don't give learners free points
+    // for prep material the presenter never set up. Remaining weights renormalize
+    // so the score is still 0-100.
+    const readingsRatio = totalReadings === 0 ? null : Math.min(1, sp.readings / totalReadings);
+    const videosRatio   = totalVideos   === 0 ? null : Math.min(1, sp.videos   / totalVideos);
+    const preCaseRatio  = totalPreCases === 0 ? null : Math.min(1, pc.completed / totalPreCases);
     const preQuestionRatio = Math.min(1, pq / PRE_QUESTION_CAP);
-    // Attendance: full credit when there's no prior data to rely on (new resident).
-    const attendanceRatio =
-      att.scheduled === 0 ? 1 : Math.min(1, att.joined / att.scheduled);
+    // Attendance: full credit for new residents with no history (benefit of doubt).
+    const attendanceRatio = att.scheduled === 0 ? 1 : Math.min(1, att.joined / att.scheduled);
 
-    const score = Math.round(
-      readingsRatio * WEIGHTS.READINGS +
-        videosRatio * WEIGHTS.VIDEOS +
-        preCaseRatio * WEIGHTS.PRE_CASES +
-        preQuestionRatio * WEIGHTS.PRE_QUESTIONS +
-        attendanceRatio * WEIGHTS.ATTENDANCE
-    );
-    const clamped = Math.max(0, Math.min(100, score));
+    // Only include weights for components that have content.
+    // Pre-questions and attendance always count.
+    const activeW = {
+      READINGS:      readingsRatio !== null ? WEIGHTS.READINGS      : 0,
+      VIDEOS:        videosRatio   !== null ? WEIGHTS.VIDEOS        : 0,
+      PRE_CASES:     preCaseRatio  !== null ? WEIGHTS.PRE_CASES     : 0,
+      PRE_QUESTIONS: WEIGHTS.PRE_QUESTIONS,
+      ATTENDANCE:    WEIGHTS.ATTENDANCE,
+    };
+    const totalActiveW = Object.values(activeW).reduce((a, b) => a + b, 0);
+    // Scale so the achievable maximum is always 100.
+    const scale = totalActiveW > 0 ? 100 / totalActiveW : 1;
+
+    const rawScore =
+      (readingsRatio ?? 0) * WEIGHTS.READINGS      * scale +
+      (videosRatio   ?? 0) * WEIGHTS.VIDEOS        * scale +
+      (preCaseRatio  ?? 0) * WEIGHTS.PRE_CASES     * scale +
+      preQuestionRatio      * WEIGHTS.PRE_QUESTIONS * scale +
+      attendanceRatio       * WEIGHTS.ATTENDANCE    * scale;
+
+    const clamped = Math.max(0, Math.min(100, Math.round(rawScore)));
 
     return {
       userId: l.id,

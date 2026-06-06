@@ -16,7 +16,9 @@ import {
   Lightbulb,
   Loader2,
   Plus,
+  RefreshCw,
   Sparkles,
+  Trash2,
   Upload,
   Wand2,
   Zap,
@@ -71,11 +73,22 @@ type FlowState =
 // ─── Component ──────────────────────────────────────────────────────────────
 export function StudioClient({ session, decks }: { session: SessionView; decks: SessionDeck[] }) {
   const router = useRouter()
-  const [studioMode, setStudioMode] = useState<StudioMode>('choose')
+  // If a deck was already forged for this session, land on "My PPTs" (the
+  // prepared deck with "Open editor") instead of re-asking to upload/create.
+  const [studioMode, setStudioMode] = useState<StudioMode>(
+    decks.some((d) => d.jobId !== null) ? 'myppts' : 'choose',
+  )
   const [flow, setFlow] = useState<FlowState>({ kind: 'idle' })
-  // Create mode: the typed prompt becomes the deck title / topic hint.
+  // Create mode: the typed prompt is the TOPIC the AI generates a deck about.
   const [prompt, setPrompt] = useState('')
+  // Target number of slides for AI generation (clamped 4–40 server-side).
+  const [slideCount, setSlideCount] = useState(12)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Deck-level management state: which PPT is being deleted (spinner), and which
+  // (if any) is being REPLACED — the new upload soft-deletes the old one only
+  // AFTER the new deck forges successfully, so a cancelled replace loses nothing.
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [replacingDocId, setReplacingDocId] = useState<string | null>(null)
 
   // "My PPTs" = actual forged presentations (a deck/slides exist), NOT every
   // linked document — otherwise prescriptions/source PDFs wrongly show as saved
@@ -83,6 +96,42 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
   const realDecks = decks.filter((d) => d.jobId !== null)
   const hasDecks = realDecks.length > 0
   const busy = flow.kind === 'uploading' || flow.kind === 'forging'
+
+  // ── Deck-level management: soft-delete the whole presentation ───────────────
+  const softDeleteDoc = async (documentId: string) => {
+    const headers = await ensureCsrfHeaders()
+    const res = await fetch(`/api/documents/${documentId}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    })
+    if (!res.ok) {
+      const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+      throw new Error(j?.error?.message || `Delete failed (${res.status})`)
+    }
+  }
+
+  const deletePpt = async (documentId: string, name: string) => {
+    if (!window.confirm(`Delete the entire presentation “${name}”? It is removed from this session and your documents. This can’t be undone here.`)) return
+    setDeletingDocId(documentId)
+    setFlow({ kind: 'idle' })
+    try {
+      await softDeleteDoc(documentId)
+      router.refresh()
+    } catch (err) {
+      setFlow({ kind: 'error', message: (err as Error).message })
+    } finally {
+      setDeletingDocId(null)
+    }
+  }
+
+  // Replace the whole PPT: remember which deck we're swapping, then drop the
+  // faculty into Upload. The old PPT is deleted only after the new one forges.
+  const replacePpt = (documentId: string) => {
+    setReplacingDocId(documentId)
+    setFlow({ kind: 'idle' })
+    setStudioMode('upload')
+  }
 
   // ── Real upload → tag → forge → real editor ────────────────────────────────
   const runForgeFlow = async (file: File, titleHint?: string) => {
@@ -135,6 +184,13 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
         | null
 
       if (res.ok && body?.data?.jobId) {
+        // Replace flow: the new deck forged OK, so now retire the old PPT.
+        if (replacingDocId) {
+          await softDeleteDoc(replacingDocId).catch(() => {
+            /* non-fatal — the new deck is live; the old one can be deleted manually */
+          })
+          setReplacingDocId(null)
+        }
         // Hand off to the REAL slide editor — IN the session flow.
         router.push(`/session/${session.id}/studio/${body.data.jobId}`)
         return
@@ -160,6 +216,41 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
   }
   const onCreateModeFile = (file: File) => {
     void runForgeFlow(file, prompt.trim() || session.title)
+  }
+
+  // ── Topic-only generation: no source document — Opus drafts the deck from a
+  //    typed topic + target slide count, then opens it in the editor. ──────────
+  const runTopicForge = async () => {
+    const topic = prompt.trim()
+    if (topic.length < 6) {
+      setFlow({ kind: 'error', message: 'Describe the topic in a few more words (min 6 characters).' })
+      return
+    }
+    setFlow({ kind: 'forging', fileName: topic.slice(0, 60) })
+    try {
+      const headers = await ensureCsrfHeaders()
+      const res = await fetch('/api/decks/forge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        credentials: 'include',
+        body: JSON.stringify({ topic, slideCount, inputTitle: topic.slice(0, 120) }),
+      })
+      const body = (await res.json().catch(() => null)) as
+        | { data?: { jobId?: string }; error?: { code?: string; message?: string } }
+        | null
+      if (res.ok && body?.data?.jobId) {
+        router.push(`/session/${session.id}/studio/${body.data.jobId}`)
+        return
+      }
+      const code = body?.error?.code
+      if (res.status === 503 || code === 'AI_UNAVAILABLE' || code === 'FORGE_FAILED') {
+        setFlow({ kind: 'error', message: 'The AI generator is unavailable right now — please try again in a moment.' })
+        return
+      }
+      setFlow({ kind: 'error', message: body?.error?.message || `Couldn’t generate slides (${res.status}).` })
+    } catch (err) {
+      setFlow({ kind: 'error', message: (err as Error).message })
+    }
   }
 
   // ── CHOOSE ─────────────────────────────────────────────────────────────────
@@ -353,6 +444,32 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                           View document
                         </a>
                       )}
+                      {/* Change the whole PPT — swaps in a freshly uploaded deck. */}
+                      <button
+                        type="button"
+                        onClick={() => replacePpt(ppt.documentId)}
+                        disabled={deletingDocId === ppt.documentId}
+                        title="Replace this presentation with a new file"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-50"
+                      >
+                        <RefreshCw className="size-3.5" />
+                        Replace
+                      </button>
+                      {/* Delete the entire PPT (soft-delete — removed from the session). */}
+                      <button
+                        type="button"
+                        onClick={() => deletePpt(ppt.documentId, ppt.name)}
+                        disabled={deletingDocId === ppt.documentId}
+                        title="Delete this presentation"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-rose-300/60 bg-rose-50 px-3 text-[12px] font-medium text-rose-600 transition-colors hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-400"
+                      >
+                        {deletingDocId === ppt.documentId ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                        Delete
+                      </button>
                     </div>
                   </div>
                 )
@@ -375,11 +492,17 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
           <SessionHeader
             session={session}
             backHref={`/session/${session.id}/pre`}
-            eyebrow={isUpload ? 'Step 1 · Upload presentation' : 'Step 1 · Create with AI'}
+            eyebrow={
+              replacingDocId
+                ? 'Step 1 · Replace presentation — upload the new file'
+                : isUpload
+                  ? 'Step 1 · Upload presentation'
+                  : 'Step 1 · Create with AI'
+            }
           />
           <button
             type="button"
-            onClick={() => { if (!busy) { setStudioMode('choose'); setFlow({ kind: 'idle' }) } }}
+            onClick={() => { if (!busy) { setStudioMode('choose'); setFlow({ kind: 'idle' }); setReplacingDocId(null) } }}
             disabled={busy}
             className="ml-3 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-4 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-50"
           >
@@ -483,13 +606,31 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                   <input
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !busy) { e.preventDefault(); void runTopicForge() } }}
                     disabled={busy}
-                    placeholder="Presentation focus (optional) — e.g. Diabetic retinopathy staging for PGY-1"
+                    placeholder="Topic to generate slides about — e.g. Diabetic retinopathy staging for PGY-1"
                     className="h-9 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70 disabled:opacity-60"
                   />
                 </div>
-                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-amber-700 dark:text-amber-300">
-                  <Lightbulb className="size-3.5" /> Vaidix only generates from your verified sources — pick a source document on the left.
+                <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+                  <label className="inline-flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                    Slides
+                    <input
+                      type="number" min={4} max={40} value={slideCount} disabled={busy}
+                      onChange={(e) => setSlideCount(Math.max(4, Math.min(40, Number(e.target.value) || 12)))}
+                      className="w-16 rounded-lg border border-border/60 bg-background px-2 py-1 text-center text-[13px] font-semibold outline-none focus:border-indigo-500 disabled:opacity-60"
+                    />
+                  </label>
+                  <button
+                    type="button" onClick={() => void runTopicForge()} disabled={busy || prompt.trim().length < 6}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-indigo-600 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-40"
+                  >
+                    {busy ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+                    Generate with AI
+                  </button>
+                </div>
+                <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-amber-700 dark:text-amber-300">
+                  <Lightbulb className="mt-0.5 size-3.5 shrink-0" /> AI-generated from the topic by Opus — an editable draft. Review clinical facts before teaching. To keep it source-grounded, switch to Upload and pick a document instead.
                 </p>
               </>
             )}
@@ -504,12 +645,12 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                     {isUpload ? <Upload className="size-7" /> : <Wand2 className="size-7" />}
                   </div>
                   <h3 className="mt-4 text-[18px] font-semibold tracking-tight">
-                    {isUpload ? 'Upload a presentation to begin' : 'Choose a source to begin'}
+                    {isUpload ? 'Upload a presentation to begin' : 'Describe your topic to begin'}
                   </h3>
                   <p className="mt-1.5 text-[13px] text-muted-foreground">
                     {isUpload
                       ? 'Choose a file or an existing document on the left. Vaidix imports it into the slide editor so you can enhance and present it.'
-                      : 'Pick a source document on the left and Vaidix builds an evidence-grounded deck — then opens it in the editor to refine.'}
+                      : 'Type a topic above, set how many slides you want, then Generate — Opus drafts a complete deck and opens it in the editor to refine.'}
                   </p>
                   {flow.kind === 'error' && (
                     <p role="alert" className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] text-rose-700 dark:text-rose-300">
@@ -519,24 +660,38 @@ export function StudioClient({ session, decks }: { session: SessionView; decks: 
                 </div>
               )}
 
-              {(flow.kind === 'uploading' || flow.kind === 'forging') && (
-                <div className="w-full max-w-md rounded-3xl border border-teal-500/30 bg-teal-500/5 p-6">
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="size-5 shrink-0 animate-spin text-teal-600 dark:text-teal-300" />
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold">
-                        {flow.kind === 'uploading' ? `Uploading ${flow.fileName}…` : `Building your slides from ${flow.fileName}…`}
-                      </div>
-                      <div className="text-[12px] text-muted-foreground">
-                        {flow.kind === 'uploading' ? `${Math.round(flow.percent)}% uploaded` : 'Vaidix is analysing your source and preparing the slide editor.'}
+              {(flow.kind === 'uploading' || flow.kind === 'forging') && (() => {
+                const isTopicGen = flow.kind === 'forging' && !isUpload
+                return (
+                  <div className={cn('w-full max-w-md rounded-3xl border p-6', isTopicGen ? 'border-indigo-500/30 bg-indigo-500/5' : 'border-teal-500/30 bg-teal-500/5')}>
+                    <div className="flex items-center gap-3">
+                      <Loader2 className={cn('size-6 shrink-0 animate-spin', isTopicGen ? 'text-indigo-600 dark:text-indigo-300' : 'text-teal-600 dark:text-teal-300')} />
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-semibold">
+                          {flow.kind === 'uploading'
+                            ? `Uploading ${flow.fileName}…`
+                            : isTopicGen
+                              ? 'Generating your deck with AI…'
+                              : `Building your slides from ${flow.fileName}…`}
+                        </div>
+                        <div className="mt-0.5 text-[12.5px] text-muted-foreground">
+                          {flow.kind === 'uploading'
+                            ? `${Math.round(flow.percent)}% uploaded`
+                            : isTopicGen
+                              ? `Opus is drafting ~${slideCount} slides on “${flow.fileName}”. This usually takes 30–60s — keep this tab open and we’ll open the editor automatically.`
+                              : 'Vaidix is analysing your source and preparing the slide editor.'}
+                        </div>
                       </div>
                     </div>
+                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/5">
+                      <div
+                        className={cn('h-full rounded-full bg-linear-to-r', isTopicGen ? 'from-indigo-500 to-violet-500 animate-pulse' : 'from-teal-500 to-emerald-500 transition-[width]')}
+                        style={{ width: flow.kind === 'uploading' ? `${Math.max(4, flow.percent)}%` : '100%' }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-foreground/5">
-                    <div className="h-full rounded-full bg-linear-to-r from-teal-500 to-emerald-500 transition-[width]" style={{ width: flow.kind === 'uploading' ? `${Math.max(4, flow.percent)}%` : '100%' }} />
-                  </div>
-                </div>
-              )}
+                )
+              })()}
 
               {flow.kind === 'offline' && (
                 <div className="w-full max-w-md rounded-3xl border border-amber-500/30 bg-amber-500/5 p-6">

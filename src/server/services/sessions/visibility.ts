@@ -157,19 +157,41 @@ export async function userIsHostOrPrivileged(
   return !!session && session.hostId === actor.userId;
 }
 
-/** Compute the canonical learner roster for a session. Used by the readiness
- *  predictor to decide whose readiness to score. Order:
- *  1. invites present  → the invitees
- *  2. cohort set       → the cohort members (residents only)
- *  3. openToAll        → all RESIDENT users in the institution (capped)
- *  4. otherwise        → empty (host-only / private session)
- *  Always excludes the host + proposer (they're presenters, not learners). */
-export async function listSessionLearners(sessionId: string): Promise<Array<{
+/** A learner on the analytics/readiness roster. */
+export interface SessionLearner {
   id: string;
   name: string;
   email: string;
   avatarUrl: string | null;
-}>> {
+}
+
+/** SessionParticipant.role values that denote a presenter, not a learner. */
+const PRESENTER_PARTICIPANT_ROLES = ['HOST', 'CO_HOST'];
+/** User roles that count as learners when auto-derived from live attendance. */
+const LEARNER_USER_ROLES: Role[] = [Role.RESIDENT, Role.EXTERNAL_LEARNER];
+
+/** Compute the canonical learner roster for a session. Used by the readiness
+ *  predictor + responses/analytics to decide whose readiness to score.
+ *
+ *  The roster is the UNION of everyone expected to engage AND everyone who
+ *  actually did, so the analytics never under-count a session that was joined
+ *  outside its formal invite list:
+ *
+ *  1. invitees           — explicitly invited to engage (any learner role)
+ *  2. cohort members     — when a cohort is attached (residents only)
+ *  3. live participants  — anyone who actually joined as a learner
+ *                          (excludes HOST/CO_HOST seats + non-learner roles)
+ *  4. openToAll fallback — only when the union above is empty: all RESIDENT
+ *                          users in the institution (capped), so an open
+ *                          session still shows an expected audience pre-join.
+ *
+ *  Always excludes the host + proposer (they're presenters, not learners) and
+ *  de-duplicates a user who appears via more than one path (e.g. invited AND
+ *  attended). Previously this was a priority cascade that returned ONLY the
+ *  first matching source, so a session joined by a learner who wasn't on the
+ *  invite list (or had no cohort) scored an empty cohort — every readiness /
+ *  leaderboard / distribution number came back 0 despite live attendance. */
+export async function listSessionLearners(sessionId: string): Promise<SessionLearner[]> {
   const session = await db.teachingSession.findUnique({
     where: { id: sessionId },
     select: {
@@ -177,38 +199,45 @@ export async function listSessionLearners(sessionId: string): Promise<Array<{
       proposedBy: true,
       openToAll: true,
       cohortId: true,
-      _count: { select: { invites: true } },
     },
   });
   if (!session) return [];
   const exclude = new Set([session.hostId, session.proposedBy]);
 
-  if (session._count.invites > 0) {
-    const invites = await db.sessionInvite.findMany({
+  // Insertion-ordered de-dupe: invitees first, then cohort, then attendees.
+  const roster = new Map<string, SessionLearner>();
+  const add = (u: { id: string; name: string; email: string; avatarUrl: string | null }) => {
+    if (exclude.has(u.id) || roster.has(u.id)) return;
+    roster.set(u.id, { id: u.id, name: u.name, email: u.email, avatarUrl: u.avatarUrl });
+  };
+
+  const [invites, cohortMembers, participants] = await Promise.all([
+    // 1. Explicit invitees — host invited them deliberately, so any role counts.
+    db.sessionInvite.findMany({
       where: { sessionId },
-      select: {
-        user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true } },
-      },
-    });
-    return invites
-      .map((i) => i.user)
-      .filter((u) => !exclude.has(u.id))
-      .map((u) => ({ id: u.id, name: u.name, email: u.email, avatarUrl: u.avatarUrl }));
-  }
+      select: { user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true } } },
+    }),
+    // 2. Cohort members (residents only) — only queried when a cohort is set.
+    session.cohortId
+      ? db.cohortMember.findMany({
+          where: { cohortId: session.cohortId },
+          select: { user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true } } },
+        })
+      : Promise.resolve([] as Array<{ user: { id: string; name: string; email: string; avatarUrl: string | null; role: Role } }>),
+    // 3. Live attendees who joined as learners (not in a presenter seat).
+    db.sessionParticipant.findMany({
+      where: { sessionId, role: { notIn: PRESENTER_PARTICIPANT_ROLES } },
+      select: { user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true } } },
+    }),
+  ]);
 
-  if (session.cohortId) {
-    const members = await db.cohortMember.findMany({
-      where: { cohortId: session.cohortId },
-      select: {
-        user: { select: { id: true, name: true, email: true, avatarUrl: true, role: true } },
-      },
-    });
-    return members
-      .map((m) => m.user)
-      .filter((u) => !exclude.has(u.id) && u.role === Role.RESIDENT)
-      .map((u) => ({ id: u.id, name: u.name, email: u.email, avatarUrl: u.avatarUrl }));
-  }
+  for (const i of invites) add(i.user);
+  for (const m of cohortMembers) if (m.user.role === Role.RESIDENT) add(m.user);
+  for (const p of participants) if (LEARNER_USER_ROLES.includes(p.user.role)) add(p.user);
 
+  if (roster.size > 0) return [...roster.values()];
+
+  // 4. Nothing concrete yet — an open session still has an expected audience.
   if (session.openToAll) {
     // LVPEI cohorts are hundreds, not thousands; if this becomes a perf issue
     // we'll add a hard cap + UI pager.
@@ -218,8 +247,8 @@ export async function listSessionLearners(sessionId: string): Promise<Array<{
       orderBy: { name: 'asc' },
       take: 500,
     });
-    return residents.filter((u) => !exclude.has(u.id));
+    for (const u of residents) add(u);
   }
 
-  return [];
+  return [...roster.values()];
 }

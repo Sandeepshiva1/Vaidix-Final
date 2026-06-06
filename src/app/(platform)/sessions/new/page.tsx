@@ -41,5 +41,19 @@ export default async function NewSessionPage() {
       })
     : []
 
-  return <NewSessionWizard cohorts={cohorts} />
+  // Specialty/sub-specialty options come from the DB now (seeded from the old
+  // hardcoded list). The wizard can add new ones inline, which persist here.
+  const specialtyRows = await db.specialty.findMany({
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    select: {
+      id: true,
+      name: true,
+      subSpecialties: {
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true },
+      },
+    },
+  })
+
+  return <NewSessionWizard cohorts={cohorts} specialties={specialtyRows} />
 }

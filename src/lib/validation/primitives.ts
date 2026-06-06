@@ -29,11 +29,13 @@ export const fullNameSchema = z
   .regex(/^[\p{L}0-9\s.,'&()-]+$/u, 'Name contains invalid characters')
   .transform((v) => v.trim());
 
-// Indian mobile: +91 followed by 10 digits starting 6-9, or plain 10 digits
-export const mobileSchema = z
-  .string()
-  .regex(/^(\+91[-\s]?)?[6-9]\d{9}$/, 'Invalid Indian mobile number')
-  .transform((v) => v.replace(/\s|-/g, ''));
+// Indian mobile: +91 followed by 10 digits starting 6-9, or plain 10 digits.
+// Spaces and dashes are stripped BEFORE validating, so "+91 98765-43210" and
+// "98765 43210" are accepted (a common cause of spurious "Invalid mobile" saves).
+export const mobileSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? v.replace(/[\s-]/g, '') : v),
+  z.string().regex(/^(\+91)?[6-9]\d{9}$/, 'Invalid Indian mobile number'),
+);
 
 export const mciRegSchema = z
   .string()

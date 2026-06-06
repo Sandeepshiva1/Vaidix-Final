@@ -74,21 +74,32 @@ export function UserPicker({ selected, onChange, role, excludeIds = [], placehol
   const PANEL_MAX_H = 288; // matches max-h-72 below
   const mounted = useMounted();
 
-  const allExcluded = useMemo(
-    () => [...excludeIds, ...selected.map((u) => u.id)],
+  // Value-stable key for the excluded-IDs set. Callers pass `selected` and
+  // `excludeIds` as fresh array literals on every render (e.g. the session
+  // wizard's `selected={r.user ? [r.user] : []}` and the default `[]`), so
+  // depending on the arrays directly re-fires the search effect on *every*
+  // render — an unbroken setLoading(true) loop that left the spinner spinning
+  // forever ("always searching") and hammered the API. Joining the ids into a
+  // sorted string yields a dependency that only changes when the set does.
+  const excludeKey = useMemo(
+    () => [...excludeIds, ...selected.map((u) => u.id)].sort().join(','),
     [excludeIds, selected]
   );
 
   useEffect(() => {
+    // Only query while the dropdown is open. Idle pickers (several role rows on
+    // the session wizard each mount a picker) shouldn't fire background
+    // requests or show a spinner.
+    if (!showResults) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     const t = setTimeout(async () => {
       try {
         const params = new URLSearchParams();
         params.set('purpose', purpose);
-        if (role)                  params.set('role', role);
-        if (search.trim())         params.set('search', search.trim());
-        if (allExcluded.length > 0) params.set('excludeIds', allExcluded.join(','));
+        if (role)          params.set('role', role);
+        if (search.trim()) params.set('search', search.trim());
+        if (excludeKey)    params.set('excludeIds', excludeKey);
         params.set('limit', '20');
         const res = await fetch(`/api/users/searchable?${params.toString()}`);
         const body = await res.json();
@@ -99,7 +110,7 @@ export function UserPicker({ selected, onChange, role, excludeIds = [], placehol
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [search, role, allExcluded, purpose]);
+  }, [search, role, excludeKey, purpose, showResults]);
 
   // Click-outside collapses the results dropdown. The dropdown lives in a
   // portal (so it can escape parent overflow / clipping cards), so we have

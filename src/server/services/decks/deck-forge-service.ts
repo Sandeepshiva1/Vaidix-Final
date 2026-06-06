@@ -27,6 +27,7 @@ import {
   GeminiUnparseableError,
   tryParseJson,
 } from '@/server/services/ai/gemini';
+import { claudeGenerate } from '@/server/services/ai/claude';
 import { env } from '@/lib/env';
 import { persistDeckAsDocument } from './deck-pptx-renderer';
 import { extractOfficeText, isExtractableOffice } from './document-text-extract';
@@ -298,6 +299,8 @@ export interface ForgeInput {
   inputTitle?: string;
   /** e.g. "PGY-1 resident", "senior resident", "vitreoretinal fellow". Defaults to "ophthalmology resident". */
   learnerLevel?: string;
+  /** Target number of slides (topic path). Clamped 4–40; defaults to ~12. */
+  slideCount?: number;
 }
 
 export class DeckForgeError extends Error {
@@ -325,6 +328,10 @@ async function generateAndPersistSlides(args: {
   userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>;
   documentId: string | null;
   recordingId: string | null;
+  /** Topic-only path: do the FIRST generation on Opus (deeper reasoning), then
+   *  fall back to Gemini if Opus is unavailable. Later in-editor enhancement
+   *  stays on Gemini. Only honoured when every part is text (no inline files). */
+  preferOpus?: boolean;
 }): Promise<ForgeOutcome> {
   const { jobId, userParts } = args;
 
@@ -333,12 +340,36 @@ async function generateAndPersistSlides(args: {
     data: { status: DeckForgeStatus.GENERATING_SLIDES },
   });
 
-  const raw = await geminiGenerate({
-    systemInstruction: SYSTEM_PROMPT,
-    userParts,
-    responseMimeType: 'application/json',
-    temperature: 0.35,
-  });
+  const onlyText = userParts.every((p) => 'text' in p);
+  let raw: string;
+  if (args.preferOpus && onlyText) {
+    const userMessage = userParts.map((p) => ('text' in p ? p.text : '')).join('\n\n');
+    try {
+      raw = await claudeGenerate({
+        systemInstruction: SYSTEM_PROMPT,
+        userMessage,
+        model: env.ANTHROPIC_OPUS_MODEL,
+        maxTokens: 8192,
+      });
+    } catch (err) {
+      // Opus down (no key / billing / offline) — don't fail the forge; fall
+      // back to Gemini so topic generation still works in this environment.
+      console.error('[deck-forge] Opus unavailable for topic deck, using Gemini', err);
+      raw = await geminiGenerate({
+        systemInstruction: SYSTEM_PROMPT,
+        userParts,
+        responseMimeType: 'application/json',
+        temperature: 0.35,
+      });
+    }
+  } else {
+    raw = await geminiGenerate({
+      systemInstruction: SYSTEM_PROMPT,
+      userParts,
+      responseMimeType: 'application/json',
+      temperature: 0.35,
+    });
+  }
   const parsed = tryParseJson<{ deckTitle?: unknown; slides?: unknown }>(raw);
   const result = normalizeSlides(parsed);
 
@@ -397,6 +428,7 @@ async function forgeDeckFromTopic(
   input: ForgeInput & { topic: string },
 ): Promise<ForgeOutcome> {
   const learnerLevel = input.learnerLevel ?? 'ophthalmology resident at LVPEI';
+  const slideCount = Math.max(4, Math.min(40, Math.round(input.slideCount ?? 12)));
 
   const job = await db.deckForgeJob.create({
     data: {
@@ -415,6 +447,8 @@ async function forgeDeckFromTopic(
     const headerLines: string[] = [
       `Target learner: ${learnerLevel}`,
       `Target session length: 60 minutes`,
+      `Produce approximately ${slideCount} slides (including a title slide and a`,
+      `summary/key-takeaways slide).`,
       `No source document or recording was provided — generate a complete,`,
       `evidence-minded educational deck ABOUT the topic below from established`,
       `ophthalmology knowledge appropriate to the stated learner level. Anchor`,
@@ -431,6 +465,9 @@ async function forgeDeckFromTopic(
       userParts,
       documentId: null,
       recordingId: null,
+      // First generation on Opus (deeper clinical reasoning); enhancement later
+      // happens on Gemini in the editor.
+      preferOpus: true,
     });
   } catch (err) {
     if (err instanceof GeminiUnavailableError || err instanceof GeminiUnparseableError) {

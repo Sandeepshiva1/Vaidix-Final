@@ -26,6 +26,32 @@ const TableSchema = z.object({
     .max(12),
 });
 
+// Faithful-import editable overlay (positioned text boxes over the original
+// slide image). Bounded so a malformed payload can't bloat the row. Mirrors
+// SlideOverlay in @/lib/deck-overlay.
+const HEX6 = z.string().regex(/^[0-9a-fA-F]{6}$/);
+const OverlaySchema = z.object({
+  boxes: z
+    .array(
+      z.object({
+        slotId: z.string().max(64),
+        text: z.string().max(4000),
+        x: z.number(),
+        y: z.number(),
+        w: z.number(),
+        h: z.number(),
+        fillHex: HEX6.nullable().optional(),
+        colorHex: HEX6.nullable().optional(),
+        fontPct: z.number().nullable().optional(),
+        bold: z.boolean().optional(),
+        italic: z.boolean().optional(),
+        align: z.enum(['l', 'ctr', 'r', 'just']).nullable().optional(),
+        valign: z.enum(['t', 'ctr', 'b']).nullable().optional(),
+      }),
+    )
+    .max(80),
+});
+
 const PatchBody = z
   .object({
     title: z.string().min(1).max(200).optional(),
@@ -44,6 +70,8 @@ const PatchBody = z
     fontScale: z.number().min(0.6).max(1.6).optional(),
     // ── Inserted table (null clears it) ─────────────────────────────────────
     tableJson: TableSchema.nullable().optional(),
+    // ── Faithful-import overlay edits (null clears it) ──────────────────────
+    overlayJson: OverlaySchema.nullable().optional(),
   })
   .refine(
     (v) =>
@@ -123,6 +151,7 @@ export async function PATCH(
         ...(parsed.data.underline !== undefined ? { underline: parsed.data.underline } : {}),
         ...(parsed.data.fontScale !== undefined ? { fontScale: parsed.data.fontScale } : {}),
         ...(parsed.data.tableJson !== undefined ? { tableJson: parsed.data.tableJson ?? Prisma.DbNull } : {}),
+        ...(parsed.data.overlayJson !== undefined ? { overlayJson: parsed.data.overlayJson ?? Prisma.DbNull } : {}),
       },
     });
 

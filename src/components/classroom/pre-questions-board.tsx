@@ -116,6 +116,8 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
     return () => clearInterval(t)
   }, [refresh])
 
+  const getCsrf = () => decodeURIComponent(document.cookie.match(/vaidix-csrf=([^;]+)/)?.[1] ?? '')
+
   const submit = async () => {
     const content = draft.trim()
     if (content.length < 5) { setErrorMsg('At least 5 characters needed'); return }
@@ -124,7 +126,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
     try {
       const res = await fetch(`/api/classroom/sessions/${sessionId}/pre-questions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrf() },
         credentials: 'include',
         body: JSON.stringify({ content, urgency }),
       })
@@ -147,6 +149,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
     try {
       await fetch(`/api/classroom/sessions/${sessionId}/pre-questions/${q.id}/vote`, {
         method: q.votedByMe ? 'DELETE' : 'POST',
+        headers: { 'x-csrf-token': getCsrf() },
         credentials: 'include',
       })
     } finally {
@@ -175,7 +178,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
     try {
       const res = await fetch(`/api/classroom/sessions/${sessionId}/pre-questions/${parentId}/reply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrf() },
         credentials: 'include',
         body: JSON.stringify({ content }),
       })

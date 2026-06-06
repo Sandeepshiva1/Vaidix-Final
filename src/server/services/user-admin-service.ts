@@ -8,6 +8,7 @@
 import { db } from '@/lib/db';
 import { Role, UserStatus, Prisma } from '@prisma/client';
 import { audit, AUDIT_EVENTS } from './audit';
+import { assertCanGrantAdmin } from './admin-limits';
 import { sendEmail } from '@/lib/email';
 
 export interface ListUsersArgs {
@@ -108,6 +109,12 @@ export async function changeUserRole(args: {
     return { id: target.id, role: target.role, unchanged: true };
   }
 
+  // Admin-count guard: promoting another user to ADMIN must respect the cap.
+  // (Demotions and other role moves are unaffected.) Throws AdminLimitError.
+  if (args.newRole === Role.ADMIN) {
+    await assertCanGrantAdmin();
+  }
+
   await db.$transaction([
     db.user.update({
       where: { id: target.id },
@@ -151,7 +158,7 @@ export async function changeUserStatus(args: {
 
   const target = await db.user.findFirst({
     where: { id: args.targetUserId, deletedAt: null },
-    select: { id: true, status: true, name: true, email: true },
+    select: { id: true, status: true, name: true, email: true, role: true },
   });
   if (!target) throw new Error('USER_NOT_FOUND');
   if (target.status === 'PENDING_INVITE') {
@@ -159,6 +166,13 @@ export async function changeUserStatus(args: {
   }
   if (target.status === args.newStatus) {
     return { id: target.id, status: target.status, unchanged: true };
+  }
+
+  // Re-activating a disabled ADMIN consumes an admin slot, so it must respect
+  // the cap too — otherwise "disable an admin, add a new one, re-enable the old
+  // one" would silently exceed the limit. Throws AdminLimitError.
+  if (args.newStatus === 'ACTIVE' && target.role === Role.ADMIN) {
+    await assertCanGrantAdmin();
   }
 
   // Status transition invalidates all active sessions immediately by bumping

@@ -48,6 +48,9 @@ export function isPublicPath(pathname: string): boolean {
     // hashed-token model. The handler enforces expiry/revoke.
     /^\/p\/[^/]+$/.test(pathname) ||
     /^\/api\/p\/[^/]+$/.test(pathname) ||
+    // Public session share landing (`/s/[token]`) — no login required to view.
+    // The page resolves the hashed token and enforces expiry/revoke server-side.
+    /^\/s\/[^/]+$/.test(pathname) ||
     // Live-captions ingest is bearer-token authed inside the route handler
     // (LiveKit Agent uses a shared secret, not session cookies).
     /^\/api\/classroom\/sessions\/[^/]+\/live-captions\/ingest$/.test(pathname) ||

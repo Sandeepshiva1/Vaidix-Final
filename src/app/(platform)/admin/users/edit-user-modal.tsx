@@ -78,6 +78,20 @@ const STATUS_OPTIONS: Array<Extract<UserStatus, 'ACTIVE' | 'SUSPENDED' | 'DEACTI
 
 type Tab = 'identity' | 'profile' | 'role-status'
 
+// Maps API validation field keys → human labels for inline error messages.
+const PRETTY_FIELD: Record<string, string> = {
+  name: 'Full name',
+  mobile: 'Mobile',
+  username: 'Username',
+  avatarUrl: 'Profile photo',
+  programDirectorId: 'Program Director',
+  facultyMentorId: 'Faculty mentor',
+  cohortId: 'Cohort',
+  profile: 'Profile',
+  role: 'Role',
+  status: 'Status',
+}
+
 export function EditUserModal({ user, currentUserId, onClose, onSaved }: Props) {
   const [tab, setTab] = useState<Tab>('identity')
   const [loading, setLoading] = useState(true)
@@ -87,7 +101,9 @@ export function EditUserModal({ user, currentUserId, onClose, onSaved }: Props) 
   // Identity
   const [name, setName] = useState(user.name)
   const [mobile, setMobile] = useState('')
+  const [originalMobile, setOriginalMobile] = useState('')
   const [username, setUsername] = useState('')
+  const [originalUsername, setOriginalUsername] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [originalAvatarUrl, setOriginalAvatarUrl] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -160,7 +176,9 @@ export function EditUserModal({ user, currentUserId, onClose, onSaved }: Props) 
         const u = (parsed as { data: { user: DetailedUser } }).data.user
         if (cancelled) return
         setMobile(u.mobile ?? '')
+        setOriginalMobile(u.mobile ?? '')
         setUsername(u.username ?? '')
+        setOriginalUsername(u.username ?? '')
         setAvatarUrl(u.avatarUrl ?? null)
         setOriginalAvatarUrl(u.avatarUrl ?? null)
         setSubspecialty(u.profile?.subspecialty ?? '')
@@ -283,7 +301,22 @@ export function EditUserModal({ user, currentUserId, onClose, onSaved }: Props) 
       body: JSON.stringify(body),
     })
     if (res.ok) return { ok: true }
-    const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+    const j = (await res.json().catch(() => null)) as
+      | { error?: { message?: string; details?: Record<string, unknown> } }
+      | null
+    // The API returns per-field Zod errors in `details` (e.g. { mobile: [...] }).
+    // The old code dropped them and only showed the generic "Request body failed
+    // validation", so the operator couldn't tell WHICH field was wrong. Surface
+    // the offending field + reason instead.
+    const details = j?.error?.details
+    if (details && typeof details === 'object') {
+      const parts: string[] = []
+      for (const [field, msgs] of Object.entries(details)) {
+        const first = Array.isArray(msgs) ? msgs[0] : typeof msgs === 'string' ? msgs : null
+        if (first) parts.push(`${PRETTY_FIELD[field] ?? field}: ${first}`)
+      }
+      if (parts.length > 0) return { ok: false, message: parts.join(' · ') }
+    }
     return { ok: false, message: j?.error?.message ?? `Request failed (${res.status})` }
   }
 
@@ -316,10 +349,16 @@ export function EditUserModal({ user, currentUserId, onClose, onSaved }: Props) 
       // 2) Identity + profile + programDirectorId + avatar + cohort (single PATCH)
       const identityPayload: Record<string, unknown> = {}
       if (name.trim() !== user.name) identityPayload.name = name.trim()
-      if (mobile.trim()) identityPayload.mobile = mobile.trim()
-      else identityPayload.mobile = null
-      if (username.trim()) identityPayload.username = username.trim().toLowerCase()
-      else identityPayload.username = null
+      // Only send mobile/username when actually changed. Re-sending an untouched
+      // value forced the server to re-validate a field the admin never edited —
+      // a pre-existing/odd value (or just a non-E.164 mobile) then rejected the
+      // whole save with an opaque "Request body failed validation".
+      const mobileVal = mobile.trim() ? mobile.trim() : null
+      const origMobileVal = originalMobile.trim() ? originalMobile.trim() : null
+      if (mobileVal !== origMobileVal) identityPayload.mobile = mobileVal
+      const usernameVal = username.trim() ? username.trim().toLowerCase() : null
+      const origUsernameVal = originalUsername.trim() ? originalUsername.trim().toLowerCase() : null
+      if (usernameVal !== origUsernameVal) identityPayload.username = usernameVal
 
       if (avatarUrl !== originalAvatarUrl) identityPayload.avatarUrl = avatarUrl
 

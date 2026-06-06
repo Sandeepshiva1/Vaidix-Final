@@ -13,6 +13,7 @@ import { Role } from '@prisma/client';
 import { DeckEditorClient } from '@/app/(platform)/teacher/decks/[jobId]/deck-editor-client';
 import { isRouterV2 } from '@/server/services/decks/deck-analyze-service';
 import { presignDownload } from '@/lib/storage';
+import { asSlideOverlay } from '@/lib/deck-overlay';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,10 +85,19 @@ export default async function SessionStudioDeckEditorPage({
           tableJson: s.tableJson as unknown as { rows: string[][] } | null,
           imageS3Key: s.imageS3Key,
           imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
+          // Pixel-faithful rasterised original (VERBATIM uploads). Without this
+          // the editor can't show the "Original" view and a user's uploaded
+          // PPT renders as the degraded editable copy instead of as-is.
+          sourceImageUrl: s.sourceImageS3Key ? await presignDownload(s.sourceImageS3Key, 1800) : null,
+          // Editable overlay boxes (PPTX geometry) for in-place editing.
+          overlay: asSlideOverlay(s.overlayJson),
         })),
       )}
       initialAnalysis={isRouterV2(job.analysisResult) ? job.analysisResult : null}
       initialTheme={job.template}
+      initialBackgroundHex={job.backgroundHex}
+      importMode={job.importMode}
+      documentId={job.document?.id ?? null}
     />
   );
 }

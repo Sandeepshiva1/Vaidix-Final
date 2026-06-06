@@ -67,9 +67,40 @@ export interface PptxShape {
   text: string;
   /** True if this shape is a title placeholder (per the pptx schema). */
   isTitle: boolean;
+  /**
+   * The raw `<p:ph type="...">` placeholder type for this shape, or null when
+   * the shape is not a placeholder (a freeform text box). Lets callers tell a
+   * content placeholder apart from deck "chrome" — slide number (`sldNum`),
+   * footer (`ftr`), date (`dt`) — which must never be mistaken for a title.
+   */
+  phType: string | null;
   /** Paragraph count — useful for AI to know "this is a 6-bullet list". */
   paragraphCount: number;
+  /**
+   * The shape's bounding box in EMU (English Metric Units, 914400 per inch) as
+   * read from `<p:spPr><a:xfrm>`, or null when the shape inherits its geometry
+   * from a layout/master placeholder (no explicit frame on the slide). Backs
+   * the faithful editable overlay — null shapes can't be positioned.
+   */
+  frameEmu: { x: number; y: number; cx: number; cy: number } | null;
+  /** Shape solid-fill colour (6-char hex, no '#'), or null. Used to mask the
+   *  baked-in text under an editable overlay box. */
+  fillHex: string | null;
+  /** First-run font colour (hex, no '#'), or null (inherits theme/placeholder). */
+  colorHex: string | null;
+  /** First-run font size in points (e.g. 18), or null when inherited. */
+  fontSizePt: number | null;
+  /** First-run bold / italic flags. */
+  bold: boolean;
+  italic: boolean;
+  /** Paragraph horizontal alignment, or null (defaults to left). */
+  align: 'l' | 'ctr' | 'r' | 'just' | null;
+  /** Body vertical anchor, or null (defaults to top). */
+  valign: 't' | 'ctr' | 'b' | null;
 }
+
+/** Placeholder types that are deck chrome, not authored content. */
+export const CHROME_PH_TYPES: ReadonlySet<string> = new Set(['sldNum', 'ftr', 'dt']);
 
 export interface PptxSlide {
   /** 1-based slide order. */
@@ -200,14 +231,89 @@ function readTxBodyText(txBody: XmlNode): { text: string; paragraphCount: number
  * Layout: <p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/>
  */
 function shapeIsTitle(sp: XmlNode): boolean {
-  const nvSpPr = findFirst(childrenOf(sp), 'p:nvSpPr');
-  if (!nvSpPr) return false;
-  const nvPr = findFirst(childrenOf(nvSpPr), 'p:nvPr');
-  if (!nvPr) return false;
-  const ph = findFirst(childrenOf(nvPr), 'p:ph');
-  if (!ph) return false;
-  const phType = (ph[':@'] as Record<string, string> | undefined)?.['@_type'];
+  const phType = shapePlaceholderType(sp);
   return phType === 'title' || phType === 'ctrTitle';
+}
+
+/**
+ * Read the `<p:ph type="...">` placeholder type for a `<p:sp>` shape.
+ * Layout: <p:sp><p:nvSpPr><p:nvPr><p:ph type="..."/>
+ * Returns the type string (e.g. 'title', 'body', 'sldNum'), '' for a bare
+ * `<p:ph/>` (which PowerPoint treats as a body placeholder), or null when the
+ * shape carries no placeholder at all (a plain freeform text box).
+ */
+function shapePlaceholderType(sp: XmlNode): string | null {
+  const nvSpPr = findFirst(childrenOf(sp), 'p:nvSpPr');
+  if (!nvSpPr) return null;
+  const nvPr = findFirst(childrenOf(nvSpPr), 'p:nvPr');
+  if (!nvPr) return null;
+  const ph = findFirst(childrenOf(nvPr), 'p:ph');
+  if (!ph) return null;
+  return (ph[':@'] as Record<string, string> | undefined)?.['@_type'] ?? '';
+}
+
+/** Read a node's attribute map (the preserveOrder ':@' bag). */
+function attrsOf(node: XmlNode | undefined): Record<string, string> {
+  return ((node?.[':@'] as Record<string, string> | undefined) ?? {});
+}
+
+/** Direct child of `node` with the given tag (non-recursive), or undefined. */
+function directChild(node: XmlNode, tag: string): XmlNode | undefined {
+  return childrenOf(node).find((c) => tagOf(c) === tag);
+}
+
+/** Read the shape bounding box from `<p:spPr><a:xfrm>`, in EMU, or null. */
+function shapeFrameEmu(sp: XmlNode): PptxShape['frameEmu'] {
+  const xfrm = findFirst(childrenOf(sp), 'a:xfrm');
+  if (!xfrm) return null;
+  const off = directChild(xfrm, 'a:off');
+  const ext = directChild(xfrm, 'a:ext');
+  const oa = attrsOf(off);
+  const ea = attrsOf(ext);
+  const x = parseInt(oa['@_x'], 10);
+  const y = parseInt(oa['@_y'], 10);
+  const cx = parseInt(ea['@_cx'], 10);
+  const cy = parseInt(ea['@_cy'], 10);
+  if (![x, y, cx, cy].every(Number.isFinite)) return null;
+  if (cx <= 0 || cy <= 0) return null;
+  return { x, y, cx, cy };
+}
+
+/** First `<a:srgbClr val="RRGGBB">` directly under a solidFill node, or null. */
+function solidFillHex(container: XmlNode | undefined): string | null {
+  if (!container) return null;
+  const solid = directChild(container, 'a:solidFill');
+  if (!solid) return null;
+  const srgb = directChild(solid, 'a:srgbClr');
+  const val = attrsOf(srgb)['@_val'];
+  return val ? val.toLowerCase() : null;
+}
+
+/** Extract text style (fill, font colour/size, bold/italic, alignment) for the
+ *  faithful overlay. All best-effort — any missing piece is left null/false. */
+function shapeStyle(sp: XmlNode, txBody: XmlNode): Omit<PptxShape, 'slotId' | 'text' | 'isTitle' | 'phType' | 'paragraphCount' | 'frameEmu'> {
+  const spPr = directChild(sp, 'p:spPr');
+  const fillHex = solidFillHex(spPr);
+
+  const bodyPr = directChild(txBody, 'a:bodyPr');
+  const anchor = attrsOf(bodyPr)['@_anchor'];
+  const valign = anchor === 'ctr' || anchor === 'b' || anchor === 't' ? anchor : null;
+
+  const firstP = directChild(txBody, 'a:p');
+  const pPr = firstP ? directChild(firstP, 'a:pPr') : undefined;
+  const algn = attrsOf(pPr)['@_algn'];
+  const align = algn === 'ctr' || algn === 'r' || algn === 'just' || algn === 'l' ? algn : null;
+
+  const firstR = firstP ? directChild(firstP, 'a:r') : undefined;
+  const rPr = firstR ? directChild(firstR, 'a:rPr') : undefined;
+  const ra = attrsOf(rPr);
+  const sz = parseInt(ra['@_sz'], 10);
+  const fontSizePt = Number.isFinite(sz) ? sz / 100 : null;
+  const bold = ra['@_b'] === '1';
+  const italic = ra['@_i'] === '1';
+  const colorHex = solidFillHex(rPr);
+
+  return { fillHex, colorHex, fontSizePt, bold, italic, align, valign };
 }
 
 /**
@@ -230,7 +336,10 @@ function extractShapes(slideXml: XmlTree, slideIndex: number): PptxShape[] {
       slotId: `s${slideIndex}.sp${shapeIdx}`,
       text,
       isTitle: shapeIsTitle(node),
+      phType: shapePlaceholderType(node),
       paragraphCount,
+      frameEmu: shapeFrameEmu(node),
+      ...shapeStyle(node, txBody),
     });
     shapeIdx++;
   }
@@ -486,6 +595,18 @@ export class PptxDocument {
       contentTypes,
       dirty: new Set(),
     });
+  }
+
+  /** Slide canvas size in EMU from `<p:sldSz>`; defaults to 16:9 widescreen. */
+  slideSize(): { cx: number; cy: number } {
+    const sldSz = findFirst(this.state.presentationXml, 'p:sldSz');
+    const a = (sldSz?.[':@'] as Record<string, string> | undefined) ?? {};
+    const cx = parseInt(a['@_cx'], 10);
+    const cy = parseInt(a['@_cy'], 10);
+    return {
+      cx: Number.isFinite(cx) && cx > 0 ? cx : 12192000,
+      cy: Number.isFinite(cy) && cy > 0 ? cy : 6858000,
+    };
   }
 
   /** Enumerate slides in presentation order with text-bearing shape metadata. */

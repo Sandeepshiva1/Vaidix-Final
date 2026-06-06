@@ -1,14 +1,16 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { RRule, Frequency } from 'rrule'
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Check,
   ClipboardCheck,
+  Loader2,
   Microscope,
   Plus,
   Presentation,
@@ -17,11 +19,14 @@ import {
   Sparkles,
   Users2,
   Video,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SessionType } from '@prisma/client'
-import { createTeachingSessionAction } from '@/components/medlearn/actions'
+import { createTeachingSessionAction, updateTeachingSessionAction } from '@/components/medlearn/actions'
+import { createSpecialtyAction, createSubSpecialtyAction } from '@/components/medlearn/specialty-actions'
 import { UserPicker, type PickableUser } from '@/components/user-picker'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 
 type Mode = 'choose' | 'classroom' | 'boardroom'
 
@@ -29,29 +34,11 @@ type Mode = 'choose' | 'classroom' | 'boardroom'
 // the design/option arrays match the demo wizard exactly.
 type SessionTypeLabel = 'Webinar' | 'Clinical Teaching' | 'Grand Rounds' | 'Simulation Session'
 
-const SPECIALTIES = [
-  'Vitreoretina',
-  'Cornea',
-  'Cataract & IOL',
-  'Glaucoma',
-  'Uvea',
-  'Paediatric Ophthalmology',
-  'Oculoplasty',
-  'Imaging',
-  'Refractive Surgery',
-]
-
-const SUB_SPECIALTIES: Record<string, string[]> = {
-  Vitreoretina: ['Medical Retina', 'Vitreoretinal Surgery', 'Diabetic Retinopathy', 'Macular Diseases'],
-  Cornea: ['Corneal Dystrophies', 'Keratoconus', 'Transplantation', 'Ocular Surface'],
-  'Cataract & IOL': ['Phacoemulsification', 'Premium IOLs', 'Toric IOLs', 'Complex Cataract'],
-  Glaucoma: ['Primary Open Angle', 'Angle Closure', 'Surgical Glaucoma', 'Pediatric Glaucoma'],
-  Uvea: ['Anterior Uveitis', 'Posterior Uveitis', 'Panuveitis', 'Ocular Oncology'],
-  'Paediatric Ophthalmology': ['Strabismus', 'Amblyopia', 'Pediatric Cataract', 'ROP'],
-  Oculoplasty: ['Eyelid Surgery', 'Orbital Diseases', 'Lacrimal System', 'Aesthetic Oculoplasty'],
-  Imaging: ['OCT', 'FFA', 'OCT-A', 'Wide-field Imaging'],
-  'Refractive Surgery': ['LASIK', 'SMILE', 'ICL', 'Surface Ablation'],
-}
+// Specialty / sub-specialty options are loaded from the DB (see the route's
+// page.tsx) and can be extended inline; the formerly-hardcoded arrays moved to
+// the `specialties` seed migration.
+interface WizardSubSpecialty { id: string; name: string }
+interface WizardSpecialty { id: string; name: string; subSpecialties: WizardSubSpecialty[] }
 
 const CLASSROOM_TYPES: { value: SessionTypeLabel; description: string; icon: React.ReactNode }[] = [
   { value: 'Webinar', description: 'Lecture-style, online audience', icon: <Presentation className="size-5" /> },
@@ -62,6 +49,9 @@ const CLASSROOM_TYPES: { value: SessionTypeLabel; description: string; icon: Rea
 
 const ROLES = ['Presenter', 'Moderator', 'Panelist'] as const
 type Role = (typeof ROLES)[number]
+
+// Max assignments allowed per role type (Presenter / Moderator / Panelist).
+const MAX_PER_ROLE = 2
 
 const ROLE_COLORS: Record<Role, string> = {
   Presenter: 'border-teal-500/50 bg-teal-500/8 text-teal-700 dark:text-teal-300',
@@ -85,10 +75,48 @@ function mapSessionType(label: SessionTypeLabel): SessionType {
   }
 }
 
-function defaultDate(offsetDays = 3): string {
+// `YYYY-MM-DDTHH:mm` in LOCAL time — the format the DateTimePicker reads/writes.
+// (Using local getters, NOT toISOString, which would shift the date across the
+// UTC boundary for IST and similar +offset zones.)
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function nowLocalInput(): string {
+  return toLocalInput(new Date())
+}
+
+// Default start = the next 15-minute slot from now (local). Stays on today and
+// is a clean, just-ahead time (e.g. 2:51 → 3:00), not an arbitrary +1h.
+function defaultStart(): string {
   const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().slice(0, 10)
+  d.setSeconds(0, 0)
+  const m = d.getMinutes()
+  d.setMinutes(m + (15 - (m % 15 || 15)) + 15) // round up to next slot, +1 slot of buffer
+  return toLocalInput(d)
+}
+
+// e.g. "Asia/Kolkata · GMT+5:30" — the host's local zone, shown so they know the
+// time they enter is in THEIR timezone (invitees see it converted to theirs).
+function localTimezoneLabel(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const parts = new Date().toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ')
+    const abbr = parts[parts.length - 1]
+    return abbr && abbr !== tz ? `${tz} · ${abbr}` : tz
+  } catch {
+    return 'your local timezone'
+  }
+}
+
+// Shared past-start guard. Mirrors the 5-minute server grace so the picker, the
+// client submit, and createTeachingSessionAction all agree on "too far in the
+// past". Returns true when `localValue` is acceptable.
+const PAST_GRACE_MS = 5 * 60 * 1000
+function isStartInPast(localValue: string): boolean {
+  const ms = new Date(localValue).getTime()
+  return Number.isFinite(ms) && ms < Date.now() - PAST_GRACE_MS
 }
 
 // ─── Recurrence (mirrors the /calendar/new scheduler so both create flows agree) ──
@@ -143,12 +171,40 @@ export interface WizardCohort {
   name: string
 }
 
-export function NewSessionWizard({ cohorts }: { cohorts: WizardCohort[] }) {
+export function NewSessionWizard({
+  cohorts,
+  specialties,
+  editing,
+}: {
+  cohorts: WizardCohort[]
+  specialties: WizardSpecialty[]
+  editing?: ClassroomEditInit
+}) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('choose')
 
+  // Edit mode: skip the create/boardroom chooser and land straight on the
+  // Classroom form pre-filled with the session's details.
+  if (editing) {
+    return (
+      <ClassroomForm
+        router={router}
+        cohorts={cohorts}
+        specialties={specialties}
+        editing={editing}
+        // Back returns to wherever the user came from (dashboard, classroom
+        // list, …) — NOT a hardcoded page. Falls back to the classroom detail
+        // only when there's no history (e.g. /edit opened in a fresh tab).
+        onBack={() => {
+          if (typeof window !== 'undefined' && window.history.length > 1) router.back()
+          else router.push(`/classroom/${editing.sessionId}`)
+        }}
+      />
+    )
+  }
+
   if (mode === 'choose') return <ChoiceScreen onChoose={setMode} />
-  if (mode === 'classroom') return <ClassroomForm router={router} cohorts={cohorts} onBack={() => setMode('choose')} />
+  if (mode === 'classroom') return <ClassroomForm router={router} cohorts={cohorts} specialties={specialties} onBack={() => setMode('choose')} />
   return <BoardRoomForm router={router} onBack={() => setMode('choose')} />
 }
 
@@ -236,38 +292,103 @@ function ChoiceScreen({ onChoose }: { onChoose: (mode: Mode) => void }) {
 }
 
 // ─── Classroom form ────────────────────────────────────────────────────────────
+// Pre-fill payload for editing an existing classroom session (built by
+// /classroom/[id]/edit). When present the form runs in "edit" mode and saves via
+// updateTeachingSessionAction instead of creating a new session.
+export interface ClassroomEditInit {
+  sessionId: string
+  title: string
+  specialty: string
+  subSpecialty: string
+  cohortId: string
+  description: string
+  startAtLocal: string // YYYY-MM-DDTHH:mm (local)
+  durationMinutes: number
+  type: SessionTypeLabel
+  roles: { role: Role; user: PickableUser }[]
+  recurrence: { repeats: boolean; freq: RepeatFreq; every: number; byDays: string[]; endMode: RepeatEnd; count: number; until: string } | null
+}
+
 function ClassroomForm({
   router,
   cohorts,
+  specialties,
   onBack,
+  editing,
 }: {
   router: ReturnType<typeof useRouter>
   cohorts: WizardCohort[]
+  specialties: WizardSpecialty[]
   onBack: () => void
+  editing?: ClassroomEditInit
 }) {
+  const e0 = editing
   const [submitting, setSubmitting] = useState(false)
-  const [title, setTitle] = useState('')
-  const [specialty, setSpecialty] = useState(SPECIALTIES[0])
-  const [subSpecialty, setSubSpecialty] = useState('')
-  const [cohort, setCohort] = useState('')
-  const [description, setDescription] = useState('')
-  const [date, setDate] = useState(defaultDate())
-  const [time, setTime] = useState('17:00')
-  const [duration, setDuration] = useState('60')
-  const [type, setType] = useState<SessionTypeLabel>('Webinar')
-  const [roles, setRoles] = useState<{ role: Role; user: PickableUser | null }[]>([{ role: 'Presenter', user: null }])
+  const [title, setTitle] = useState(e0?.title ?? '')
+  // Specialty taxonomy is DB-backed; inline "+ new" appends here so a freshly
+  // added option is selectable immediately without a page refresh.
+  const [specialtyList, setSpecialtyList] = useState<WizardSpecialty[]>(specialties)
+  const [specialty, setSpecialty] = useState(e0?.specialty ?? '') // name; '' = none (optional)
+  const [subSpecialty, setSubSpecialty] = useState(e0?.subSpecialty ?? '')
+  const [cohort, setCohort] = useState(e0?.cohortId ?? '')
+  const [description, setDescription] = useState(e0?.description ?? '')
+  const [startAt, setStartAt] = useState(e0?.startAtLocal ?? defaultStart())
+  // Snapshot "now" at mount so the picker's past-floor doesn't jitter per render.
+  const [minStart] = useState(nowLocalInput)
+  // Resolve the timezone client-side (after mount) to avoid an SSR/CSR mismatch.
+  const [tzLabel, setTzLabel] = useState('')
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setTzLabel(localTimezoneLabel()) }, [])
+  const [duration, setDuration] = useState(e0 ? String(e0.durationMinutes) : '60')
+  const [type, setType] = useState<SessionTypeLabel>(e0?.type ?? 'Webinar')
+  const [roles, setRoles] = useState<{ role: Role; user: PickableUser | null }[]>(
+    e0 && e0.roles.length > 0 ? e0.roles : [{ role: 'Presenter', user: null }],
+  )
 
   // Recurrence (optional). Mirrors the /calendar/new scheduler's repeat options.
-  const [repeats, setRepeats] = useState(false)
-  const [freq, setFreq] = useState<RepeatFreq>('WEEKLY')
-  const [every, setEvery] = useState(1)
-  const [byDays, setByDays] = useState<Set<string>>(new Set(['MO']))
-  const [endMode, setEndMode] = useState<RepeatEnd>('count')
-  const [occCount, setOccCount] = useState(8)
-  const [untilDate, setUntilDate] = useState('')
+  const [repeats, setRepeats] = useState(e0?.recurrence?.repeats ?? false)
+  const [freq, setFreq] = useState<RepeatFreq>(e0?.recurrence?.freq ?? 'WEEKLY')
+  const [every, setEvery] = useState(e0?.recurrence?.every ?? 1)
+  const [byDays, setByDays] = useState<Set<string>>(new Set(e0?.recurrence?.byDays ?? ['MO']))
+  const [endMode, setEndMode] = useState<RepeatEnd>(e0?.recurrence?.endMode ?? 'count')
+  const [occCount, setOccCount] = useState(e0?.recurrence?.count ?? 8)
+  const [untilDate, setUntilDate] = useState(e0?.recurrence?.until ?? '')
 
-  const subSpecs = SUB_SPECIALTIES[specialty] ?? []
-  const valid = title.trim().length >= 3 && description.trim().length > 0
+  const selectedSpec = specialtyList.find((s) => s.name === specialty) ?? null
+  const subSpecs = selectedSpec?.subSpecialties ?? []
+  // Strict UI guard: any start at/under "now" disables Create (no grace) so a
+  // back-dated session can never be submitted. The server keeps a 5-min grace
+  // purely for clock skew on legitimately near-now starts.
+  const startInPast = startAt !== '' && new Date(startAt).getTime() <= Date.now()
+  const hasPresenter = roles.some((r) => r.role === 'Presenter' && r.user !== null)
+  const [presenterError, setPresenterError] = useState(false)
+  const valid = title.trim().length >= 3 && !startInPast && hasPresenter
+
+  // ── Inline taxonomy creation (persists via server action, then local-append) ──
+  const createSpecialty = async (name: string): Promise<WizardSubSpecialty | null> => {
+    const res = await createSpecialtyAction(name)
+    if (!res.ok) { toast.error(res.error); return null }
+    setSpecialtyList((list) =>
+      list.some((s) => s.id === res.data.id) ? list : [...list, { ...res.data, subSpecialties: [] }],
+    )
+    setSubSpecialty('')
+    return res.data
+  }
+
+  const createSubSpecialty = async (name: string): Promise<WizardSubSpecialty | null> => {
+    if (!selectedSpec) { toast.error('Pick a specialty first.'); return null }
+    const res = await createSubSpecialtyAction(selectedSpec.id, name)
+    if (!res.ok) { toast.error(res.error); return null }
+    const row = { id: res.data.id, name: res.data.name }
+    setSpecialtyList((list) =>
+      list.map((s) =>
+        s.id === selectedSpec.id
+          ? { ...s, subSpecialties: s.subSpecialties.some((x) => x.id === row.id) ? s.subSpecialties : [...s.subSpecialties, row] }
+          : s,
+      ),
+    )
+    return row
+  }
 
   const freqLabel = { DAILY: 'day', WEEKLY: 'week', MONTHLY: 'month' }[freq]
   const recurrenceSummary = `Every ${every > 1 ? `${every} ${freqLabel}s` : freqLabel}${
@@ -280,24 +401,46 @@ function ClassroomForm({
     setByDays(n)
   }
 
-  const addRole = () => setRoles((r) => [...r, { role: 'Panelist', user: null }])
-  const updateRole = (i: number, patch: Partial<{ role: Role; user: PickableUser | null }>) =>
+  // Cap role assignments at MAX_PER_ROLE of each type (so it can't grow to 100).
+  const roleCount = (role: Role) => roles.filter((r) => r.role === role).length
+  // Extra roles (beyond the locked Presenter) can only be Moderator or Panelist.
+  const EXTRA_ROLES = ROLES.filter((r) => r !== 'Presenter') as Role[]
+  const rolesFull = EXTRA_ROLES.every((role) => roleCount(role) >= MAX_PER_ROLE)
+  const addRole = () => {
+    const next = EXTRA_ROLES.find((role) => roleCount(role) < MAX_PER_ROLE)
+    if (!next) { toast.error(`Up to ${MAX_PER_ROLE} of each role.`); return }
+    setRoles((r) => [...r, { role: next, user: null }])
+  }
+  const updateRole = (i: number, patch: Partial<{ role: Role; user: PickableUser | null }>) => {
+    if (patch.role && patch.role !== roles[i].role && roleCount(patch.role) >= MAX_PER_ROLE) {
+      toast.error(`Up to ${MAX_PER_ROLE} ${patch.role}s.`)
+      return
+    }
     setRoles((r) => r.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
+  }
   const removeRole = (i: number) => setRoles((r) => r.filter((_, idx) => idx !== i))
 
   const submit = async (asDraft = false) => {
+    if (!asDraft && !hasPresenter) { setPresenterError(true); return }
     if (!valid && !asDraft) return
+    setPresenterError(false)
     if (asDraft) {
       router.push('/dashboard')
       return
     }
+    const startMs = new Date(startAt).getTime()
+    if (Number.isNaN(startMs)) { toast.error('Pick a valid date & time.'); return }
+    if (isStartInPast(startAt)) {
+      toast.error('Start time has already passed — pick a future time.')
+      return
+    }
     setSubmitting(true)
     try {
-      const startISO = new Date(`${date}T${time}`).toISOString()
+      const startISO = new Date(startMs).toISOString()
       const recurrence = buildWizardRecurrence(startISO, {
         repeats, freq, every, byDays, endMode, count: occCount, until: untilDate,
       })
-      const result = await createTeachingSessionAction({
+      const payload = {
         title: title.trim(),
         scheduledStart: startISO,
         durationMinutes: Number(duration),
@@ -312,9 +455,23 @@ function ClassroomForm({
           .map((r) => ({ role: r.role, userId: r.user!.id, name: r.user!.name })),
         recurrenceRule: recurrence.rule,
         recurrenceUntil: recurrence.until,
-      })
+      }
+      const result = e0
+        ? await updateTeachingSessionAction(e0.sessionId, payload)
+        : await createTeachingSessionAction(payload)
       if (result.ok) {
-        router.push(`/session/${result.sessionId}/pre`)
+        if (e0) {
+          // After an edit, return to wherever the user came from (same as
+          // Cancel) — NOT the pre-flight page — and refresh so it reflects the
+          // change.
+          toast.success('Changes saved.')
+          router.refresh()
+          onBack()
+        } else {
+          // After create, into the prep workflow.
+          router.push(`/session/${result.sessionId}/pre`)
+          router.refresh()
+        }
       } else {
         toast.error(result.error)
         setSubmitting(false)
@@ -336,8 +493,8 @@ function ClassroomForm({
           <ArrowLeft className="size-4" />
         </button>
         <div>
-          <h1 className="text-[24px] font-semibold tracking-tight">Create a Classroom</h1>
-          <p className="text-[13.5px] text-muted-foreground">Set the basics. Slides, learners, and promos come in the next steps.</p>
+          <h1 className="text-[24px] font-semibold tracking-tight">{e0 ? 'Edit Classroom' : 'Create a Classroom'}</h1>
+          <p className="text-[13.5px] text-muted-foreground">{e0 ? 'Update the session details. Changes apply to this classroom right away.' : 'Set the basics. Slides, learners, and promos come in the next steps.'}</p>
         </div>
       </div>
 
@@ -347,22 +504,26 @@ function ClassroomForm({
         </Field>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <Field label="Specialty" required>
-            <div className="relative">
-              <select value={specialty} onChange={(e) => { setSpecialty(e.target.value); setSubSpecialty('') }} className="vfx-input appearance-none pr-9">
-                {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronIcon />
-            </div>
+          <Field label="Specialty">
+            <EditableSelect
+              value={specialty}
+              onChange={(name) => { setSpecialty(name); setSubSpecialty('') }}
+              options={specialtyList}
+              placeholderOption="Select specialty (optional)"
+              addLabel="Add new specialty"
+              onCreate={createSpecialty}
+            />
           </Field>
           <Field label="Sub-specialty">
-            <div className="relative">
-              <select value={subSpecialty} onChange={(e) => setSubSpecialty(e.target.value)} className="vfx-input appearance-none pr-9">
-                <option value="">All sub-specialties</option>
-                {subSpecs.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronIcon />
-            </div>
+            <EditableSelect
+              value={subSpecialty}
+              onChange={setSubSpecialty}
+              options={subSpecs}
+              placeholderOption={selectedSpec ? 'All sub-specialties' : 'Select a specialty first'}
+              addLabel="Add new sub-specialty"
+              onCreate={createSubSpecialty}
+              disabled={!selectedSpec}
+            />
           </Field>
         </div>
 
@@ -377,27 +538,32 @@ function ClassroomForm({
             </div>
           </Field>
           <Field label="Duration (minutes)" required>
-            <div className="flex gap-2">
-              {['30', '45', '60', '90'].map((d) => (
-                <button key={d} type="button" onClick={() => setDuration(d)} className={cn('h-10 flex-1 rounded-xl border text-[13px] font-medium transition-all', duration === d ? 'border-teal-500/50 bg-teal-500/8 text-teal-700 dark:text-teal-300' : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-foreground/5 hover:text-foreground')}>
-                  {d} min
-                </button>
-              ))}
-            </div>
+            <DurationPicker value={duration} onChange={setDuration} presets={['30', '60', '90']} />
           </Field>
         </div>
 
-        <Field label="Description" required>
+        <Field label="Description">
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Brief summary of what learners will get out of this session" className="vfx-input resize-none" />
         </Field>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <Field label="Date" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="vfx-input" />
-          </Field>
-          <Field label="Time" required>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="vfx-input" />
-          </Field>
+        <div className="mb-5">
+          <DateTimePicker
+            label="Date & time"
+            required
+            value={startAt}
+            onChange={setStartAt}
+            min={minStart}
+            disablePast
+          />
+          {startInPast ? (
+            <p className="mt-1.5 text-[12px] font-medium text-rose-600">
+              Start time is in the past — pick a future date &amp; time.
+            </p>
+          ) : tzLabel ? (
+            <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+              Time is in your timezone — {tzLabel}. Invitees see it converted to their own local time.
+            </p>
+          ) : null}
         </div>
 
         {/* ── Recurrence (optional) — same options as the full /calendar/new scheduler ── */}
@@ -473,13 +639,23 @@ function ClassroomForm({
                   </label>
                   <label className="flex cursor-pointer items-center gap-2.5">
                     <input type="radio" name="wiz-endmode" checked={endMode === 'date'} onChange={() => setEndMode('date')} className="size-4 accent-teal-600" />
-                    <span className="w-12 text-[13px] font-medium">By</span>
-                    <input
-                      type="date" value={untilDate} disabled={endMode !== 'date'}
-                      onChange={(e) => setUntilDate(e.target.value)}
-                      className="rounded-lg border border-border/60 bg-background px-2 py-1 text-[13px] font-medium outline-none disabled:opacity-40"
-                    />
+                    <span className="text-[13px] font-medium">By a date</span>
                   </label>
+                  {endMode === 'date' && (
+                    // Uses the same styled DateTimePicker as the start field (no
+                    // native browser calendar) — keeps the calendar UI consistent.
+                    // Time is irrelevant for an end-date cutoff, so we read/write
+                    // only the date portion.
+                    <div className="pl-6">
+                      <DateTimePicker
+                        label="End date"
+                        dateOnly
+                        value={untilDate ? `${untilDate}T23:59` : ''}
+                        onChange={(v) => setUntilDate(v.slice(0, 10))}
+                        min={startAt}
+                      />
+                    </div>
+                  )}
                   <label className="flex cursor-pointer items-center gap-2.5">
                     <input type="radio" name="wiz-endmode" checked={endMode === 'never'} onChange={() => setEndMode('never')} className="size-4 accent-teal-600" />
                     <span className="text-[13px] font-medium">Never ends</span>
@@ -511,29 +687,47 @@ function ClassroomForm({
 
         {/* Role assignments */}
         <div className="mb-5">
-          <div className="mb-2 text-[12.5px] font-semibold text-foreground/85">
+          <div className="mb-2 flex items-center gap-2 text-[12.5px] font-semibold text-foreground/85">
             Role assignments
-            <span className="ml-1 text-rose-500">*</span>
+            <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400">Presenter required</span>
           </div>
+          {presenterError && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] font-medium text-rose-600 dark:text-rose-400">
+              <span className="shrink-0">⚠</span> You must assign a Presenter before creating the session.
+            </div>
+          )}
           <div className="space-y-2.5">
             {roles.map((r, i) => (
-              <div key={i} className={cn('flex items-center gap-2.5 rounded-2xl border p-2.5', ROLE_COLORS[r.role])}>
+              <div key={i} className={cn('flex items-center gap-2.5 rounded-2xl border p-2.5', ROLE_COLORS[r.role], i === 0 && presenterError && !r.user && 'border-rose-500/60 bg-rose-500/5')}>
                 <div className="relative">
-                  <select value={r.role} onChange={(e) => updateRole(i, { role: e.target.value as Role })} className={cn('appearance-none rounded-xl border px-2.5 py-1.5 pr-7 text-[12px] font-semibold outline-none transition-colors', ROLE_COLORS[r.role])}>
-                    {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-                  </select>
-                  <ChevronIcon small />
+                  {/* First row is always Presenter — locked */}
+                  {i === 0 ? (
+                    <div className={cn('rounded-xl border px-2.5 py-1.5 text-[12px] font-semibold', ROLE_COLORS['Presenter'])}>
+                      Presenter
+                    </div>
+                  ) : (
+                    <>
+                      <select value={r.role} onChange={(e) => updateRole(i, { role: e.target.value as Role })} className={cn('appearance-none rounded-xl border px-2.5 py-1.5 pr-7 text-[12px] font-semibold outline-none transition-colors', ROLE_COLORS[r.role])}>
+                        {ROLES.filter((role) => role !== 'Presenter' || roleCount('Presenter') < MAX_PER_ROLE).map((role) => <option key={role} value={role}>{role}</option>)}
+                      </select>
+                      <ChevronIcon small />
+                    </>
+                  )}
                 </div>
                 <div className="flex-1">
                   <UserPicker
                     single
                     purpose="invite"
                     selected={r.user ? [r.user] : []}
-                    onChange={(next) => updateRole(i, { user: next[0] ?? null })}
-                    placeholder="Search users by name or email"
+                    onChange={(next) => { updateRole(i, { user: next[0] ?? null }); if (i === 0) setPresenterError(false) }}
+                    placeholder={i === 0 ? 'Search and assign a Presenter (required)' : 'Search users by name or email'}
                   />
                 </div>
-                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Approval pending</span>
+                {i === 0 ? (
+                  <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400">Required</span>
+                ) : (
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Approval pending</span>
+                )}
                 {i > 0 && (
                   <button type="button" onClick={() => removeRole(i)} className="text-current/50 hover:text-current">
                     <span className="text-[16px] leading-none">×</span>
@@ -541,21 +735,27 @@ function ClassroomForm({
                 )}
               </div>
             ))}
-            <button type="button" onClick={addRole} className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-border/60 px-3.5 py-2 text-[12.5px] font-medium text-muted-foreground hover:border-teal-500/40 hover:text-teal-700 dark:hover:text-teal-300">
+            <button type="button" onClick={addRole} disabled={rolesFull} className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-border/60 px-3.5 py-2 text-[12.5px] font-medium text-muted-foreground transition-colors hover:border-teal-500/40 hover:text-teal-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-teal-300">
               <Plus className="size-3.5" />
-              Add another role
+              {rolesFull ? `Max ${MAX_PER_ROLE} of each role reached` : 'Add another role'}
             </button>
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap justify-end gap-2.5">
-          <button type="button" onClick={() => void submit(true)} disabled={submitting} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-5 text-[13.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-50">
-            <Save className="size-4" />
-            Save draft
-          </button>
+          {e0 ? (
+            <button type="button" onClick={onBack} disabled={submitting} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-5 text-[13.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-50">
+              Cancel
+            </button>
+          ) : (
+            <button type="button" onClick={() => void submit(true)} disabled={submitting} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-5 text-[13.5px] font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-50">
+              <Save className="size-4" />
+              Save draft
+            </button>
+          )}
           <button type="submit" disabled={!valid || submitting} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-slate-700 px-5 text-[13.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] active:scale-100 disabled:opacity-40 disabled:hover:scale-100">
-            <Sparkles className="size-4" />
-            Create classroom
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {e0 ? 'Save changes' : 'Create classroom'}
           </button>
         </div>
       </form>
@@ -575,19 +775,25 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
   const [subject, setSubject] = useState('')
   const [description, setDescription] = useState('')
   const [duration, setDuration] = useState('30')
-  const [date, setDate] = useState(defaultDate())
-  const [time, setTime] = useState('10:00')
+  const [startAt, setStartAt] = useState(defaultStart())
+  const [minStart] = useState(nowLocalInput)
   const [participants, setParticipants] = useState('')
 
-  const valid = subject.trim().length >= 3
+  const startInPast = startAt !== '' && new Date(startAt).getTime() <= Date.now()
+  const valid = subject.trim().length >= 3 && !startInPast
 
   const submit = async () => {
     if (!valid) return
+    if (Number.isNaN(new Date(startAt).getTime())) { toast.error('Pick a valid date & time.'); return }
+    if (isStartInPast(startAt)) {
+      toast.error('Start time has already passed — pick a future time.')
+      return
+    }
     setSubmitting(true)
     try {
       const result = await createTeachingSessionAction({
         title: subject.trim(),
-        scheduledStart: new Date(`${date}T${time}`).toISOString(),
+        scheduledStart: new Date(startAt).toISOString(),
         durationMinutes: Number(duration),
         sessionType: SessionType.CASE_CONFERENCE,
         description: description.trim() || undefined,
@@ -632,21 +838,24 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="What will you cover in this meeting?" className="vfx-input resize-none" />
         </Field>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-          <Field label="Date" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="vfx-input" />
-          </Field>
-          <Field label="Time" required>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="vfx-input" />
-          </Field>
-          <Field label="Duration" required>
-            <div className="flex gap-2">
-              {['30', '45', '60'].map((d) => (
-                <button key={d} type="button" onClick={() => setDuration(d)} className={cn('h-10 flex-1 rounded-xl border text-[12.5px] font-medium transition-all', duration === d ? 'border-violet-500/50 bg-violet-500/8 text-violet-700 dark:text-violet-300' : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-foreground/5 hover:text-foreground')}>
-                  {d}m
-                </button>
-              ))}
-            </div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div>
+            <DateTimePicker
+              label="Date & time"
+              required
+              value={startAt}
+              onChange={setStartAt}
+              min={minStart}
+              disablePast
+            />
+            {startInPast && (
+              <p className="mt-1.5 text-[12px] font-medium text-rose-600">
+                Start time is in the past — pick a future date &amp; time.
+              </p>
+            )}
+          </div>
+          <Field label="Duration (minutes)" required>
+            <DurationPicker value={duration} onChange={setDuration} presets={['30', '60', '90']} />
           </Field>
         </div>
 
@@ -671,6 +880,46 @@ function BoardRoomForm({ router, onBack }: { router: ReturnType<typeof useRouter
   )
 }
 
+const MAX_DURATION = 240
+
+// Duration presets + a manual entry capped at 240 minutes (4h). Lets a host pick
+// a 2-hour (or any) session without being limited to the preset chips.
+function DurationPicker({ value, onChange, presets }: { value: string; onChange: (v: string) => void; presets: string[] }) {
+  return (
+    // Single line (fits the half-width grid column): preset chips + a compact
+    // manual entry capped at 240 minutes.
+    <div className="flex items-center gap-1.5">
+      {presets.map((d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => onChange(d)}
+          className={cn('h-10 shrink-0 rounded-xl border px-2.5 text-[12.5px] font-medium transition-all',
+            value === d ? 'border-teal-500/50 bg-teal-500/8 text-teal-700 dark:text-teal-300' : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-foreground/5 hover:text-foreground')}
+        >
+          {d}m
+        </button>
+      ))}
+      <input
+        type="number"
+        min={15}
+        max={MAX_DURATION}
+        value={value}
+        onChange={(e) => {
+          const raw = e.target.value
+          if (raw === '') { onChange(''); return }
+          onChange(String(Math.max(1, Math.min(MAX_DURATION, Number(raw) || 0))))
+        }}
+        onBlur={(e) => { if (!e.target.value || Number(e.target.value) < 15) onChange('60') }}
+        className="h-10 w-16 shrink-0 rounded-xl border border-border/60 bg-background px-2 text-center text-[12.5px] outline-none focus:border-teal-500"
+        title={`Custom duration in minutes (max ${MAX_DURATION})`}
+        aria-label={`Custom duration in minutes (max ${MAX_DURATION})`}
+      />
+      <span className="shrink-0 text-[11.5px] text-muted-foreground">min</span>
+    </div>
+  )
+}
+
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="mb-5 block">
@@ -680,6 +929,106 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </span>
       {children}
     </label>
+  )
+}
+
+const ADD_SENTINEL = '__add_new__'
+
+// Styled <select> with an inline "+ Add new…" affordance. Picking the add
+// option swaps the control for a text input; confirming calls `onCreate`, which
+// persists the value (server action) and returns the saved row so the parent
+// can append + select it. Keeps the existing vfx-input look.
+function EditableSelect({
+  value,
+  onChange,
+  options,
+  placeholderOption,
+  addLabel,
+  onCreate,
+  disabled,
+}: {
+  value: string
+  onChange: (name: string) => void
+  options: { id: string; name: string }[]
+  placeholderOption: string
+  addLabel: string
+  onCreate: (name: string) => Promise<{ id: string; name: string } | null>
+  disabled?: boolean
+}) {
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus()
+  }, [adding])
+
+  const cancel = () => { setAdding(false); setDraft('') }
+  const confirm = async () => {
+    const name = draft.trim()
+    if (name.length < 2 || saving) return
+    setSaving(true)
+    try {
+      const row = await onCreate(name)
+      if (row) { onChange(row.name); setAdding(false); setDraft('') }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (adding) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); void confirm() }
+            else if (e.key === 'Escape') { e.preventDefault(); cancel() }
+          }}
+          placeholder={addLabel}
+          className="vfx-input flex-1"
+        />
+        <button
+          type="button"
+          onClick={() => void confirm()}
+          disabled={saving || draft.trim().length < 2}
+          aria-label="Save"
+          className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-600 text-white transition-colors hover:bg-teal-700 disabled:opacity-40"
+        >
+          {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+        </button>
+        <button
+          type="button"
+          onClick={cancel}
+          aria-label="Cancel"
+          className="grid size-10 shrink-0 place-items-center rounded-xl border border-border/60 text-muted-foreground transition-colors hover:bg-foreground/5"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          if (e.target.value === ADD_SENTINEL) { setDraft(''); setAdding(true); return }
+          onChange(e.target.value)
+        }}
+        className="vfx-input appearance-none pr-9 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <option value="">{placeholderOption}</option>
+        {options.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+        {!disabled && <option value={ADD_SENTINEL}>+ {addLabel}…</option>}
+      </select>
+      <ChevronIcon />
+    </div>
   )
 }
 

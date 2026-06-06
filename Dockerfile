@@ -52,9 +52,17 @@ RUN npx prisma generate && npm run build
 
 # ─── Stage 3: runtime ───────────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runtime
+# LibreOffice (impress) converts uploaded PPTX/PPT/Keynote → PDF so the deck
+# rasteriser (slide-raster-service.ts) can render pixel-faithful "Original"
+# slide images for VERBATIM imports. Without it, uploaded decks silently lose
+# their visual fidelity and fall back to a flattened text-only copy. The
+# metric-compatible font packs (Liberation = Arial/Times, Carlito = Calibri)
+# keep the rendered originals visually close to the user's PowerPoint.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openssl ca-certificates ffmpeg curl tini \
+      libreoffice-impress libreoffice-core \
+      fonts-liberation fonts-crosextra-carlito fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production

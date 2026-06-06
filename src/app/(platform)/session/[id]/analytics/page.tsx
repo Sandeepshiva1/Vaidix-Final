@@ -134,6 +134,35 @@ export default async function AnalyticsPage({ params }: PageProps) {
     })
   }, [] as AnalyticsData['prereads'])
 
+  // ── Quiz response aggregates per question ─────────────────────────────────
+  const quizResponseStats = await safe(async () => {
+    if (prep.mcqs.length === 0 && prep.openEnded.length === 0) return [] as AnalyticsData['quizStats']
+    const allQuestionIds = [
+      ...prep.mcqs.map((m) => m.id),
+      ...prep.openEnded.map((o) => o.id),
+    ]
+    const responses = await db.sessionQuizResponse.findMany({
+      where: { sessionId: id, questionId: { in: allQuestionIds } },
+      select: { questionId: true, answer: true, isCorrect: true },
+    })
+    return prep.mcqs.map((m): AnalyticsData['quizStats'][number] => {
+      const qResps = responses.filter((r) => r.questionId === m.id)
+      const totalResponses = qResps.length
+      // Tally per-option counts
+      const optionTally = m.options.map((_, oi) => qResps.filter((r) => r.answer === oi).length)
+      const correctCount = qResps.filter((r) => r.isCorrect === true).length
+      return {
+        questionId: m.id,
+        q: m.q,
+        totalResponses,
+        optionTally,
+        correctOption: m.correct,
+        correctCount,
+        accuracyPct: totalResponses === 0 ? null : Math.round((correctCount / totalResponses) * 100),
+      }
+    })
+  }, [] as AnalyticsData['quizStats'])
+
   const data: AnalyticsData = {
     cohortTotal: cohortSize,
     readiness: {
@@ -158,6 +187,7 @@ export default async function AnalyticsPage({ params }: PageProps) {
     })),
     totalQuestions: questions.totalQuestions,
     mcqs: prep.mcqs.map((m) => ({ id: m.id, q: m.q, optionCount: m.options.length })),
+    quizStats: quizResponseStats,
     engagement: {
       participants: engagement.participants,
       chat: engagement.recentChat,

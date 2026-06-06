@@ -18,6 +18,7 @@ import {
   pickAvailableUsername,
 } from './auth-service';
 import { canonicaliseMobile } from '@/lib/validation/primitives';
+import { assertCanGrantAdmin } from './admin-limits';
 import { audit, AUDIT_EVENTS } from './audit';
 import { emit } from './notifications-service';
 import { InvitationStatus, UserStatus, type Role } from '@prisma/client';
@@ -86,6 +87,12 @@ export async function createInvitation(args: CreateArgs) {
   });
   if (livePending) {
     throw new Error('PENDING_INVITE_EXISTS');
+  }
+
+  // Admin-count guard: block creating an ADMIN invite once active admins +
+  // outstanding admin invites would meet the cap. Throws AdminLimitError.
+  if (args.role === 'ADMIN') {
+    await assertCanGrantAdmin({ includePendingInvites: true });
   }
 
   // Mobile is a unique login identifier (multi-identifier login). Catch
@@ -369,6 +376,12 @@ export async function acceptInvitation(
 
   const existingUser = await db.user.findUnique({ where: { email: inv.email } });
   if (existingUser) throw new Error('USER_EXISTS');
+
+  // Re-check the admin cap at accept time: slots may have filled (or freed) in
+  // the window between sending the admin invite and the invitee accepting it.
+  if (inv.role === 'ADMIN') {
+    await assertCanGrantAdmin();
+  }
 
   // figure out which program this new user lands in. Order:
   //   1. Cohort's program (if cohortId on the invitation)

@@ -9,7 +9,7 @@ export default async function InboxPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
         <p className="text-sm text-muted-foreground">
           Session updates, learning milestones, recordings, and more.
         </p>

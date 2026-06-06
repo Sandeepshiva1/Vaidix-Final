@@ -22,21 +22,18 @@
 import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authConfig, isPublicPath } from './auth.config';
-import { decodeId, encodeId } from '@/lib/secure-id';
+import { decodeId } from '@/lib/secure-id';
 
 const { auth } = NextAuth(authConfig);
 
 // ── Opaque-URL config (merged from the former src/middleware.ts) ──────────────
-// Shape of a Prisma cuid() — used to tell "this segment is a real id worth
-// canonicalising to opaque" from route literals like `new`, `pending`, `bulk`.
-const CUID = /^c[a-z0-9]{20,32}$/;
-
-// seg = 0-based index of the id within pathname.split('/'); api routes are
-// rewrite-only (never redirect — clients expect a direct response).
-const ID_ROUTES: { test: RegExp; seg: number; api: boolean }[] = [
-  { test: /^\/session\//, seg: 2, api: false },                    // /session/<id>/...
-  { test: /^\/classroom\//, seg: 2, api: false },                  // /classroom/<id>/...
-  { test: /^\/api\/classroom\/sessions\//, seg: 4, api: true },    // /api/classroom/sessions/<id>/...
+// seg = 0-based index of the id within pathname.split('/'). REWRITE-ONLY: a
+// valid opaque token is served internally as its real id; everything else passes
+// through untouched. We never redirect here (see the loop note in step 3).
+const ID_ROUTES: { test: RegExp; seg: number }[] = [
+  { test: /^\/session\//, seg: 2 },                    // /session/<id>/...
+  { test: /^\/classroom\//, seg: 2 },                  // /classroom/<id>/...
+  { test: /^\/api\/classroom\/sessions\//, seg: 4 },   // /api/classroom/sessions/<id>/...
 ];
 
 const CSRF_COOKIE_NAME = 'vaidix-csrf';
@@ -109,11 +106,17 @@ export default auth((req) => {
     return NextResponse.redirect(signInUrl);
   }
 
-  // 3. Opaque-URL rewriting (merged from the former src/middleware.ts). For the
-  //    id-bearing route families:
+  // 3. Opaque-URL rewriting — REWRITE-ONLY, never redirect. For the id-bearing
+  //    route families:
   //      • valid opaque token  → rewrite INTERNALLY to the real id (URL stays opaque)
-  //      • raw cuid on a page  → 307-redirect to the opaque form (GET only)
-  //      • tampered token      → passes through verbatim; the route's lookup 404s
+  //      • raw id / tampered    → pass through verbatim; a tampered token then
+  //                               404s at the route's own lookup.
+  //
+  //    We do NOT redirect raw ids to their opaque form. The app already performs
+  //    its own redirects using raw ids (auth callbackUrl, canonical
+  //    self-redirects, etc.); pairing those with a raw→opaque redirect here
+  //    produced an infinite loop (ERR_TOO_MANY_REDIRECTS). Opaque URLs are
+  //    instead introduced by encoding links at their source.
   for (const route of ID_ROUTES) {
     if (!route.test.test(pathname)) continue;
     const parts = pathname.split('/');
@@ -127,15 +130,6 @@ export default auth((req) => {
       const url = req.nextUrl.clone();
       url.pathname = parts.join('/');
       return NextResponse.rewrite(url);
-    }
-
-    // raw id on a navigable page route → bounce to the opaque URL. GET only,
-    // so POSTs / Server Actions are never redirected mid-flight.
-    if (!route.api && req.method === 'GET' && CUID.test(seg)) {
-      parts[route.seg] = encodeId(seg);
-      const url = req.nextUrl.clone();
-      url.pathname = parts.join('/');
-      return NextResponse.redirect(url);
     }
     break;
   }

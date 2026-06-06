@@ -172,6 +172,17 @@
   }
 }
 
+/* PPT-style contenteditable placeholder — shows via ::before when element is empty */
+@layer base {
+  [data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    opacity: 0.38;
+    pointer-events: none;
+    font-style: normal;
+    font-weight: inherit;
+  }
+}
+
 /* Glassmorphism utility */
 @layer utilities {
   .glass {

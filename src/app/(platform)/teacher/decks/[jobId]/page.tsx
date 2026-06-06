@@ -9,6 +9,7 @@ import { Role } from '@prisma/client';
 import { DeckEditorClient } from './deck-editor-client';
 import { isRouterV2 } from '@/server/services/decks/deck-analyze-service';
 import { presignDownload } from '@/lib/storage';
+import { asSlideOverlay } from '@/lib/deck-overlay';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,12 +71,14 @@ export default async function FacultyDeckEditorPage({
           imageS3Key: s.imageS3Key,
           imageUrl: s.imageS3Key ? await presignDownload(s.imageS3Key, 1800) : null,
           sourceImageUrl: s.sourceImageS3Key ? await presignDownload(s.sourceImageS3Key, 1800) : null,
+          overlay: asSlideOverlay(s.overlayJson),
         })),
       )}
       initialAnalysis={isRouterV2(job.analysisResult) ? job.analysisResult : null}
       initialTheme={job.template}
       initialBackgroundHex={job.backgroundHex}
       importMode={job.importMode}
+      documentId={job.document?.id ?? null}
     />
   );
 }
