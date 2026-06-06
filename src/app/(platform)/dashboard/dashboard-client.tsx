@@ -9,6 +9,7 @@
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useMemo, useState } from 'react'
+import { formatLocalDate, formatLocalTime, useMounted } from '@/lib/local-datetime'
 import {
   Bell, BookOpen, CalendarDays, Check, CheckCircle2, Clock3, Link2,
   Pencil, Plus, Sparkles, TrendingUp, Video,
@@ -155,6 +156,12 @@ export function DashboardClient({ sessions, stats, greetingName }: { sessions: D
   // Snapshot "now" at mount so the past/future split and time-window are stable
   // across renders (avoids re-filtering on every keystroke elsewhere).
   const [nowMs] = useState(() => Date.now())
+  // Once mounted, render each session's date/time in the VIEWER's timezone from
+  // the raw `startsAt` instant. Before mount we keep the server-rendered
+  // `date`/`time` strings so SSR and first paint match (no hydration mismatch);
+  // on a UTC-hosted server they then correct to the user's local zone — fixing
+  // "scheduled 4 PM shows as 10:30 AM".
+  const mounted = useMounted()
 
   const liveSession = useMemo(() => sessions.find((s) => s.stage === 'LIVE') ?? null, [sessions])
   // Main "Your sessions" grid shows ONLY genuinely upcoming or live sessions:
@@ -260,8 +267,8 @@ export function DashboardClient({ sessions, stats, greetingName }: { sessions: D
                 </div>
                 {/* Meta — date · time · duration, aligned left */}
                 <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12.5px]">
-                  <span className="inline-flex items-center gap-1.5 text-muted-foreground"><CalendarDays className="size-3.5" /><span className="font-semibold text-foreground">{fmtDate(s.date)}</span></span>
-                  <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Clock3 className="size-3.5" /><span className="font-semibold text-foreground">{s.time}</span></span>
+                  <span className="inline-flex items-center gap-1.5 text-muted-foreground"><CalendarDays className="size-3.5" /><span className="font-semibold text-foreground">{mounted ? formatLocalDate(s.startsAt) : fmtDate(s.date)}</span></span>
+                  <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Clock3 className="size-3.5" /><span className="font-semibold text-foreground">{mounted ? formatLocalTime(s.startsAt) : s.time}</span></span>
                   <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Clock3 className="size-3.5 opacity-0" /><span className="font-semibold text-foreground">{s.duration} min</span></span>
                 </div>
 

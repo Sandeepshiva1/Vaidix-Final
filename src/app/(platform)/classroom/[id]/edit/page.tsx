@@ -23,14 +23,6 @@ const SESSION_TYPE_LABEL: Record<SessionType, ClassroomEditInit['type']> = {
   ASSESSMENT: 'Clinical Teaching',
 }
 
-// Date → `YYYY-MM-DDTHH:mm` in the server's local time (the format the
-// DateTimePicker reads). In dev the server shares the user's timezone; for a
-// UTC prod host this is a known follow-up (pass ISO + convert client-side).
-function toLocalInput(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 // Light RRULE parse → the wizard's recurrence shape (no rrule dep needed here).
 function parseRecurrence(rule: string | null): ClassroomEditInit['recurrence'] {
   if (!rule) return null
@@ -124,7 +116,7 @@ export default async function EditSessionPage({ params }: PageProps) {
     subSpecialty,
     cohortId: s.cohortId ?? '',
     description: s.description ?? '',
-    startAtLocal: toLocalInput(s.scheduledStart),
+    startAtISO: s.scheduledStart.toISOString(),
     durationMinutes: Math.max(15, Math.round((s.scheduledEnd.getTime() - s.scheduledStart.getTime()) / 60000)),
     type: SESSION_TYPE_LABEL[s.sessionType],
     roles,

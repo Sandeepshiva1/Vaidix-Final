@@ -302,7 +302,7 @@ export interface ClassroomEditInit {
   subSpecialty: string
   cohortId: string
   description: string
-  startAtLocal: string // YYYY-MM-DDTHH:mm (local)
+  startAtISO: string // stored UTC instant; converted to a local picker string client-side
   durationMinutes: number
   type: SessionTypeLabel
   roles: { role: Role; user: PickableUser }[]
@@ -332,9 +332,17 @@ function ClassroomForm({
   const [subSpecialty, setSubSpecialty] = useState(e0?.subSpecialty ?? '')
   const [cohort, setCohort] = useState(e0?.cohortId ?? '')
   const [description, setDescription] = useState(e0?.description ?? '')
-  const [startAt, setStartAt] = useState(e0?.startAtLocal ?? defaultStart())
+  // New sessions default to the next slot (local). Edit sessions start empty and
+  // are filled from the stored UTC instant after mount (effect below), so the
+  // UTC→local conversion runs in the BROWSER's timezone — matching the save path
+  // (`new Date(startAt).toISOString()`) — instead of the server's. Doing it on
+  // the server (a UTC host) shifted the time by the offset on every edit.
+  const [startAt, setStartAt] = useState(e0 ? '' : defaultStart())
   // Snapshot "now" at mount so the picker's past-floor doesn't jitter per render.
   const [minStart] = useState(nowLocalInput)
+  useEffect(() => {
+    if (e0?.startAtISO) setStartAt(toLocalInput(new Date(e0.startAtISO)))
+  }, [e0?.startAtISO])
   // Resolve the timezone client-side (after mount) to avoid an SSR/CSR mismatch.
   const [tzLabel, setTzLabel] = useState('')
   // eslint-disable-next-line react-hooks/set-state-in-effect
