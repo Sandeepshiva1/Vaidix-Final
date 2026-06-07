@@ -3,8 +3,8 @@ import { Mail, Phone, AtSign, ShieldCheck, Calendar, GraduationCap, Building2, L
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { AvatarEditor } from './avatar-editor'
 import { ROLE_LABELS } from '@/lib/constants'
 import { mapPrismaRoleToUserRole } from '@/lib/identity'
 import { PageTransition, StaggerItem } from '@/lib/motion'
@@ -71,11 +71,11 @@ export default async function ProfilePage() {
       <StaggerItem>
         <Card>
           <CardContent className="flex flex-col items-start gap-4 pt-6 sm:flex-row sm:items-center">
-            <Avatar size="lg" className="ring-2 ring-primary/20">
-              <AvatarFallback className="bg-linear-to-br from-teal-500 to-blue-600 text-base font-semibold text-white">
-                {initials(user.name)}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarEditor
+              initialAvatarUrl={user.avatarUrl}
+              name={user.name}
+              initials={initials(user.name)}
+            />
             <div className="flex-1">
               <h1 className="text-xl font-bold tracking-tight">{user.name}</h1>
               <p className="text-sm text-muted-foreground">{ROLE_LABELS[role]}</p>
