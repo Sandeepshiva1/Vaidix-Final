@@ -84,10 +84,13 @@ export class SarvamTranscriptionProvider implements TranscriptionProvider {
     );
 
     // If Sarvam didn't return diarized segments, fall back to a single segment.
+    // Estimate duration from word count (~130 wpm average speaking pace).
     if (segments.length === 0 && json.transcript) {
+      const wordCount = json.transcript.trim().split(/\s+/).length;
+      const estimatedEndSec = Math.max(1, Math.round((wordCount / 130) * 60));
       segments.push({
         startSec: 0,
-        endSec: 0, // unknown without diarization
+        endSec: estimatedEndSec,
         text: json.transcript,
         lang: json.language_code?.slice(0, 2) ?? 'en',
       });
