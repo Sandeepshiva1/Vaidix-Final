@@ -9,8 +9,9 @@
 //   { state: 'WAITING', admissionId }           — request admission, poll
 //   { state: 'DENIED', reason }                 — admission previously denied
 //
-// Share-token query param bypasses visibility into the waiting-room path.
+// Share-token POST body field bypasses visibility into the waiting-room path.
 
+import { z } from 'zod';
 import { jsonOk, jsonError, requireAuth, handleUnexpected } from '@/server/services/api-helpers';
 import { getEffectiveSessionRole, verifyShareToken } from '@/server/services/session-service';
 import { requestAdmission, getAdmissionStatus } from '@/server/services/admission-service';
@@ -26,8 +27,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const { user } = gate;
 
     const { id: sessionId } = await ctx.params;
-    const url = new URL(req.url);
-    const shareToken = url.searchParams.get('t');
+
+    let shareToken: string | null = null;
+    try {
+      const raw = await req.text();
+      if (raw) {
+        const bodySchema = z.object({ shareToken: z.string().max(128).optional() });
+        const parsed = bodySchema.safeParse(JSON.parse(raw));
+        if (parsed.success) shareToken = parsed.data.shareToken ?? null;
+      }
+    } catch {
+      // Malformed or empty body — treat as no shareToken.
+    }
 
     // DB-authoritative display name. Auth.js's session.user.name can be
     // stale on legacy JWTs, but the User table always carries a non-null

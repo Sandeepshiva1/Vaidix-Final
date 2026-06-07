@@ -10,7 +10,7 @@
 //   HOST/CO_HOST only. Lists registrations for marketing / attendance.
 
 import { z } from 'zod';
-import { randomBytes } from 'node:crypto';
+import { mintToken, hashToken } from '@/server/services/tokens';
 import {
   handleUnexpected,
   jsonError,
@@ -62,7 +62,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return jsonError('CONFLICT', 'Session is not a webinar', 409);
     }
 
-    const confirmToken = randomBytes(24).toString('hex');
+    const confirmToken = mintToken(24);
+    const confirmTokenHash = hashToken(confirmToken);
     const emailLower = body.data.email.toLowerCase();
 
     // Idempotent on (sessionId, email): a re-register refreshes the token
@@ -78,7 +79,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         roleTitle: body.data.roleTitle ?? null,
         source: body.data.source ?? null,
         consented: true,
-        confirmToken,
+        confirmTokenHash,
       },
       update: {
         name: body.data.name,
@@ -86,7 +87,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         roleTitle: body.data.roleTitle ?? null,
         source: body.data.source ?? null,
         consented: true,
-        confirmToken,
+        confirmTokenHash,
         confirmedAt: null,
       },
     });

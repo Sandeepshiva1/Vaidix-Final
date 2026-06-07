@@ -1,6 +1,7 @@
 // public share resolver
 // GET /api/recordings/share/[token] — used by the public viewer page.
-// Optional `?p=<password>` query param, OR JSON POST body for password forms.
+// Password-protected shares: submit password via JSON POST body only.
+// GET does not accept credentials to prevent exposure in access logs.
 // Always logged (success + failure) to RecordingShareAccess + AuditEvent.
 
 import {
@@ -59,15 +60,14 @@ function mapErr(err: unknown): Response | null {
   }
 }
 
+// GET does not accept a password — submit passwords via POST with a JSON body.
+// Accepting ?p=<password> in a GET would expose credentials in server access
+// logs and browser history.
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await ctx.params;
-    const url = new URL(req.url);
-    const password = url.searchParams.get('p') ?? undefined;
     const meta = extractRequestMetadata(req);
-    const throttled = await guardSharePassword(token, password, meta.ipAddress);
-    if (throttled) return throttled;
-    const result = await accessShare(token, password, meta);
+    const result = await accessShare(token, undefined, meta);
     return jsonOk(result);
   } catch (err) {
     return mapErr(err) ?? handleUnexpected(err);

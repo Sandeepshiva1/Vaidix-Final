@@ -3825,10 +3825,11 @@ model WebinarRegistration {
   name         String
   organisation String?
   roleTitle    String?
-  /// Set once the registrant clicks the email confirmation link. The token is
-  /// random and single-use; once confirmed the invite is created and the user
-  /// is auto-provisioned (or matched by existing email).
-  confirmToken String    @unique
+  /// SHA-256 hash of the email confirmation token. The raw token is sent in
+  /// the confirmation email link; only its hash is stored so a DB dump cannot
+  /// be used to confirm registrations. The hash persists; confirmedAt is the
+  /// guard against double-confirmation.
+  confirmTokenHash String    @unique
   confirmedAt  DateTime?
   /// Linked to a User row once the webinar registrant signs in or is auto-
   /// provisioned. Nullable for registrations that never confirmed.

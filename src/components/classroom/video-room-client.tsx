@@ -164,9 +164,12 @@ async function jsonFetch<T>(input: string, init?: RequestInit): Promise<T> {
  */
 export const defaultLmsVideoRoomClient: VideoRoomClient = {
   async getToken(sessionId, opts) {
-    const url = new URL(`/api/classroom/sessions/${sessionId}/token`, window.location.origin)
-    if (opts?.shareToken) url.searchParams.set('t', opts.shareToken)
-    return jsonFetch<TokenResult>(url.toString(), { method: 'POST' })
+    const url = `/api/classroom/sessions/${sessionId}/token`
+    return jsonFetch<TokenResult>(url, {
+      method: 'POST',
+      body: opts?.shareToken ? JSON.stringify({ shareToken: opts.shareToken }) : undefined,
+      headers: opts?.shareToken ? { 'Content-Type': 'application/json' } : undefined,
+    })
   },
 
   async loadChat(sessionId, limit = 100) {
