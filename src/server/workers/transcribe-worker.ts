@@ -80,7 +80,7 @@ async function transcribeAudio(
   sessionId: string,
   recordingId: string
 ): Promise<TranscriptionResult> {
-  const diarize = provider.name === 'self_hosted'; // Sarvam real-time API rejects diarization
+  const diarize = true; // Sarvam batch endpoint supports diarization + timestamps
   const durationSec = await audioDurationSec(audioPath);
 
   // Short enough for a single request — unchanged fast path.

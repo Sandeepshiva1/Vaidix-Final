@@ -43,6 +43,7 @@ export class SelfHostedTranscriptionProvider implements TranscriptionProvider {
         diarize: input.diarize ?? true,
         initialPrompt: input.initialPrompt,
       }),
+      signal: AbortSignal.timeout(300_000), // 5-min ceiling for GPU inference
     });
 
     if (!res.ok) {

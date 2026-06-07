@@ -120,13 +120,17 @@ async def _run_track_stt(
     transcripts to /live-captions/ingest tagged with the speaker's display
     name + LiveKit identity.
     """
+    # endpointing=100ms: Deepgram finalises an utterance after 100ms of silence
+    # instead of the ~300ms default. Cuts FINAL_TRANSCRIPT latency by ~200ms.
+    # smart_format removed: it buffers the full utterance to reformat numbers
+    # and punctuation, adding latency with no benefit for a live overlay.
     dg = deepgram.STT(
         api_key=DEEPGRAM_API_KEY,
         model=DEEPGRAM_MODEL,
         language=LANGUAGE,
         interim_results=True,
-        smart_format=True,
         punctuate=True,
+        endpointing=100,
     )
 
     audio_stream = rtc.AudioStream(track)
@@ -136,6 +140,24 @@ async def _run_track_stt(
     speaker_name = participant.name or participant.identity
     speaker_identity = participant.identity
 
+    def _segment_ms(alt: object) -> tuple[int, int]:
+        """Return (startMs, endMs) using Deepgram's word-level timing when
+        available, falling back to wall-clock if not.  Deepgram sets
+        end_time=0 when no words were detected (silence frame), so we only
+        trust it when end_time > 0."""
+        end_sec: float = getattr(alt, "end_time", 0.0) or 0.0
+        start_sec: float = getattr(alt, "start_time", 0.0) or 0.0
+        if end_sec > 0:
+            start_ms = int(start_sec * 1000)
+            end_ms = max(int(end_sec * 1000), start_ms + 50)
+            return start_ms, end_ms
+        # Fallback: approximate from wall clock and word count.
+        text = getattr(alt, "text", "") or ""
+        now_ms = int((time.monotonic() - track_start) * 1000)
+        word_count = max(1, len(text.split()))
+        start_ms = max(0, now_ms - word_count * 380)  # ~158 wpm
+        return start_ms, now_ms
+
     async def _pump_audio() -> None:
         try:
             async for ev in audio_stream:
@@ -144,17 +166,28 @@ async def _run_track_stt(
             stt_stream.end_input()
 
     async def _drain_events() -> None:
+        # Throttle partial (INTERIM) POSTs: Deepgram fires them on every
+        # decoded frame (~20ms), so posting every one would generate ~50
+        # HTTP calls/sec per speaker and saturate the ingest endpoint.
+        # One partial per 300ms is plenty for a smooth overlay.
+        last_partial_post: float = 0.0
+        PARTIAL_THROTTLE_S = 0.3
+
         try:
             async for ev in stt_stream:
                 if ev.type == stt.SpeechEventType.INTERIM_TRANSCRIPT:
+                    now = time.monotonic()
+                    if now - last_partial_post < PARTIAL_THROTTLE_S:
+                        continue
+                    last_partial_post = now
                     text = ev.alternatives[0].text.strip() if ev.alternatives else ""
                     if not text:
                         continue
-                    now_ms = int((time.monotonic() - track_start) * 1000)
+                    start_ms, end_ms = _segment_ms(ev.alternatives[0])
                     await _post_ingest(session_id, {
                         "segments": [{
-                            "startMs": max(0, now_ms - 1500),
-                            "endMs": now_ms,
+                            "startMs": start_ms,
+                            "endMs": end_ms,
                             "text": text[:5000],
                             "lang": LANGUAGE,
                             "speaker": speaker_name,
@@ -169,15 +202,11 @@ async def _run_track_stt(
                     text = alt.text.strip()
                     if not text:
                         continue
-                    now_ms = int((time.monotonic() - track_start) * 1000)
-                    # Deepgram doesn't always report precise utterance start;
-                    # 1.5s look-back is the same window the browser producer
-                    # used. Server-side appendSegment dedupes on exact
-                    # (startMs, endMs, text) within the last 10 rows.
+                    start_ms, end_ms = _segment_ms(alt)
                     await _post_ingest(session_id, {
                         "segments": [{
-                            "startMs": max(0, now_ms - 1500),
-                            "endMs": now_ms,
+                            "startMs": start_ms,
+                            "endMs": end_ms,
                             "text": text[:5000],
                             "lang": LANGUAGE,
                             "speaker": speaker_name,
