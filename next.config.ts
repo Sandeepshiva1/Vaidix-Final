@@ -12,10 +12,24 @@ import path from "path";
 // reconstruction; the production build never does. So we only relax script-src
 // with 'unsafe-eval' in development — prod stays tight.
 const isDev = process.env.NODE_ENV !== 'production';
-// Local dev serves S3 media from MinIO over http://localhost:9000. Prod serves
-// S3/CloudFront over https (already covered by the `https:` source), so this
-// origin is only whitelisted in development — prod CSP stays tight.
-const devS3 = isDev ? ' http://localhost:9000' : '';
+// Slide/avatar/promo media is served as presigned URLs signed against the
+// browser-facing S3 endpoint (S3_PUBLIC_ENDPOINT, falling back to S3_ENDPOINT).
+// Locally that's MinIO over http://localhost:9000 — and crucially it stays http
+// even when the app is run via `next build && next start` (NODE_ENV=production),
+// so we MUST whitelist it by actual endpoint, not by NODE_ENV. Real prod points
+// these at an https CloudFront/S3 domain, already covered by the `https:`
+// source, so this only ever adds an insecure (http://) origin in local setups —
+// prod CSP stays tight. https endpoints contribute nothing (the empty string).
+function s3MediaOrigin(): string {
+  const raw = process.env.S3_PUBLIC_ENDPOINT || process.env.S3_ENDPOINT || '';
+  try {
+    const { protocol, origin } = new URL(raw);
+    return protocol === 'http:' ? ` ${origin}` : '';
+  } catch {
+    return '';
+  }
+}
+const devS3 = s3MediaOrigin();
 // Local dev runs the LiveKit SFU over ws://localhost:7880 (signal) + http for
 // the /rtc/v1/validate fetch. Prod uses wss:// (already covered by `wss:`), so
 // these insecure origins are dev-only on connect-src — prod CSP stays tight.
@@ -23,7 +37,11 @@ const devConnect = isDev ? ' http://localhost:9000 ws://localhost:7880 http://lo
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
+  // The deck editor loads its slide fonts (Inter + the Google-Fonts family
+  // picker) from fonts.googleapis.com (the @font-face stylesheet) with the
+  // actual font files on fonts.gstatic.com — whitelist both, else the
+  // stylesheet is CSP-blocked and slides fall back to the system font.
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   `img-src 'self' data: blob: https:${devS3}`,
   `media-src 'self' blob: https:${devS3}`,
   // The shared whiteboard (tldraw) loads its UI + drawing fonts from its
@@ -33,7 +51,7 @@ const csp = [
   // Scope the exception to tldraw's host instead of opening font-src to all
   // https. (Self-hosting tldraw assets under /public is the zero-external-
   // dependency hardening if a future review wants no third-party origin.)
-  "font-src 'self' data: https://cdn.tldraw.com",
+  "font-src 'self' data: https://fonts.gstatic.com https://cdn.tldraw.com",
   `connect-src 'self' https: wss:${devConnect}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",

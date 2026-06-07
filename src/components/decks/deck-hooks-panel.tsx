@@ -22,6 +22,7 @@ import {
   MessageSquare,
   RefreshCw,
   Stethoscope,
+  Sparkles,
 } from 'lucide-react';
 import type { LiveHookKind } from '@prisma/client';
 import { csrfHeaders } from '@/lib/csrf-client';
@@ -37,9 +38,21 @@ interface ListedHook {
 }
 
 interface Props {
+  /** Deck forge job — used by the AI "Suggest" call to load slide content server-side. */
+  jobId: string;
   sessionId: string | null;
+  /** Focused slide id — the AI grounds drafts in this slide's content. */
+  activeSlideId: string | null;
   /** 0-based order of the focused slide, for the "for slide N" label only. */
   activeSlideOrder: number | null;
+}
+
+/** A Gemini-drafted hook awaiting the presenter's review (not yet persisted). */
+interface SuggestedDraft {
+  kind: LiveHookKind;
+  prompt: string;
+  options: string[] | null;
+  correctOption: string | null;
 }
 
 const KIND_OPTIONS: {
@@ -55,7 +68,7 @@ const KIND_OPTIONS: {
   { kind: 'DILEMMA', label: 'Clinical dilemma', Icon: Stethoscope, needsOptions: false },
 ];
 
-export function DeckHooksPanel({ sessionId, activeSlideOrder }: Props) {
+export function DeckHooksPanel({ jobId, sessionId, activeSlideId, activeSlideOrder }: Props) {
   const [hooks, setHooks] = useState<ListedHook[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [kind, setKind] = useState<LiveHookKind>('POLL');
@@ -63,6 +76,11 @@ export function DeckHooksPanel({ sessionId, activeSlideOrder }: Props) {
   const [options, setOptions] = useState<string[]>(['', '']);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // ── AI suggest state ──────────────────────────────────────────────────────
+  const [suggesting, setSuggesting] = useState(false);
+  const [drafts, setDrafts] = useState<SuggestedDraft[]>([]);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [addingDraftIdx, setAddingDraftIdx] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!sessionId) return;
@@ -83,6 +101,26 @@ export function DeckHooksPanel({ sessionId, activeSlideOrder }: Props) {
 
   const needsOptions = KIND_OPTIONS.find((k) => k.kind === kind)?.needsOptions ?? false;
 
+  // Shared POST → create one hook against the session. Throws on failure.
+  const postHook = useCallback(
+    async (payload: { kind: LiveHookKind; prompt: string; options?: string[]; correctOption?: string | null }) => {
+      if (!sessionId) return;
+      const body: Record<string, unknown> = { kind: payload.kind, prompt: payload.prompt.trim() };
+      if (payload.options && payload.options.length > 0) body.options = payload.options;
+      if (payload.correctOption) body.correctOption = payload.correctOption;
+      const res = await fetch(`/api/classroom/sessions/${sessionId}/hooks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: { message: string } };
+      if (res.status === 403) throw new Error('Only the session host (or PD/admin) can add hooks.');
+      if (!res.ok || !json.ok) throw new Error(json.error?.message ?? `Failed (${res.status})`);
+    },
+    [sessionId],
+  );
+
   async function save() {
     if (!sessionId || prompt.trim().length < 1 || saving) return;
     const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
@@ -93,18 +131,11 @@ export function DeckHooksPanel({ sessionId, activeSlideOrder }: Props) {
     setSaving(true);
     setSaveError(null);
     try {
-      const body: Record<string, unknown> = { kind, prompt: prompt.trim() };
-      if (needsOptions) body.options = cleanOptions;
-      else if (kind === 'TRUE_FALSE') body.options = ['True', 'False'];
-      const res = await fetch(`/api/classroom/sessions/${sessionId}/hooks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
-        credentials: 'include',
-        body: JSON.stringify(body),
+      await postHook({
+        kind,
+        prompt,
+        options: needsOptions ? cleanOptions : kind === 'TRUE_FALSE' ? ['True', 'False'] : undefined,
       });
-      const json = (await res.json()) as { ok: boolean; error?: { message: string } };
-      if (res.status === 403) throw new Error('Only the session host (or PD/admin) can add hooks.');
-      if (!res.ok || !json.ok) throw new Error(json.error?.message ?? `Failed (${res.status})`);
       setPrompt('');
       setOptions(['', '']);
       await load();
@@ -112,6 +143,65 @@ export function DeckHooksPanel({ sessionId, activeSlideOrder }: Props) {
       setSaveError((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ── AI suggest: Gemini drafts hooks grounded in the focused slide ──────────
+  async function suggestWithAi() {
+    if (!activeSlideId || suggesting) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const res = await fetch(`/api/decks/${jobId}/suggest-hooks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        credentials: 'include',
+        body: JSON.stringify({ slideId: activeSlideId }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { hooks: SuggestedDraft[] };
+        error?: { message: string };
+      };
+      if (!res.ok || !json.ok || !json.data) throw new Error(json.error?.message ?? `Failed (${res.status})`);
+      setDrafts(json.data.hooks);
+      if (json.data.hooks.length === 0) {
+        setSuggestError('No hooks could be drafted for this slide — add more detail to it.');
+      }
+    } catch (err) {
+      setSuggestError((err as Error).message);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  const editDraftPrompt = (i: number, value: string) =>
+    setDrafts((prev) => prev.map((d, j) => (j === i ? { ...d, prompt: value } : d)));
+
+  const dismissDraft = (i: number) => setDrafts((prev) => prev.filter((_, j) => j !== i));
+
+  // Load a draft into the composer so the presenter can tweak options before adding.
+  const loadDraftIntoComposer = (d: SuggestedDraft) => {
+    setKind(d.kind);
+    setPrompt(d.prompt);
+    setOptions(d.options && d.options.length > 0 ? [...d.options] : ['', '']);
+    setSaveError(null);
+  };
+
+  // Add a draft directly (skips the composer).
+  async function addDraft(i: number) {
+    const d = drafts[i];
+    if (!d || !d.prompt.trim() || addingDraftIdx !== null) return;
+    setAddingDraftIdx(i);
+    setSuggestError(null);
+    try {
+      await postHook({ kind: d.kind, prompt: d.prompt, options: d.options ?? undefined, correctOption: d.correctOption });
+      dismissDraft(i);
+      await load();
+    } catch (err) {
+      setSuggestError((err as Error).message);
+    } finally {
+      setAddingDraftIdx(null);
     }
   }
 
@@ -140,6 +230,96 @@ export function DeckHooksPanel({ sessionId, activeSlideOrder }: Props) {
             <span className="font-normal text-muted-foreground">· for slide {activeSlideOrder + 1}</span>
           )}
         </div>
+
+        {/* AI suggest — drafts grounded in the focused slide */}
+        <button
+          type="button"
+          onClick={suggestWithAi}
+          disabled={suggesting || !activeSlideId}
+          title={!activeSlideId ? 'Focus a slide first' : undefined}
+          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-linear-to-r from-indigo-500 to-violet-500 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          data-testid="hook-ai-suggest"
+        >
+          {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {suggesting
+            ? 'Drafting…'
+            : drafts.length > 0
+              ? 'Regenerate with AI'
+              : activeSlideOrder != null
+                ? `Suggest hooks for slide ${activeSlideOrder + 1}`
+                : 'Suggest hooks with AI'}
+        </button>
+
+        {suggestError && (
+          <div className="mt-2 flex items-start gap-1.5 rounded-md bg-rose-500/10 px-2.5 py-2 text-[11px] text-rose-700 dark:text-rose-300">
+            <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>{suggestError}</span>
+          </div>
+        )}
+
+        {drafts.length > 0 && (
+          <div className="mt-2 space-y-2 rounded-lg border border-indigo-500/25 bg-indigo-500/4 p-2" data-testid="hook-ai-drafts">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+              <Sparkles className="h-3 w-3" /> AI drafts — edit, then add
+            </div>
+            {drafts.map((d, i) => {
+              const meta = KIND_OPTIONS.find((k) => k.kind === d.kind);
+              const DIcon = meta?.Icon ?? Zap;
+              return (
+                <div key={i} className="space-y-1.5 rounded-md border border-border bg-background p-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                      <DIcon className="h-3 w-3" /> {meta?.label ?? d.kind}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => dismissDraft(i)}
+                      className="ml-auto text-muted-foreground hover:text-rose-600"
+                      aria-label="Dismiss draft"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <textarea
+                    value={d.prompt}
+                    onChange={(e) => editDraftPrompt(i, e.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[11px]"
+                  />
+                  {d.options && d.options.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {d.options.map((o, j) => (
+                        <span key={j} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {o}
+                          {d.correctOption === o ? ' ✓' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => addDraft(i)}
+                      disabled={addingDraftIdx !== null}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-amber-500 py-1.5 text-[11px] font-semibold text-white transition hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      {addingDraftIdx === i ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => loadDraftIntoComposer(d)}
+                      className="rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition hover:text-foreground"
+                      title="Load into the composer below to tweak before adding"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-2 flex flex-wrap gap-1.5">
           {KIND_OPTIONS.map((k) => {

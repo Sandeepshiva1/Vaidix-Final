@@ -17,6 +17,7 @@ import { promises as fs } from 'node:fs';
 import {
   DeckForgeStatus,
   DeckForgeSource,
+  DeckImportMode,
   SlideLayout,
   DocumentKind,
   type Prisma,
@@ -332,6 +333,11 @@ async function generateAndPersistSlides(args: {
    *  fall back to Gemini if Opus is unavailable. Later in-editor enhancement
    *  stays on Gemini. Only honoured when every part is text (no inline files). */
   preferOpus?: boolean;
+  /** In-place regenerate (e.g. VERBATIM → editable): atomically drop the deck's
+   *  existing slides before inserting the new ones and flip importMode back to
+   *  AI_GENERATED. The AI call runs BEFORE the swap transaction, so a provider
+   *  failure leaves the original slides untouched. */
+  replaceExisting?: boolean;
 }): Promise<ForgeOutcome> {
   const { jobId, userParts } = args;
 
@@ -396,6 +402,12 @@ async function generateAndPersistSlides(args: {
   }));
 
   await db.$transaction(async (tx) => {
+    if (args.replaceExisting) {
+      // Drop the old slides first so the new editable rows don't collide on the
+      // @@unique([deckForgeJobId, order]) constraint. Done inside the same
+      // transaction as the insert so the deck is never left empty.
+      await tx.slide.deleteMany({ where: { deckForgeJobId: jobId } });
+    }
     await tx.slide.createMany({ data: slideRows });
     await tx.deckForgeJob.update({
       where: { id: jobId },
@@ -403,6 +415,10 @@ async function generateAndPersistSlides(args: {
         status: DeckForgeStatus.REVIEW_PENDING,
         slideCount: result.slides.length,
         inputTitle: result.deckTitle,
+        // Regenerate switches a VERBATIM import into a fully-editable deck; the
+        // new slides carry no sourceImageS3Key/overlay so the editor renders the
+        // editable canvas instead of the faithful original.
+        ...(args.replaceExisting ? { importMode: DeckImportMode.AI_GENERATED } : {}),
       },
     });
   });
@@ -599,6 +615,168 @@ async function forgeDeckFromTopic(
   }
 }
 
+type ForgeUserPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+/**
+ * Assemble the multimodal Gemini prompt parts for a document/transcript source.
+ * Extracted so both the from-scratch forge and the in-place "regenerate as
+ * editable" path build the prompt identically (header meta + inlined PDF /
+ * converted office doc / extracted text + transcript). Flips the job to
+ * EXTRACTING while it fetches/converts the source bytes.
+ */
+async function buildForgeUserParts(args: {
+  jobId: string;
+  documentSource: DocumentSource | null;
+  transcriptSource: TranscriptSource | null;
+  learnerLevel?: string;
+}): Promise<ForgeUserPart[]> {
+  const { jobId, documentSource, transcriptSource } = args;
+  const userParts: ForgeUserPart[] = [];
+  const headerLines: string[] = [
+    `Target learner: ${args.learnerLevel ?? 'ophthalmology resident at LVPEI'}`,
+    `Target session length: 60 minutes`,
+  ];
+  if (documentSource) {
+    headerLines.push(`Source title: ${documentSource.title}`);
+    if (documentSource.description) headerLines.push(`Source description: ${documentSource.description}`);
+    headerLines.push(`Source kind: ${documentSource.documentKind}`);
+    if (documentSource.pageCount) headerLines.push(`Source pages: ${documentSource.pageCount}`);
+  }
+  if (transcriptSource) {
+    headerLines.push(`Session: ${transcriptSource.sessionTitle}`);
+    headerLines.push(`Transcript language: ${transcriptSource.language}`);
+  }
+  userParts.push({ text: headerLines.join('\n') });
+
+  if (documentSource && canSendInline(documentSource.mimeType)) {
+    await db.deckForgeJob.update({
+      where: { id: jobId },
+      data: { status: DeckForgeStatus.EXTRACTING },
+    });
+    const { data, mimeType } = await fetchDocumentBytes({
+      s3Key: documentSource.s3Key,
+      documentId: documentSource.documentId,
+      mimeType: documentSource.mimeType,
+    });
+    userParts.push({ inlineData: { mimeType, data } });
+  } else if (documentSource) {
+    // PPTX/DOCX/PPT/DOC/Keynote aren't natively read by Gemini inline. Two
+    // ways to get their content to the model, best-fidelity first:
+    //   (B) Convert to PDF via LibreOffice → inline the PDF (full layout +
+    //       images; the only path that handles Keynote).
+    //   (A) Otherwise extract plain text locally (pptx/docx) and send that.
+    //   Fallback: metadata-only note so we still produce a usable outline.
+    await db.deckForgeJob.update({
+      where: { id: jobId },
+      data: { status: DeckForgeStatus.EXTRACTING },
+    });
+    const { data } = await fetchDocumentBytes({
+      s3Key: documentSource.s3Key,
+      documentId: documentSource.documentId,
+      mimeType: documentSource.mimeType,
+    });
+    const srcBuf = Buffer.from(data, 'base64');
+
+    let handled = false;
+    if (isConvertibleToPdf(documentSource.mimeType)) {
+      const pdf = await convertOfficeToPdf(srcBuf, documentSource.mimeType);
+      if (pdf && pdf.byteLength > 0) {
+        userParts.push({ inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } });
+        handled = true;
+      }
+    }
+    if (!handled && isExtractableOffice(documentSource.mimeType)) {
+      const text = await extractOfficeText(srcBuf, documentSource.mimeType);
+      if (text.trim()) {
+        userParts.push({ text: `--- DOCUMENT CONTENT (extracted) ---\n${text}\n--- END DOCUMENT ---` });
+        handled = true;
+      }
+    }
+    if (!handled) {
+      userParts.push({
+        text: `[Note: source binary type ${documentSource.mimeType} could not be extracted; outlining from title and description only.]`,
+      });
+    }
+  }
+
+  if (transcriptSource) {
+    // Cap transcript to keep token budget sane (~15k chars ≈ 1-hour lecture).
+    const trimmed = transcriptSource.content.slice(0, 15000);
+    userParts.push({
+      text: `--- TRANSCRIPT START ---\n${trimmed}\n--- TRANSCRIPT END ---`,
+    });
+  }
+
+  userParts.push({ text: 'Produce the slide outline JSON now.' });
+  return userParts;
+}
+
+/**
+ * Regenerate an EXISTING deck as a fully-editable AI deck — the editor's
+ * "Convert to editable" action for VERBATIM imports. Re-runs the formatted
+ * generation path against the deck's original source (document and/or
+ * transcript), then atomically replaces the flattened verbatim slides with the
+ * new editable ones and flips importMode → AI_GENERATED. The AI call happens
+ * before the swap, so a provider outage leaves the original deck intact (we only
+ * roll the status back). Destructive: any manual edits to the verbatim slides
+ * are discarded — the caller confirms first.
+ */
+export async function regenerateDeckEditable(args: {
+  jobId: string;
+  requestedById: string;
+}): Promise<ForgeOutcome> {
+  if (!env.GEMINI_API_KEY) {
+    throw new DeckForgeError('AI_UNAVAILABLE', 'GEMINI_API_KEY is not set');
+  }
+
+  const job = await db.deckForgeJob.findUnique({
+    where: { id: args.jobId },
+    select: { id: true, documentId: true, recordingId: true, status: true },
+  });
+  if (!job) throw new DeckForgeError('NOT_FOUND', 'Deck not found');
+
+  const documentSource = job.documentId ? await loadDocumentSource(job.documentId) : null;
+  const transcriptSource = job.recordingId ? await loadTranscriptSource(job.recordingId) : null;
+  if (!documentSource && !transcriptSource) {
+    throw new DeckForgeError(
+      'NO_SOURCE',
+      'This deck has no source document or recording to regenerate from',
+    );
+  }
+
+  const priorStatus = job.status;
+  try {
+    const userParts = await buildForgeUserParts({
+      jobId: job.id,
+      documentSource,
+      transcriptSource,
+    });
+    return await generateAndPersistSlides({
+      jobId: job.id,
+      userParts,
+      documentId: documentSource?.documentId ?? null,
+      recordingId: transcriptSource?.recordingId ?? null,
+      replaceExisting: true,
+    });
+  } catch (err) {
+    if (err instanceof GeminiUnavailableError || err instanceof GeminiUnparseableError) {
+      console.error('[deck-forge] AI provider failure during regenerate', err);
+    }
+    // The slide swap is atomic and runs only on success, so the original deck is
+    // still intact here — just restore its prior status (buildForgeUserParts /
+    // generateAndPersistSlides may have moved it to EXTRACTING/GENERATING_SLIDES).
+    await db.deckForgeJob
+      .update({ where: { id: job.id }, data: { status: priorStatus } })
+      .catch(() => {});
+    if (err instanceof GeminiUnavailableError) {
+      throw new DeckForgeError('AI_UNAVAILABLE', 'The AI deck builder is temporarily unavailable.');
+    }
+    throw err instanceof DeckForgeError
+      ? err
+      : new DeckForgeError('FORGE_FAILED', 'We couldn’t regenerate this deck just now — please try again.');
+  }
+}
+
 /**
  * Orchestrates a forge: load source(s), call Gemini, persist Slide rows under
  * a new DeckForgeJob. Synchronous  — runs inside the request because
@@ -672,84 +850,13 @@ export async function forgeDeck(input: ForgeInput): Promise<ForgeOutcome> {
       }
     }
 
-    // Build the multimodal Gemini prompt.
-    const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
-    const headerLines: string[] = [
-      `Target learner: ${input.learnerLevel ?? 'ophthalmology resident at LVPEI'}`,
-      `Target session length: 60 minutes`,
-    ];
-    if (documentSource) {
-      headerLines.push(`Source title: ${documentSource.title}`);
-      if (documentSource.description) headerLines.push(`Source description: ${documentSource.description}`);
-      headerLines.push(`Source kind: ${documentSource.documentKind}`);
-      if (documentSource.pageCount) headerLines.push(`Source pages: ${documentSource.pageCount}`);
-    }
-    if (transcriptSource) {
-      headerLines.push(`Session: ${transcriptSource.sessionTitle}`);
-      headerLines.push(`Transcript language: ${transcriptSource.language}`);
-    }
-    userParts.push({ text: headerLines.join('\n') });
-
-    if (documentSource && canSendInline(documentSource.mimeType)) {
-      await db.deckForgeJob.update({
-        where: { id: job.id },
-        data: { status: DeckForgeStatus.EXTRACTING },
-      });
-      const { data, mimeType } = await fetchDocumentBytes({
-        s3Key: documentSource.s3Key,
-        documentId: documentSource.documentId,
-        mimeType: documentSource.mimeType,
-      });
-      userParts.push({ inlineData: { mimeType, data } });
-    } else if (documentSource) {
-      // PPTX/DOCX/PPT/DOC/Keynote aren't natively read by Gemini inline. Two
-      // ways to get their content to the model, best-fidelity first:
-      //   (B) Convert to PDF via LibreOffice → inline the PDF (full layout +
-      //       images; the only path that handles Keynote).
-      //   (A) Otherwise extract plain text locally (pptx/docx) and send that.
-      //   Fallback: metadata-only note so we still produce a usable outline.
-      await db.deckForgeJob.update({
-        where: { id: job.id },
-        data: { status: DeckForgeStatus.EXTRACTING },
-      });
-      const { data } = await fetchDocumentBytes({
-        s3Key: documentSource.s3Key,
-        documentId: documentSource.documentId,
-        mimeType: documentSource.mimeType,
-      });
-      const srcBuf = Buffer.from(data, 'base64');
-
-      let handled = false;
-      if (isConvertibleToPdf(documentSource.mimeType)) {
-        const pdf = await convertOfficeToPdf(srcBuf, documentSource.mimeType);
-        if (pdf && pdf.byteLength > 0) {
-          userParts.push({ inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } });
-          handled = true;
-        }
-      }
-      if (!handled && isExtractableOffice(documentSource.mimeType)) {
-        const text = await extractOfficeText(srcBuf, documentSource.mimeType);
-        if (text.trim()) {
-          userParts.push({ text: `--- DOCUMENT CONTENT (extracted) ---\n${text}\n--- END DOCUMENT ---` });
-          handled = true;
-        }
-      }
-      if (!handled) {
-        userParts.push({
-          text: `[Note: source binary type ${documentSource.mimeType} could not be extracted; outlining from title and description only.]`,
-        });
-      }
-    }
-
-    if (transcriptSource) {
-      // Cap transcript to keep token budget sane (~15k chars ≈ 1-hour lecture).
-      const trimmed = transcriptSource.content.slice(0, 15000);
-      userParts.push({
-        text: `--- TRANSCRIPT START ---\n${trimmed}\n--- TRANSCRIPT END ---`,
-      });
-    }
-
-    userParts.push({ text: 'Produce the slide outline JSON now.' });
+    // Build the multimodal Gemini prompt (shared with the regenerate path).
+    const userParts = await buildForgeUserParts({
+      jobId: job.id,
+      documentSource,
+      transcriptSource,
+      learnerLevel: input.learnerLevel,
+    });
 
     return await generateAndPersistSlides({
       jobId: job.id,
