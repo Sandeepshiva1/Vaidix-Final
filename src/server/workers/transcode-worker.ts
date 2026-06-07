@@ -154,7 +154,13 @@ async function transcodeJob(data: TranscodeJobData): Promise<{ recordingId: stri
           '-map', '0:v:0', '-map', '0:a:0?',
           `-c:v:${idx}`, 'libx264', `-b:v:${idx}`, rung.vBitrate,
           `-maxrate:v:${idx}`, rung.vBitrate, `-bufsize:v:${idx}`, rung.vBitrate,
-          `-vf:${idx}`, `scale=-2:${rung.height}`,
+          // Per-output-stream scale MUST be `-filter:v:<idx>`. The `-vf:<idx>`
+          // form is not a valid per-stream specifier — ffmpeg treated it as the
+          // global `-vf`, so the LAST rung's scale (240p) was applied to EVERY
+          // variant. The ladder then produced 5 identical 240p renditions at
+          // different bitrates (no real adaptive quality). `-filter:v:<idx>`
+          // binds the scale to output video stream <idx>.
+          `-filter:v:${idx}`, `scale=-2:${rung.height}`,
           `-c:a:${idx}`, 'aac', `-b:a:${idx}`, rung.aBitrate
         );
         masterEntries.push(`v:${idx},a:${idx}`);

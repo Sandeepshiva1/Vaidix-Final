@@ -9,13 +9,13 @@
 //                  → marks Recording READY (or AI_PROCESSING if pearl-extract follows)
 
 import { spawn } from 'child_process';
-import { mkdtemp, rm, writeFile, readFile } from 'fs/promises';
+import { mkdtemp, rm, writeFile, readFile, readdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
 import { db } from '@/lib/db';
 import { createWorker, QUEUES } from '@/lib/queue';
-import { presignDownload, presignUpload, s3, RECORDINGS_BUCKET } from '@/lib/storage';
+import { presignDownload, s3, RECORDINGS_BUCKET } from '@/lib/storage';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { RecordingStatus } from '@prisma/client';
 import { getTranscriptionProvider, type TranscriptionResult, type TranscriptionSegment } from '@/server/services/transcription';
@@ -34,6 +34,105 @@ function runFfmpeg(args: string[]): Promise<void> {
     child.on('error', reject);
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))));
   });
+}
+
+// Sarvam's realtime speech-to-text-translate endpoint rejects audio longer than
+// 30s ("Audio duration exceeds the maximum limit of 30 seconds"). Real sessions
+// are minutes long, so any recording > 30s previously failed transcription
+// outright (status stuck at TRANSCRIBING_FAILED, no captions/pearls). We chunk
+// the extracted WAV into sub-30s windows, transcribe each, and merge the
+// segments with a per-chunk time offset. Provider-agnostic — self-hosted Whisper
+// has no such cap but chunking is harmless there too.
+const MAX_CHUNK_SEC = 25;
+
+const INITIAL_PROMPT =
+  'Ophthalmology lecture. Common terms: PDR, NVG, OCT, anti-VEGF, ranibizumab, aflibercept, vitrectomy, fundus, retina, glaucoma, DALK, PKP.';
+
+/** Parse audio duration (seconds) from `ffmpeg -i` stderr. Null if unknown. */
+function audioDurationSec(path: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    let stderr = '';
+    const child = spawn(FFMPEG_BIN, ['-hide_banner', '-i', path], { stdio: ['ignore', 'ignore', 'pipe'] });
+    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    child.on('exit', () => {
+      const m = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null);
+    });
+    child.on('error', () => resolve(null));
+  });
+}
+
+async function uploadAndPresignWav(key: string, localPath: string): Promise<string> {
+  await s3.send(
+    new PutObjectCommand({ Bucket: RECORDINGS_BUCKET, Key: key, Body: await readFile(localPath), ContentType: 'audio/wav' })
+  );
+  return presignDownload(key, 3600, RECORDINGS_BUCKET);
+}
+
+/**
+ * Transcribe an extracted WAV, chunking it into <= MAX_CHUNK_SEC windows when it
+ * exceeds the provider's per-request cap, and merging the results back into a
+ * single TranscriptionResult with corrected (offset) timestamps.
+ */
+async function transcribeAudio(
+  provider: ReturnType<typeof getTranscriptionProvider>,
+  audioPath: string,
+  sessionId: string,
+  recordingId: string
+): Promise<TranscriptionResult> {
+  const diarize = provider.name === 'self_hosted'; // Sarvam real-time API rejects diarization
+  const durationSec = await audioDurationSec(audioPath);
+
+  // Short enough for a single request — unchanged fast path.
+  if (durationSec == null || durationSec <= MAX_CHUNK_SEC) {
+    const url = await uploadAndPresignWav(`audio/${sessionId}/${recordingId}.wav`, audioPath);
+    return provider.transcribe({ audioUrl: url, languageHint: 'auto', diarize, initialPrompt: INITIAL_PROMPT });
+  }
+
+  // Long audio — split into <= MAX_CHUNK_SEC WAV chunks (PCM copy splits cleanly).
+  const chunkDir = await mkdtemp(join(tmpdir(), `vaidix-chunks-${recordingId}-`));
+  try {
+    await runFfmpeg([
+      '-y', '-i', audioPath,
+      '-f', 'segment', '-segment_time', String(MAX_CHUNK_SEC), '-c', 'copy',
+      join(chunkDir, 'chunk_%03d.wav'),
+    ]);
+    const chunkFiles = (await readdir(chunkDir)).filter((f) => f.endsWith('.wav')).sort();
+    if (chunkFiles.length === 0) throw new Error('audio chunking produced no segments');
+
+    const segments: TranscriptionSegment[] = [];
+    const textEnParts: string[] = [];
+    let processingMs = 0;
+    let detectedLanguage: string | undefined;
+
+    for (let i = 0; i < chunkFiles.length; i++) {
+      const offsetSec = i * MAX_CHUNK_SEC;
+      const url = await uploadAndPresignWav(
+        `audio/${sessionId}/${recordingId}_chunk${pad(i, 3)}.wav`,
+        join(chunkDir, chunkFiles[i])
+      );
+      const part = await provider.transcribe({ audioUrl: url, languageHint: 'auto', diarize, initialPrompt: INITIAL_PROMPT });
+      for (const seg of part.segments) {
+        segments.push({ ...seg, startSec: seg.startSec + offsetSec, endSec: seg.endSec + offsetSec });
+      }
+      processingMs += part.processingMs ?? 0;
+      detectedLanguage = detectedLanguage ?? part.detectedLanguage;
+      if (part.fullTextEn) textEnParts.push(part.fullTextEn);
+    }
+
+    const fullText = segments.map((s) => s.text).join(' ').trim();
+    return {
+      provider: provider.name,
+      segments,
+      fullText,
+      fullTextEn: textEnParts.join(' ').trim() || fullText,
+      detectedLanguage,
+      durationSec,
+      processingMs,
+    };
+  } finally {
+    await rm(chunkDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 function pad(n: number, w = 2): string {
@@ -103,27 +202,15 @@ async function transcribeJob(data: TranscribeJobData): Promise<{ recordingId: st
       audioPath,
     ]);
 
-    // 3. Upload audio to MinIO so the provider can fetch by URL.
-    const audioKey = `audio/${recording.sessionId}/${recording.id}.wav`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: RECORDINGS_BUCKET,
-        Key: audioKey,
-        Body: await readFile(audioPath),
-        ContentType: 'audio/wav',
-      })
-    );
-    const audioUrl = await presignUpload(audioKey, 'audio/wav', 60, RECORDINGS_BUCKET).then(() => presignDownload(audioKey, 3600, RECORDINGS_BUCKET));
-
-    // 4. Call the configured provider.
+    // 3. Transcribe — automatically chunks audio longer than the provider's
+    //    per-request cap (Sarvam realtime = 30s) and merges the results.
     const provider = getTranscriptionProvider();
-    const result: TranscriptionResult = await provider.transcribe({
-      audioUrl,
-      languageHint: 'auto',
-      diarize: provider.name === 'self_hosted', // Sarvam real-time API rejects diarization
-      initialPrompt:
-        'Ophthalmology lecture. Common terms: PDR, NVG, OCT, anti-VEGF, ranibizumab, aflibercept, vitrectomy, fundus, retina, glaucoma, DALK, PKP.',
-    });
+    const result: TranscriptionResult = await transcribeAudio(
+      provider,
+      audioPath,
+      recording.sessionId,
+      recording.id
+    );
 
     // 5. Persist Transcript rows + VTT artifacts.
     const groupedByLang = new Map<string, TranscriptionSegment[]>();
