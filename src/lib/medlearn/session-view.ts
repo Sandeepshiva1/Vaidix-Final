@@ -104,7 +104,6 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
     (Array.isArray(lp?.mcqs) && (lp!.mcqs as unknown[]).length > 0) ||
     (Array.isArray(lp?.openEnded) && (lp!.openEnded as unknown[]).length > 0)
   const learners = counts.learners > 0 || hasLearnerPrepContent
-  const questions = counts.questions > 0
   const promoDone = counts.promo > 0
   // Analytics is an acknowledgement step — done once the host/faculty has
   // reviewed the dashboard, persisted via markAnalyticsReviewedAction.
@@ -112,6 +111,11 @@ export const loadSessionView = cache(async (id: string): Promise<SessionView | n
     ? (row.metadata as Record<string, unknown>)
     : undefined
   const analytics = meta?.analyticsReviewed === true
+  // "Incoming Questions" is an acknowledgement step — done once the presenter has
+  // actually triaged what learners asked, persisted via markQuestionsReviewedAction.
+  // (Previously this was `counts.questions > 0`, which marked the step complete the
+  // instant any learner submitted a question — i.e. before anyone reviewed them.)
+  const questions = meta?.questionsReviewed === true
   const ready = studio && learners
   // Board rooms are tagged at creation (createTeachingSessionAction). They skip
   // the entire pre/post workflow; the session/[id] layout uses this to redirect.

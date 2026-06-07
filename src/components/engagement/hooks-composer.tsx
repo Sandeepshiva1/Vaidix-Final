@@ -34,7 +34,9 @@ export function HooksComposer({ sessionId }: { sessionId: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res  = await fetch(`/api/classroom/sessions/${sessionId}/hooks`, { cache: 'no-store' })
+      // excludeAuto: AI auto-generated hooks fire to learners silently and
+      // must not clutter the presenter's history list.
+      const res  = await fetch(`/api/classroom/sessions/${sessionId}/hooks?excludeAuto=true`, { cache: 'no-store' })
       const json = (await res.json()) as { ok: boolean; data?: { hooks: HookRow[] } }
       if (json.ok && json.data) setHooks(json.data.hooks)
     } catch { /* ignore */ }

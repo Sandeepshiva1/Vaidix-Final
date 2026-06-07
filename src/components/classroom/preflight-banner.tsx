@@ -85,16 +85,18 @@ export function PreflightBanner({
           initial={{ y: -16, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -16, opacity: 0 }}
-          className="pointer-events-none fixed inset-x-0 top-2 z-40 flex justify-center px-4"
+          className="pointer-events-none fixed inset-x-0 top-14 md:top-2 z-40 flex justify-center px-2 md:px-4"
           data-testid="liveroom-preflight-banner"
         >
-          <div className="pointer-events-auto flex max-w-3xl items-start gap-3 rounded-lg border border-amber-300 bg-amber-50/95 px-4 py-2.5 shadow-lg backdrop-blur dark:border-amber-900/50 dark:bg-amber-950/90">
-            <TestTube2 className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+          <div className="pointer-events-auto flex max-w-3xl items-center gap-2 rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 shadow-lg backdrop-blur md:items-start md:gap-3 md:px-4 md:py-2.5 dark:border-amber-900/50 dark:bg-amber-950/90">
+            <TestTube2 className="size-4 shrink-0 text-amber-700 md:mt-0.5 dark:text-amber-400" />
             <div className="min-w-0 flex-1 text-sm">
-              <p className="font-semibold text-amber-900 dark:text-amber-200">
+              <p className="truncate font-semibold text-amber-900 md:whitespace-normal dark:text-amber-200">
                 {past ? 'Outside scheduled window' : 'Pre-flight test mode'}
               </p>
-              <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+              {/* Verbose detail is desktop-only — on a phone the title + action
+                  convey enough without dominating the screen. */}
+              <p className="mt-0.5 hidden text-amber-800 md:block dark:text-amber-300">
                 {past
                   ? 'Recording, live captions, and attendance won’t be captured. The scheduled time has passed — reschedule to capture this session.'
                   : 'Recording, live captions, and the LIVE indicator activate at the scheduled start. A/V test freely; participation isn’t recorded yet.'}
@@ -107,11 +109,13 @@ export function PreflightBanner({
                 variant="outline"
                 onClick={handleStartNow}
                 disabled={startingNow}
-                className="gap-1.5 border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                className="shrink-0 gap-1.5 border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
                 data-testid="liveroom-preflight-start-now"
               >
                 <Play className="size-3.5" />
-                {startingNow ? 'Rescheduling…' : 'Start session now'}
+                {startingNow
+                  ? 'Rescheduling…'
+                  : <><span className="md:hidden">Start now</span><span className="hidden md:inline">Start session now</span></>}
               </Button>
             )}
             <button

@@ -46,6 +46,11 @@ RULES
 - Flashcards: "q" is a crisp recall/clinical-reasoning prompt; "a" is a tight,
   correct answer (<= 240 chars). Cover diagnosis, classification, and management
   for the topic.
+- Multi-level mix: the audience spans first-years to fellows. Across the ~6 cards,
+  include a few foundational recall cards a fresher must know (define any acronym
+  on first use, e.g. "RAPD (relative afferent pupillary defect)") AND at least one
+  or two that stretch a senior/fellow (a discriminator, a decision point, a "why").
+  Do not pitch every card at the same level.
 - Microlearning: "title" names a short self-study activity; "dur" is a human
   duration like "5 min"; "kind" is one of video | reading | flash.
 - Infographics: "title" is what a one-screen visual would teach; "sub" is a

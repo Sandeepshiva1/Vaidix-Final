@@ -31,5 +31,7 @@ A theme is a short clinical concept (≤6 words for label, ≤30 words for summa
 Output STRICT JSON of shape: { "themes": [{label, summary}], "assignments": [{questionId, themeIndex}] }.
 themeIndex is the 0-based index into the themes array. Use null if a question does not fit any theme.
 Maximum 10 themes. Avoid overlap; merge near-duplicates. Prefer fewer, broader themes over many narrow ones.
+ORDER themes by priority: the theme whose questions carry the most total votes comes first (themeIndex 0). The presenter reads top-down and should hit the room's biggest concern first.
+Keep each `label` plain enough that a first-year resident scanning the dashboard understands it at a glance; put the precise clinical framing in `summary`.
 Do NOT include any prose, explanation, or markdown outside the JSON object.
 ```

@@ -33,7 +33,7 @@ OUTPUT — strict JSON, no prose, no markdown fences:
     { "topic": string, "summary": string, "sourceRefs": string[] }
   ],
   "keyFacts": [                            // 8–25 concrete clinical facts with citations — dosages, thresholds, classification numbers, study findings
-    { "fact": string, "sourceRef": string }
+    { "fact": string, "sourceRef": string, "tier": "core" | "advanced" }   // tier: "core" = every learner must leave knowing this (fresher-level); "advanced" = depth/nuance for fellows. Default "core" if unsure. Drives multi-level layering downstream.
   ],
   "definitions": [                         // 0–15 terms worth defining; only when the source itself defines them
     { "term": string, "definition": string }
@@ -42,6 +42,12 @@ OUTPUT — strict JSON, no prose, no markdown fences:
     { "description": string, "sourceRef": string }
   ],
   "openQuestions": [                       // 0–8 things the source raises but does not answer — good poll / discussion fodder
+    string
+  ],
+  "redFlags": [                            // 0–10 must-not-miss / sight-threatening / time-critical points the SOURCE emphasises — the draft step turns these into the pitfalls slide + safety callouts
+    { "redFlag": string, "sourceRef": string }
+  ],
+  "uncertainties": [                       // 0–8 places the SOURCE is ambiguous, internally contradictory, possibly out-of-date, or where a figure/table was referenced but its content was NOT machine-readable. Honesty signal — the draft step flags these for faculty instead of papering over them.
     string
   ],
   "primaryDeckOutline": [                  // ONLY if a PRIMARY_PPTX was provided — verbatim slide order so the enhancer keeps the shape
@@ -55,6 +61,16 @@ EXTRACTION RULES
 - sourceRef must be a SPECIFIC pointer the deck author can quote back. Good: "Slide 7 — Q1 Infectious?", "PDF page 3 §Pathophysiology", "Transcript 12:30–14:00". Bad: "from the source", "as discussed".
 - When multiple files are provided, prefix sourceRef with the file role: "[PRIMARY_PPTX] Slide 7", "[SOURCE pdf] Page 3", "[PRIOR_TRANSCRIPT] 10:42".
 - OMIT fields with no content rather than emitting empty arrays of placeholder text. `keyFacts: []` is honest; `keyFacts: [{ fact: "Important clinical info" }]` is hallucination.
+
+MULTI-LEVEL TIERING — the audience is mixed (freshers/PG-1 through fellows in the same room)
+- Tag every keyFact `tier`. "core" = foundational, high-frequency, exam-essential — a first-year must walk out with it. "advanced" = subspecialty nuance, comparative judgment, edge cases, evidence-grading — what makes a fellow lean in. When genuinely unsure, default "core".
+- Do NOT drop advanced facts to make the deck simpler, and do NOT drop core facts as "too basic". The draft step layers both; your job is only to label which is which.
+
+RED FLAGS & SAFETY
+- Populate `redFlags` from must-not-miss content the source stresses (sight-threatening, time-critical, "always rule out", "never miss"). These anchor the pitfalls slide and any safety callouts. Each needs a sourceRef like any other claim — do not invent red flags the source does not raise.
+
+UNCERTAINTY — be honest, not confident-wrong
+- When the source is ambiguous, self-contradictory, references a figure/table whose content you cannot read, or cites guidance that may be dated, record it in `uncertainties` rather than guessing. A flagged gap is a feature; a confidently fabricated resolution is a clinical-safety bug.
 
 SPEAKER NOTES MATTER
 - When a slide's NOTES: section contains content, treat it as first-class material. Speaker notes often carry the clinical pearls and the "why" the slide bullets compress away.

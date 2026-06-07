@@ -24,6 +24,7 @@ import {
   PhoneOff, Hand, MessageSquare, Users, Trophy,
   LayoutGrid, Zap, Brain, X, Settings, Link2, ChevronDown,
   NotebookPen, Pencil, Loader2, Timer, AlarmClock,
+  MoreHorizontal, Image as ImageIcon,
 } from 'lucide-react'
 import { WaitingRoom } from './waiting-room'
 import { PreJoin } from './pre-join'
@@ -52,15 +53,17 @@ import { PreflightBanner } from './preflight-banner'
 import { BreakoutsPanel } from './breakouts-panel'
 import { BreakoutRoomView } from './breakout-room-view'
 import { BgPicker } from './bg-picker'
-import { ReactionsBar, FloatingReactionsLayer } from './reactions-bar'
+import { ReactionsBar, FloatingReactionsLayer, MobileReactionsRow } from './reactions-bar'
 import { useSpotlight } from './spotlight'
 import { SpotlightTile } from './spotlight-tile'
 import { AnnotationOverlay } from './annotation-overlay'
 import { NoiseSuppressionToggle } from './noise-suppression-toggle'
+import { AudioPlaybackGate, AudioOutputButton } from './audio-playback-gate'
 import { PictureInPictureButton } from './pip-button'
 import { PopOutWindowButton } from './popout-button'
 import { SharedNotesPanel } from './shared-notes-panel'
 import { WhiteboardPanel } from './whiteboard-panel'
+import { useDeviceProfile } from '@/hooks/use-device-profile'
 import { cn } from '@/lib/utils'
 
 interface SessionInfo {
@@ -433,6 +436,10 @@ function LiveRoom({
           setWbFullscreen={setWbFullscreen}
         />
         <RoomAudioRenderer />
+        {/* Recovers browser-blocked audio playback (Safari/iOS + mobile
+            Chrome) so late-joining / late-unmuting participants are always
+            heard — without this, audio fails silently and selectively. */}
+        <AudioPlaybackGate />
       </LiveKitRoom>
     </div>
   )
@@ -637,6 +644,8 @@ function InnerRoom({
   setWbFullscreen: (v: boolean) => void
 }) {
 
+  const { isMobile } = useDeviceProfile()
+
   const captionsActive = session.captionsProfile !== 'off'
   const [captionsEnabled, setCaptionsEnabled] = useState(() =>
     captionsActive ? readCaptionPrefs().enabled : false,
@@ -753,33 +762,39 @@ function InnerRoom({
         )}
       </AnimatePresence>
 
-      {/* Top bar */}
-      <div className="absolute top-0 inset-x-0 z-20 flex items-start justify-between px-4 pt-3">
-        <div className="flex items-center gap-2">
+      {/* Top bar — collapses to a compact, overflow-safe header on phones:
+          the wide participant strip is dropped (People is reachable from the
+          control bar / More sheet), paddings shrink, and the title truncates
+          inside the remaining space so nothing clips off-screen. */}
+      <div className="absolute top-0 inset-x-0 z-20 flex items-start justify-between gap-2 px-2 pt-2 md:px-4 md:pt-3">
+        <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
           {/* Live badge */}
-          <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1.5">
+          <div className="flex shrink-0 items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-2 py-1.5 md:px-2.5">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
             <span className="text-[10px] font-bold text-white tracking-widest">LIVE</span>
           </div>
           {/* Issue 23: Call duration timer */}
-          <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1.5">
+          <div className="flex shrink-0 items-center gap-1.5 bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-2 py-1.5 md:px-2.5">
             <Timer className="w-3 h-3 text-white/50" />
             <span className="text-[10px] font-medium text-white/75 tabular-nums">{fmtElapsed(elapsedSec)}</span>
           </div>
-          {/* Session title */}
-          <div className="bg-black/30 backdrop-blur-md border border-white/7 rounded-lg px-3 py-1.5 max-w-65">
-            <span className="text-sm font-medium text-white/90 truncate block">{session.title}</span>
+          {/* Session title — min-w-0 + truncate keeps it inside the flex row */}
+          <div className="min-w-0 bg-black/30 backdrop-blur-md border border-white/7 rounded-lg px-2.5 py-1.5 md:px-3 md:max-w-65">
+            <span className="text-xs md:text-sm font-medium text-white/90 truncate block">{session.title}</span>
           </div>
-          {/* Participant strip — Teams-style avatars always visible */}
-          <ParticipantStrip
-            selfName={currentUser.name}
-            selfEmail={currentUser.email}
-            selfAvatarUrl={currentUser.avatarUrl}
-            selfIsOrganizer={currentUser.isOrganizer}
-          />
+          {/* Participant strip — Teams-style avatars, desktop only (the row is
+              too wide for a phone; mobile reaches People via the control bar). */}
+          <div className="hidden md:block">
+            <ParticipantStrip
+              selfName={currentUser.name}
+              selfEmail={currentUser.email}
+              selfAvatarUrl={currentUser.avatarUrl}
+              selfIsOrganizer={currentUser.isOrganizer}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
           {/* CC controls — in the top bar so they don't overlap video content */}
           {captionsActive && (
             <CaptionControls
@@ -805,6 +820,8 @@ function InnerRoom({
         selfDisplayName={currentUser.name}
         role={role}
         isHostish={isHostish}
+        isMobile={isMobile}
+        tabs={tabs}
         sidebarOpen={sidebarOpen}
         activeTab={activeTab}
         onOpenTab={openTab}
@@ -826,17 +843,31 @@ function InnerRoom({
         )}
       </AnimatePresence>
 
-      {/* Sliding sidebar */}
+      {/* Sliding panel — a right-edge drawer on desktop, a full-width
+          bottom sheet on phones (Zoom/Meet/Teams mobile pattern). The
+          slide axis and resting geometry both switch on isMobile so the
+          spring animation matches the panel's anchored edge. */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.aside
             key="sidebar"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={isMobile ? { y: '100%' } : { x: '100%' }}
+            animate={isMobile ? { y: 0 } : { x: 0 }}
+            exit={isMobile ? { y: '100%' } : { x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="absolute right-0 top-0 bottom-0 w-[320px] z-30 flex flex-col bg-zinc-900/95 backdrop-blur-2xl border-l border-white/7 shadow-2xl shadow-black/60"
+            className={cn(
+              'absolute z-30 flex flex-col bg-zinc-900/95 backdrop-blur-2xl shadow-2xl shadow-black/60',
+              isMobile
+                ? 'inset-x-0 bottom-0 max-h-[82dvh] h-[82dvh] rounded-t-2xl border-t border-white/10 pb-[env(safe-area-inset-bottom)]'
+                : 'right-0 top-0 bottom-0 w-[320px] border-l border-white/7'
+            )}
           >
+            {/* Grab handle — mobile bottom-sheet affordance */}
+            {isMobile && (
+              <div className="flex justify-center pt-2 pb-1 shrink-0">
+                <span className="h-1 w-10 rounded-full bg-white/20" />
+              </div>
+            )}
             {/* Sidebar header — active tab name + icon-only tab switcher */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/7 shrink-0">
               <span className="flex-1 text-xs font-semibold text-white/70 uppercase tracking-wider truncate">
@@ -984,6 +1015,8 @@ function ControlBar({
   selfDisplayName,
   role,
   isHostish,
+  isMobile,
+  tabs,
   sidebarOpen,
   activeTab,
   onOpenTab,
@@ -999,6 +1032,12 @@ function ControlBar({
   selfDisplayName?: string
   role: 'HOST' | 'CO_HOST' | 'PARTICIPANT' | 'VIEWER'
   isHostish: boolean
+  /// Compact, touch-first layout for phones/tablets (see useDeviceProfile).
+  isMobile: boolean
+  /// Full tab list (built in InnerRoom). On mobile every tab — including the
+  /// sidebar-only ones (Breakouts/Hooks/Coach) — is reachable from the More
+  /// sheet, so the sheet needs the whole list, not just the toolbar subset.
+  tabs: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }>
   sidebarOpen: boolean
   activeTab: string
   onOpenTab: (tab: string) => void
@@ -1012,6 +1051,8 @@ function ControlBar({
   const [sharingLoading, setSharingLoading] = useState(false)
   const [handRaised, setHandRaised] = useState(false)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  // Mobile-only: the "More" bottom sheet holding secondary controls/tabs.
+  const [moreOpen, setMoreOpen] = useState(false)
   // Surfaces getUserMedia errors as a toast. Hard-blocked = device permanently
   // unavailable (not found / permission denied) → button stays visually blocked.
   const [deviceError, setDeviceError] = useState<string | null>(null)
@@ -1143,6 +1184,114 @@ function ControlBar({
     }
   }, [isSharing, localParticipant])
 
+  // ── Mobile layout ──────────────────────────────────────────────────────────
+  // A compact bottom bar holding only the essentials (mic / camera / hand /
+  // more / leave) — everything secondary lives in a slide-up "More" sheet, so
+  // nothing overflows the viewport. Mirrors how Zoom / Meet / Teams render on
+  // a phone. The headless NoiseSuppressionToggle stays mounted regardless.
+  if (isMobile) {
+    return (
+      <>
+        <NoiseSuppressionToggle sessionId={sessionId} />
+
+        {/* Device-error toast */}
+        <AnimatePresence>
+          {deviceError && (
+            <motion.div
+              initial={{ y: 12, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 12, opacity: 0 }}
+              className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2 w-[88%] max-w-sm rounded-xl bg-red-500/15 border border-red-500/40 backdrop-blur-md px-4 py-2.5 text-center text-sm text-red-100 shadow-lg shadow-black/40"
+              role="alert"
+            >
+              {deviceError}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Background picker — centered modal on mobile (the desktop popover
+            anchors to the camera button, which doesn't exist on the compact
+            bar). Camera must be on for filters to apply. */}
+        <AnimatePresence>
+          {bgPickerOpen && (
+            <div
+              className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 px-4"
+              onClick={() => setBgPickerOpen(false)}
+            >
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <BgPicker onClose={() => setBgPickerOpen(false)} />
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* "More" sheet */}
+        <MobileMoreSheet
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          isHostish={isHostish}
+          isSharing={isSharing}
+          sharingLoading={sharingLoading}
+          onToggleScreen={toggleScreen}
+          tabs={tabs}
+          activeTab={activeTab}
+          sidebarOpen={sidebarOpen}
+          unreadChatCount={unreadChatCount}
+          onOpenTab={(t) => { onOpenTab(t); setMoreOpen(false) }}
+          onOpenBackground={() => { setMoreOpen(false); setBgPickerOpen(true) }}
+          sessionId={sessionId}
+          sessionTitle={sessionTitle}
+          selfDisplayName={selfDisplayName}
+        />
+
+        {/* Compact bottom bar */}
+        <div className="absolute inset-x-0 bottom-0 z-20 px-3 pb-[calc(env(safe-area-inset-bottom)+0.6rem)] pt-2">
+          <div className="mx-auto flex max-w-md items-center justify-around gap-1 rounded-[26px] border border-white/10 bg-zinc-950/85 px-3 py-2.5 shadow-2xl shadow-black/70 backdrop-blur-2xl">
+            {role !== 'VIEWER' && (
+              <CtrlBtn
+                onClick={toggleMic}
+                icon={isMicrophoneEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                label={micBlocked ? 'No mic' : isMicrophoneEnabled ? 'Mute' : 'Unmute'}
+                variant={micBlocked ? 'danger' : isMicrophoneEnabled ? 'active' : 'danger'}
+                color="green"
+                pulse={isMicrophoneEnabled}
+                blocked={micBlocked}
+              />
+            )}
+            {role !== 'VIEWER' && (
+              <CtrlBtn
+                onClick={toggleCamera}
+                icon={isCameraEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                label={camBlocked ? 'No cam' : isCameraEnabled ? 'Stop' : 'Start'}
+                variant={camBlocked ? 'danger' : isCameraEnabled ? 'active' : 'danger'}
+                color="blue"
+                blocked={camBlocked}
+              />
+            )}
+            {role !== 'VIEWER' && (
+              <CtrlBtn
+                onClick={toggleHand}
+                icon={<Hand className="w-5 h-5" />}
+                label={handRaised ? 'Lower' : 'Raise'}
+                variant={handRaised ? 'active' : 'default'}
+                color="amber"
+              />
+            )}
+            <CtrlBtn
+              onClick={() => setMoreOpen((v) => !v)}
+              icon={<MoreHorizontal className="w-5 h-5" />}
+              label="More"
+              variant={moreOpen ? 'active' : 'default'}
+              badge={!moreOpen && unreadChatCount > 0 ? unreadChatCount : 0}
+            />
+            <MobileLeaveButton onLeave={onLeave} />
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ── Desktop layout ─────────────────────────────────────────────────────────
   return (
     <div className="absolute bottom-5 inset-x-0 z-20 flex flex-wrap items-end justify-center gap-3 px-4">
       {/* Device-error toast (auto-dismiss after 4s) */}
@@ -1329,6 +1478,9 @@ function ControlBar({
           />
           <PopOutWindowButton sessionId={sessionId} />
           <NotificationSoundsToggle />
+          {/* Speaker (output) picker — the escape hatch when the OS default
+              output is the wrong sink and the user "can't hear anyone". */}
+          <AudioOutputButton />
         </div>
 
         {/* Headless always-on noise suppression — no UI rendered */}
@@ -1433,6 +1585,187 @@ function Divider() {
 }
 
 // ----------------------------------------------------------------------------
+// Mobile: leave button (compact, matches the CtrlBtn icon+label footprint)
+// ----------------------------------------------------------------------------
+function MobileLeaveButton({ onLeave }: { onLeave: () => void }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onLeave}
+      whileTap={{ scale: 0.91 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+      className="flex flex-col items-center gap-1.5 outline-none"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-[0_0_0_1px_rgba(239,68,68,0.5),0_0_18px_rgba(239,68,68,0.45)]">
+        <PhoneOff className="h-5 w-5" />
+      </span>
+      <span className="text-[11px] leading-none text-white/50">Leave</span>
+    </motion.button>
+  )
+}
+
+// ----------------------------------------------------------------------------
+// Mobile: a single tile in the "More" sheet (uniform icon + label cell)
+// ----------------------------------------------------------------------------
+function SheetTile({
+  icon,
+  label,
+  active = false,
+  badge = 0,
+  loading = false,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  active?: boolean
+  badge?: number
+  loading?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'relative flex flex-col items-center justify-center gap-1.5 rounded-2xl px-1 py-3 transition-colors duration-150',
+        active ? 'bg-teal-500/20 text-teal-200' : 'bg-white/[0.06] text-white/80 active:bg-white/15',
+      )}
+    >
+      <span className="relative flex h-6 items-center justify-center">
+        {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : icon}
+        {badge > 0 && (
+          <span className="absolute -top-2 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-400 px-1 text-[9px] font-bold text-zinc-900">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </span>
+      <span className="text-[10.5px] font-medium leading-none">{label}</span>
+    </button>
+  )
+}
+
+// ----------------------------------------------------------------------------
+// Mobile: "More" bottom sheet — secondary controls + the full tab list.
+// Slides up from the bottom edge; everything that doesn't fit on the compact
+// bar lives here, so the bar never overflows the viewport.
+// ----------------------------------------------------------------------------
+function MobileMoreSheet({
+  open,
+  onClose,
+  isHostish,
+  isSharing,
+  sharingLoading,
+  onToggleScreen,
+  tabs,
+  activeTab,
+  sidebarOpen,
+  unreadChatCount,
+  onOpenTab,
+  onOpenBackground,
+  sessionId,
+  sessionTitle,
+  selfDisplayName,
+}: {
+  open: boolean
+  onClose: () => void
+  isHostish: boolean
+  isSharing: boolean
+  sharingLoading: boolean
+  onToggleScreen: () => void
+  tabs: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }>
+  activeTab: string
+  sidebarOpen: boolean
+  unreadChatCount: number
+  onOpenTab: (tab: string) => void
+  onOpenBackground: () => void
+  sessionId: string
+  sessionTitle?: string
+  selfDisplayName?: string
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            key="more-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 z-30 bg-black/45"
+          />
+          <motion.div
+            key="more-sheet"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+            className="absolute inset-x-0 bottom-0 z-40 flex max-h-[80dvh] flex-col rounded-t-2xl border-t border-white/10 bg-zinc-900/97 shadow-2xl shadow-black/70 backdrop-blur-2xl"
+          >
+            {/* Grab handle */}
+            <div className="flex shrink-0 justify-center pt-2 pb-1">
+              <span className="h-1 w-10 rounded-full bg-white/20" />
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+              {/* Reactions */}
+              <div className="mb-1.5 mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                React
+              </div>
+              <MobileReactionsRow sessionId={sessionId} onPicked={onClose} />
+
+              {/* Actions + tabs */}
+              <div className="mb-1.5 mt-4 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                In this call
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {isHostish && (
+                  <SheetTile
+                    icon={isSharing ? <MonitorOff className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
+                    label={isSharing ? 'Stop share' : 'Share'}
+                    active={isSharing}
+                    loading={sharingLoading}
+                    onClick={() => { onToggleScreen(); onClose() }}
+                  />
+                )}
+                <SheetTile
+                  icon={<ImageIcon className="h-5 w-5" />}
+                  label="Background"
+                  onClick={onOpenBackground}
+                />
+                {tabs.map((tab) => {
+                  const Icon = tab.icon
+                  return (
+                    <SheetTile
+                      key={tab.id}
+                      icon={<Icon className="h-5 w-5" />}
+                      label={tab.label}
+                      active={sidebarOpen && activeTab === tab.id}
+                      badge={tab.id === 'chat' ? unreadChatCount : 0}
+                      onClick={() => onOpenTab(tab.id)}
+                    />
+                  )
+                })}
+              </div>
+
+              {/* Accessories — self-contained icon buttons reused as-is */}
+              <div className="mt-4 flex items-center justify-center gap-5 border-t border-white/8 pt-4">
+                <PictureInPictureButton
+                  sessionId={sessionId}
+                  sessionTitle={sessionTitle}
+                  selfDisplayName={selfDisplayName}
+                />
+                <NotificationSoundsToggle />
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ----------------------------------------------------------------------------
 // Host controls menu (dark-themed for the dark top bar)
 // ----------------------------------------------------------------------------
 function HostControlsMenu({ sessionId, isHost }: { sessionId: string; isHost: boolean }) {
@@ -1485,11 +1818,12 @@ function HostControlsMenu({ sessionId, isHost }: { sessionId: string; isHost: bo
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/10 hover:bg-white/10 text-white/80 hover:text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150"
+        title="Host controls"
+        className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/10 hover:bg-white/10 text-white/80 hover:text-white rounded-lg px-2 py-1.5 text-xs font-medium transition-all duration-150 md:px-3"
       >
         <Settings className="w-3.5 h-3.5" />
-        Host controls
-        <ChevronDown className={cn('w-3 h-3 transition-transform duration-150', open && 'rotate-180')} />
+        <span className="hidden md:inline">Host controls</span>
+        <ChevronDown className={cn('hidden md:inline w-3 h-3 transition-transform duration-150', open && 'rotate-180')} />
       </button>
 
       <AnimatePresence>

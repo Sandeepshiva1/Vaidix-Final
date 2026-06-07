@@ -107,6 +107,43 @@ export function ReactionsBar({ sessionId }: { sessionId: string }) {
   )
 }
 
+// ─── Mobile reactions row ────────────────────────────────────────────────────
+// On phones the desktop popover (an 8-wide emoji grid) is wider than the
+// viewport, so the live-room "More" sheet renders this horizontally-scrollable
+// single row instead. Same emit path as ReactionsBar — picking one fires the
+// REACTION event and notifies the parent so it can close the sheet.
+export function MobileReactionsRow({
+  sessionId,
+  onPicked,
+}: {
+  sessionId: string
+  onPicked?: () => void
+}) {
+  const { emit } = useSessionEvents({ sessionId, filter: ['REACTION'] })
+
+  function pick(emoji: string) {
+    void emit('REACTION', { details: { emoji } })
+    onPicked?.()
+  }
+
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {REACTIONS.map((r) => (
+        <button
+          key={r.emoji}
+          type="button"
+          onClick={() => pick(r.emoji)}
+          title={r.label}
+          aria-label={r.label}
+          className="shrink-0 w-11 h-11 text-2xl rounded-xl bg-white/5 active:bg-white/15 flex items-center justify-center transition-colors duration-100"
+        >
+          {r.emoji}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Floating overlay ────────────────────────────────────────────────────────
 // Each reaction lands at a column derived from the actor's identity (so two
 // users clapping at once spawn from different horizontal positions, not on

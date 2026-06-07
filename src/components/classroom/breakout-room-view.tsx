@@ -13,6 +13,7 @@ import '@livekit/components-styles'
 import { Track } from 'livekit-client'
 import { Bot, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AudioPlaybackGate } from './audio-playback-gate'
 
 interface Props {
   sessionId: string
@@ -136,6 +137,7 @@ export function BreakoutRoomView({ sessionId, breakoutId, breakoutName, isFacult
         >
           <GridFromTracks />
           <RoomAudioRenderer />
+          <AudioPlaybackGate />
           <LKControlBar variation="minimal" />
         </LiveKitRoom>
       </div>

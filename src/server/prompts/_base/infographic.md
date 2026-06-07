@@ -2,6 +2,8 @@
 
 > **Deployment:** System-level prompt for converting ophthalmology source material (PPTs, notes, PDFs, study documents) into educational infographics for fellows + residents. Pair as system prompt with source material + §3 input variables.
 
+> **⚠ Wiring status (2026-06):** This rich prompt is NOT currently loaded by any service. The live infographic path is the inline `SYSTEM_PROMPT` in `study-artifacts-service.ts`, which emits a simple `{title, sub}` shape on Gemini. Wire this via `loadPrompt('infographic')` + a normalizer for the §7 schema before relying on these directives in production.
+
 **Target model:** Sonnet (instructional design + visual spec) · Token budget: ~5–8k per infographic
 
 ---
@@ -218,6 +220,8 @@ Any fail → regenerate that section.
 **Fellow-level** prioritize: subspecialty depth + nuance · complex case decision-making · comparative analysis of techniques/agents · evidence-grading. Bloom: Apply → Create. Higher information density tolerated · assumes foundational knowledge.
 
 If source generic but audience=fellow → flag `depth_mismatch`.
+
+**Mixed audience (one screen, juniors + fellows together).** A single infographic is read by both, so layer within it rather than choosing a level: the core schema/diagram must be graspable by a first-year (define terms adjacent on first use, keep the primary reading path simple), while a clearly-marked secondary tier — a "for the senior reader" callout, a finer-grained criterion, an evidence note — gives fellows depth without cluttering the core path. Use `emphasis_level` (primary = core/fresher path, tertiary = advanced callout) to encode the layering. Never hide a critical/safety element in the advanced tier.
 
 ---
 

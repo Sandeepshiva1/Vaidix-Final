@@ -138,6 +138,17 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
   const [activeBreakout, setActiveBreakout] = useState<{ id: string; name: string } | null>(null)
   const canConnect = tok.status === 'joined' && !!tok.token && !!tok.url && !lkError
 
+  // Panel visibility lives HERE (the component that survives connect/disconnect)
+  // rather than in LiveConferenceBody. LiveConferenceBody is remounted whenever
+  // `canConnect` toggles — its parent flips between `<LiveKitRoom>{body}` and a
+  // bare `body`, so React tears it down and any local state resets to its
+  // initial value. When these lived inside the body, an open whiteboard would
+  // silently close itself on a reconnect/token refresh (the "it autosaved and
+  // closed on its own" report). Owning them here keeps the user's open panel
+  // across the transition. Mirrors live-session.tsx's lifted panel state.
+  const [showWhiteboard, setShowWhiteboard] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
+
   if (activeBreakout) {
     const isFaculty = isHost || tok.role === 'HOST' || tok.role === 'CO_HOST'
     return (
@@ -161,6 +172,10 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
       role={tok.role}
       tokenStatus={lkError ? 'error' : tok.status}
       onJoinBreakout={setActiveBreakout}
+      showWhiteboard={showWhiteboard}
+      setShowWhiteboard={setShowWhiteboard}
+      showLeaderboard={showLeaderboard}
+      setShowLeaderboard={setShowLeaderboard}
     />
   )
   if (canConnect) {
@@ -188,21 +203,25 @@ export function LiveConference({ session, isHost }: { session: SessionView; isHo
   return body
 }
 
-function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJoinBreakout }: {
+function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJoinBreakout, showWhiteboard, setShowWhiteboard, showLeaderboard, setShowLeaderboard }: {
   session: SessionView
   isHost: boolean
   connected: boolean
   role?: string
   tokenStatus: TokenState['status']
   onJoinBreakout: (b: { id: string; name: string }) => void
+  /// Owned by LiveConference (survives connect/disconnect remounts) — see the
+  /// comment there. Do NOT move these back to local state.
+  showWhiteboard: boolean
+  setShowWhiteboard: (v: boolean | ((p: boolean) => boolean)) => void
+  showLeaderboard: boolean
+  setShowLeaderboard: (v: boolean | ((p: boolean) => boolean)) => void
 }) {
   const [viewMode, setViewMode]           = useState<ViewMode>('gallery')
   const [sharingScreen, setSharingScreen] = useState(false)
   const [leftCollapsed, setLeftCollapsed]   = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [rightTab, setRightTab]             = useState<RightTab>(isHost ? 'hooks' : 'transcript')
-  const [showWhiteboard, setShowWhiteboard] = useState(false)
-  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [mediaError, setMediaError]         = useState<string | null>(null)
   const [showSubtitles, setShowSubtitles]   = useState(false)
   const [newHookOpen, setNewHookOpen]       = useState(false)

@@ -34,7 +34,10 @@
 
   background: var(--bg);
   color: var(--on-surface);
-  overflow-x: hidden;
+  /* `clip` (not `hidden`) contains the hero's horizontal overflow WITHOUT
+     turning .root into a scroll container — `hidden` would do the latter and
+     silently break `position: sticky` on the nav (it would scroll away). */
+  overflow-x: clip;
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
 }
@@ -202,10 +205,14 @@
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(248, 249, 255, 0.85);
+  /* Solid fallback first so the bar never disappears when a browser drops
+     backdrop-filter (or scrolls dark content underneath a too-transparent bar). */
+  background: #f5f7ff;
+  background: rgba(245, 247, 255, 0.96);
   backdrop-filter: blur(12px) saturate(1.2);
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border-bottom: 1px solid var(--outline-variant);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.05);
 }
 .navInner {
   max-width: var(--container);
@@ -240,10 +247,12 @@
   font-weight: 700;
 }
 .navLogoImg {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
   display: block;
+  /* Subtle halo so the logo's light strokes read clearly on the pale bar. */
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.18));
 }
 .navLinks {
   display: flex;
@@ -274,6 +283,30 @@
 }
 .navCta:hover {
   background: var(--primary-container);
+  transform: scale(1.02);
+}
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.navSignIn {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  color: var(--primary);
+  background: transparent;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  transition: background 200ms ease, color 200ms ease, transform 200ms ease;
+}
+.navSignIn:hover {
+  background: var(--primary);
+  color: var(--on-primary);
   transform: scale(1.02);
 }
 

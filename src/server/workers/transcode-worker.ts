@@ -74,7 +74,14 @@ async function probeInput(inputPath: string): Promise<ProbeResult> {
     });
     child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
     child.on('exit', () => {
-      const hasVideo = /Stream #\d+:\d+(?:\([^)]*\))?: Video/i.test(stderr);
+      // Match e.g. "Stream #0:1[0x2](und): Video: h264". Modern ffmpeg inserts a
+      // [0x..] stream-id and may add (lang) groups between the index and
+      // ": Video". The previous pattern only allowed a single optional (..)
+      // group, so it MISSED the video stream on these builds and produced an
+      // audio-only HLS for a recording that actually had video — i.e. playback
+      // showed no picture. `.*?` (no `s` flag, so it stays on one line) tolerates
+      // any bracket/paren metadata before ": Video".
+      const hasVideo = /Stream #\d+:\d+.*?:\s*Video/i.test(stderr);
       // "Duration: HH:MM:SS.ss," — ffmpeg always prints this for valid media
       const m = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
       const durationSec = m
@@ -147,7 +154,13 @@ async function transcodeJob(data: TranscodeJobData): Promise<{ recordingId: stri
           '-map', '0:v:0', '-map', '0:a:0?',
           `-c:v:${idx}`, 'libx264', `-b:v:${idx}`, rung.vBitrate,
           `-maxrate:v:${idx}`, rung.vBitrate, `-bufsize:v:${idx}`, rung.vBitrate,
-          `-vf:${idx}`, `scale=-2:${rung.height}`,
+          // Per-output-stream scale MUST be `-filter:v:<idx>`. The `-vf:<idx>`
+          // form is not a valid per-stream specifier — ffmpeg treated it as the
+          // global `-vf`, so the LAST rung's scale (240p) was applied to EVERY
+          // variant. The ladder then produced 5 identical 240p renditions at
+          // different bitrates (no real adaptive quality). `-filter:v:<idx>`
+          // binds the scale to output video stream <idx>.
+          `-filter:v:${idx}`, `scale=-2:${rung.height}`,
           `-c:a:${idx}`, 'aac', `-b:a:${idx}`, rung.aBitrate
         );
         masterEntries.push(`v:${idx},a:${idx}`);

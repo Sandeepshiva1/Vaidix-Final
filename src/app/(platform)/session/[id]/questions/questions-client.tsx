@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import {
   AlertTriangle,
   ArrowRight,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SessionHeader } from '@/components/medlearn/session-header'
+import { markQuestionsReviewedAction } from '@/components/medlearn/actions'
 import type { SessionView } from '@/lib/medlearn/session-view'
 import type {
   PreQuestionView,
@@ -77,6 +79,7 @@ export function QuestionsClient({
   dashboard: DashboardResult
 }) {
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
 
   const [filter, setFilter] = useState<string | null>(null)
   const [actions, setActions] = useState<Record<string, Action>>({})
@@ -155,8 +158,20 @@ export function QuestionsClient({
   const setAction = (qid: string, action: Action) =>
     setActions((m) => ({ ...m, [qid]: m[qid] === action ? null : action }))
 
+  // Persist the "reviewed" acknowledgement before returning to the pre-conference
+  // overview — this is what lights up the "Incoming Questions" step. Without the
+  // server action the step would never complete (it no longer derives from the
+  // raw question count). Mirrors analytics-client's finalize.
   const finalize = () => {
-    router.push(`/session/${session.id}/pre`)
+    startTransition(async () => {
+      const res = await markQuestionsReviewedAction(session.id)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      router.push(`/session/${session.id}/pre`)
+      router.refresh()
+    })
   }
 
   return (
@@ -337,9 +352,10 @@ export function QuestionsClient({
             <button
               type="button"
               onClick={finalize}
-              className="inline-flex h-10 items-center gap-2 rounded-full bg-slate-700 px-5 text-[13.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02]"
+              disabled={isPending}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-slate-700 px-5 text-[13.5px] font-medium text-white shadow-sm transition-transform hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
             >
-              Mark questions reviewed
+              {isPending ? 'Saving…' : 'Mark questions reviewed'}
               <ArrowRight className="size-4" />
             </button>
           </div>

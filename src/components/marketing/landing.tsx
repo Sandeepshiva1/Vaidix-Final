@@ -163,10 +163,10 @@ export function Landing() {
         <div className={styles.navInner}>
           <Link href="/" className={styles.navBrand}>
             <Image
-              src="/vaidix-logo.png"
+              src="/logo.png"
               alt="Vaidix"
-              width={48}
-              height={48}
+              width={44}
+              height={44}
               className={styles.navLogoImg}
               priority
             />
@@ -177,9 +177,11 @@ export function Landing() {
             <a href="#platform">Platform</a>
             <a href="#roles">For Educators</a>
             <a href="#intelligence">Intelligence</a>
-            <Link href="/login">Sign In</Link>
           </div>
-          <a href="#cta" className={styles.navCta}>Request Walkthrough</a>
+          <div className={styles.navActions}>
+            <Link href="/login" className={styles.navSignIn}>Sign In</Link>
+            <a href="#cta" className={styles.navCta}>Request Walkthrough</a>
+          </div>
         </div>
       </nav>
 

@@ -68,4 +68,8 @@ room:
 webhook:
   api_key: devkey
   urls:
-    - http://host.docker.internal:3000/api/classroom/webhooks/livekit
+    # The Next.js dev server runs natively on the Windows host at :3001
+    # (:3000 is a different app). From the LiveKit container, host.docker.internal
+    # routes to the host. A wrong port here means egress_started/ended webhooks
+    # never reach the app → recordings never advance to TRANSCODING → no HLS.
+    - http://host.docker.internal:3001/api/classroom/webhooks/livekit

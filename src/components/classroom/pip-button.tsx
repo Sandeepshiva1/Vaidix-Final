@@ -25,8 +25,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PictureInPicture } from 'lucide-react'
 import { useRoomContext } from '@livekit/components-react'
-import { Track, RemoteAudioTrack } from 'livekit-client'
-import type { TrackPublication, Room } from 'livekit-client'
+import { Track, RemoteAudioTrack, RoomEvent } from 'livekit-client'
+import type { TrackPublication, Room, RemoteTrack } from 'livekit-client'
 import { useSessionEvents } from '@/hooks/use-session-events'
 import { cn } from '@/lib/utils'
 
@@ -488,14 +488,24 @@ function renderRoomMiniWindow(
   // event refreshes within the same PiP session.
   let speakerMuted = false
   const spkBtn = doc.querySelector('button.spk') as HTMLButtonElement | null
+  function applyVolumeTo(t: RemoteTrack | TrackPublication['track'] | undefined) {
+    if (t instanceof RemoteAudioTrack) t.setVolume(speakerMuted ? 0 : 1)
+  }
   function applySpeaker() {
     ctx.room.remoteParticipants.forEach((p) => {
-      p.audioTrackPublications.forEach((pub) => {
-        const t = pub.track
-        if (t instanceof RemoteAudioTrack) t.setVolume(speakerMuted ? 0 : 1)
-      })
+      p.audioTrackPublications.forEach((pub) => applyVolumeTo(pub.track))
     })
   }
+  // Late-joining or late-unmuting participants subscribe their audio AFTER the
+  // user muted the PiP speaker. applySpeaker() only touches tracks present at
+  // click time, so without this a newcomer's track would default to full
+  // volume — the user would suddenly hear that one person while everyone else
+  // stays muted. Re-apply the current mute state to each newly subscribed
+  // audio track. Removed on pagehide so the listener can't outlive the PiP.
+  const onTrackSubscribed = (track: RemoteTrack) => {
+    if (speakerMuted) applyVolumeTo(track)
+  }
+  ctx.room.on(RoomEvent.TrackSubscribed, onTrackSubscribed)
   function renderSpeaker() {
     if (!spkBtn) return
     spkBtn.classList.toggle('off', speakerMuted)
@@ -529,6 +539,7 @@ function renderRoomMiniWindow(
     if (pipVideoEl && ctx.videoTrack) {
       try { ctx.videoTrack.detach(pipVideoEl) } catch { /* noop */ }
     }
+    ctx.room.off(RoomEvent.TrackSubscribed, onTrackSubscribed)
     if (speakerMuted) {
       speakerMuted = false
       applySpeaker()

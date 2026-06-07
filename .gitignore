@@ -72,6 +72,8 @@ livekit.prod.yaml
 /test-results/
 playwright-report/
 playwright.config.ts
+e2e/.auth/
+e2e/.state.json
 scripts/test-*.ts
 scripts/test-*.sh
 scripts/e2e-*.ts
@@ -88,6 +90,8 @@ src/lib/smoke-test.ts
 .vscode/
 Thumbs.db
 .git-push.log
+.next-dev.log
+.workers.log
 
 # local-FS storage backend (dev only) — bytes for SessionFile uploads when
 # NODE_ENV !== 'production'. Production uses S3 instead.

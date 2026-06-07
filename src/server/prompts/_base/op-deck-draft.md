@@ -105,9 +105,29 @@ PEDAGOGY RULES
 - Tailor depth to briefing.audience. PG-1 / early residents: anatomy-first, classification-heavy. Senior residents / fellows: decision-points, evidence, edge cases.
 - At least ONE IMAGE_FOCUS slide for visual learning. PREFER extraction.imagesAvailable when present — the source's real figures are stronger anchors than invented placeholder images.
 - At least ONE INTERACTION slide every 6-8 slides (poll, T/F, decision-point question). Each option as a separate bullet.
-- Include EXACTLY ONE "Common pitfalls" / "Learner errors" slide near the end with 4-6 bullets. Use {{DOMAIN_NAME}} red-flag examples as a reference for tone:
+- Include EXACTLY ONE "Common pitfalls" / "Learner errors" slide near the end with 4-6 bullets. Seed it from extraction.redFlags when present (those are the must-not-miss points the source itself stressed); use {{DOMAIN_NAME}} red-flag examples only as a reference for tone:
 {{DOMAIN_RED_FLAG_EXAMPLES}}
 - briefing.localContext (LVPEI patient mix, adherence patterns) should show up in case discussion + pitfalls if relevant.
+
+═══════════════════════════════════════════════════════════════════════════
+MULTI-LEVEL AUDIENCE — one deck, a mixed room (freshers → fellows)
+═══════════════════════════════════════════════════════════════════════════
+
+Assume the SAME session is attended by first-years AND fellows unless briefing.audience says otherwise. Do not write to the average and lose both ends. Layer instead:
+- BULLETS carry the "core" layer — what every learner, including a PG-1, must leave knowing. Plain phrasing, define a term on first use (e.g. "RAPD (relative afferent pupillary defect)"). Map these from extraction.keyFacts where tier="core".
+- SPEAKER NOTES carry the "advanced" layer — the nuance, comparative judgment, evidence, and edge cases that make a fellow lean in. Map these from extraction.keyFacts where tier="advanced". Prefix the fellow-only depth with "DEEPER:" in speakerNotes so the presenter can choose to voice it or skip it for a junior-heavy room.
+- INTERACTION slides should be answerable at the core level but have a follow-up in speakerNotes ("If the room is senior, push: ...") that escalates difficulty. One question, two depths.
+- Never gate the safety/red-flag content behind the advanced layer — must-not-miss points are core for everyone.
+- A fresher should never feel lost (jargon undefined); a fellow should never feel bored (nothing new). Both must be true of the same slide.
+
+═══════════════════════════════════════════════════════════════════════════
+CLINICAL ACCURACY & EVIDENCE CURRENCY — you are teaching trainees
+═══════════════════════════════════════════════════════════════════════════
+
+- NEVER invent or "round" a dose, threshold, classification cutoff, or trial result. If it is not in extraction.keyFacts / primaryDeckOutline, do not assert it as fact. A plausible-but-wrong number a resident memorises is a patient-safety defect, not a cosmetic one.
+- For every entry in extraction.uncertainties, do NOT silently resolve it. Either omit that claim, or keep it and raise a CLINICAL initialSuggestion naming the ambiguity for faculty to settle.
+- Guidelines change. When a fact is guideline- or year-sensitive (staging systems, target IOP, anti-VEGF intervals), keep the source's exact wording and add a CLINICAL initialSuggestion "Verify against current {{DOMAIN_NAME}} guidance" rather than asserting today's standard from your own memory.
+- Citations are not decoration — a kept clinical claim without a citation traceable to the source is a regression.
 
 ═══════════════════════════════════════════════════════════════════════════
 WHEN TO REQUEST AN IMAGE — set the `imageBrief` field
@@ -172,7 +192,18 @@ INITIAL SUGGESTIONS — deliberately small list
   • PEDAGOGY: an "open question" from source that would make a great poll the deck didn't already use.
   • INTERACTION: a slide that begs for a case-vignette pause.
   • CLINICAL/PEDAGOGY (ENHANCE only): a proposed title rename you held back per the HARD CONTRACT — message must include "Original: '<verbatim>' → Proposed: '<new>'" so the faculty can decide.
+  • CLINICAL: each extraction.uncertainties item that affects a slide you kept — name the ambiguity so faculty resolves it.
 - Faculty veto is preserved — these are PROPOSALS. The slides above are what gets rendered initially.
+
+═══════════════════════════════════════════════════════════════════════════
+SELF-CHECK — run silently before emitting; fix, do not narrate
+═══════════════════════════════════════════════════════════════════════════
+
+1. COVERAGE: every extraction.topic has ≥1 slide; in ENHANCE_EXISTING every primaryDeckOutline title appears verbatim and in order.
+2. SAFETY: every extraction.redFlag is reflected in the pitfalls slide or a safety callout; no red-flag content is buried in the advanced layer.
+3. ACCURACY: every clinical number/dose/threshold traces to extraction; no invented facts; year-sensitive claims carry a verify suggestion.
+4. MULTI-LEVEL: each content slide works for a fresher (bullets self-explanatory, jargon defined) AND a fellow (speakerNotes carry a "DEEPER:" beat). Neither end is left out.
+5. SHAPE: valid JSON, layouts from the enum, titles ≤90 chars, bullets ≤8 & ≤140 chars each, every kept slide cited.
 
 PRODUCE THE DECK JSON NOW.
 ````

@@ -338,7 +338,7 @@ export async function updateTeachingSessionAction(
 
   const existing = await db.teachingSession.findUnique({
     where: { id: sessionId },
-    select: { id: true, hostId: true, proposedBy: true, programId: true, status: true, deletedAt: true, metadata: true },
+    select: { id: true, hostId: true, proposedBy: true, programId: true, status: true, deletedAt: true, metadata: true, cohortId: true },
   });
   if (!existing || existing.deletedAt) return { ok: false, error: 'Session not found.' };
 
@@ -442,11 +442,61 @@ export async function updateTeachingSessionAction(
     ? await listProgramRoleAudienceIds(existing.programId, editTargetRole, existing.hostId)
     : [];
   const editInviteeIds = Array.from(new Set([...roleInviteeIds, ...editRoleAudienceIds]));
+
+  // Snapshot who already had an invite BEFORE we add the new ones, so we can
+  // alert only the *newly* added people. Re-notifying the whole list on every
+  // edit (a title tweak, a time change) would spam everyone repeatedly.
+  const priorInviteeIds = new Set(
+    (await db.sessionInvite.findMany({ where: { sessionId }, select: { userId: true } })).map((r) => r.userId),
+  );
   if (editInviteeIds.length > 0) {
     await db.sessionInvite.createMany({
       data: editInviteeIds.map((uid) => ({ sessionId, userId: uid, invitedBy: user.id })),
       skipDuplicates: true,
     });
+  }
+
+  // ── Notify the newly-added audience ─────────────────────────────────────────
+  // Two sources of "newly added" on an edit, mirroring the create path:
+  //   1. Explicit invitees (role assignees / role-group audience) that weren't
+  //      already invited to this session.
+  //   2. Cohort members — but only when the host actually switched the audience
+  //      to a *different* cohort. An unchanged cohort must NOT be re-alerted
+  //      (that's the spam-on-every-edit trap). As on create, cohort members are
+  //      notified without minting a SessionInvite row (dynamic membership drives
+  //      visibility via cohortId).
+  const newExplicitIds = editInviteeIds.filter((id) => !priorInviteeIds.has(id));
+  let newCohortMemberIds: string[] = [];
+  if (cohortId && cohortId !== existing.cohortId) {
+    const members = await db.cohortMember.findMany({
+      where: { cohortId, user: { status: 'ACTIVE', deletedAt: null } },
+      select: { userId: true },
+    });
+    newCohortMemberIds = members.map((m) => m.userId);
+  }
+  // Host excluded (they're the presenter), deduped against the prior invite set
+  // and each other so nobody gets a duplicate alert.
+  const editNotifyIds = Array.from(new Set([...newExplicitIds, ...newCohortMemberIds]))
+    .filter((id) => id !== existing.hostId && !priorInviteeIds.has(id));
+  if (editNotifyIds.length > 0) {
+    const isBoardRoom = (meta.kind as string | undefined) === 'BOARD_ROOM';
+    const startLabel = start.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+    // `session.approved` is a *registered* kind (KNOWN_NOTIFICATION_KINDS) — it
+    // carries a bell/inbox label, a mute preference, and a /classroom/{id}
+    // deep-link. The legacy `session.invited` kind is unregistered (no label, no
+    // toggle), so newly-added attendees get a properly-surfaced alert here, in
+    // line with the create path's notifySessionApproved() flow.
+    await emitToMany(
+      editNotifyIds.map((uid) => ({
+        userId: uid,
+        kind: 'session.approved',
+        title: isBoardRoom ? `Board room invite: ${title}` : `You're invited: ${title}`,
+        body: `${start < new Date() ? 'Started' : 'Starts'} ${startLabel}`,
+        payload: { sessionId },
+      })),
+    );
   }
 
   await audit({
@@ -605,6 +655,55 @@ export async function markAnalyticsReviewedAction(sessionId: string): Promise<Cr
 
   revalidatePath(`/session/${sessionId}/pre`);
   revalidatePath(`/session/${sessionId}/analytics`);
+  revalidatePath(`/session/${sessionId}/ready`);
+  return { ok: true, sessionId };
+}
+
+/**
+ * Mark the "Incoming Questions" pre-conference step as reviewed. Like the
+ * analytics step (and unlike studio/learners/promo, which derive from real
+ * artefacts), this is an acknowledgement: the presenter has actually triaged
+ * what learners are asking. Previously the step lit up the moment a single
+ * pre-question existed (`counts.questions > 0` in loadSessionView), which made
+ * it read as "done" before anyone reviewed anything. We now persist an explicit
+ * `questionsReviewed` metadata flag that loadSessionView reads back, exactly
+ * mirroring `analyticsReviewed`.
+ *
+ * Backs the "Mark questions reviewed" CTA on /session/[id]/questions.
+ */
+export async function markQuestionsReviewedAction(sessionId: string): Promise<CreateSessionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'Not signed in.' };
+
+  const existing = await db.teachingSession.findUnique({
+    where: { id: sessionId },
+    select: { id: true, hostId: true, deletedAt: true, metadata: true },
+  });
+  if (!existing || existing.deletedAt) return { ok: false, error: 'Session not found.' };
+
+  // Mirror the access guard on the questions page: host or faculty-like.
+  const isHost = existing.hostId === session.user.id;
+  const isFacultyLike =
+    session.user.role === Role.FACULTY ||
+    session.user.role === Role.PROGRAM_DIRECTOR ||
+    session.user.role === Role.ADMIN;
+  if (!isHost && !isFacultyLike) return { ok: false, error: 'You can’t review questions for this session.' };
+
+  // Merge so we don't clobber other metadata keys (roles, specialty, learnerPrep,
+  // analyticsReviewed, …).
+  const meta: Record<string, unknown> =
+    existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+      ? { ...(existing.metadata as Record<string, unknown>) }
+      : {};
+  meta.questionsReviewed = true;
+
+  await db.teachingSession.update({
+    where: { id: sessionId },
+    data: { metadata: meta as Prisma.InputJsonValue },
+  });
+
+  revalidatePath(`/session/${sessionId}/pre`);
+  revalidatePath(`/session/${sessionId}/questions`);
   revalidatePath(`/session/${sessionId}/ready`);
   return { ok: true, sessionId };
 }
