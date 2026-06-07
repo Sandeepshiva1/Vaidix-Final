@@ -74,7 +74,14 @@ async function probeInput(inputPath: string): Promise<ProbeResult> {
     });
     child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
     child.on('exit', () => {
-      const hasVideo = /Stream #\d+:\d+(?:\([^)]*\))?: Video/i.test(stderr);
+      // Match e.g. "Stream #0:1[0x2](und): Video: h264". Modern ffmpeg inserts a
+      // [0x..] stream-id and may add (lang) groups between the index and
+      // ": Video". The previous pattern only allowed a single optional (..)
+      // group, so it MISSED the video stream on these builds and produced an
+      // audio-only HLS for a recording that actually had video — i.e. playback
+      // showed no picture. `.*?` (no `s` flag, so it stays on one line) tolerates
+      // any bracket/paren metadata before ": Video".
+      const hasVideo = /Stream #\d+:\d+.*?:\s*Video/i.test(stderr);
       // "Duration: HH:MM:SS.ss," — ffmpeg always prints this for valid media
       const m = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
       const durationSec = m
