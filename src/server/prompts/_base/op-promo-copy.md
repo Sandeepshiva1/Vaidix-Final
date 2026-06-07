@@ -43,5 +43,8 @@ Rules:
   on a flyer, e.g. "{{DOMAIN_ADJECTIVE}} pattern recognition in 5 minutes" or a concrete
   case reference from the source material. Active phrases, concrete, max 55 chars each.
   Prefer 4, accept 3 if material is thin.
+- Pitch so the session reads as worthwhile for a mixed audience — a first-year resident
+  should feel it is approachable, a fellow should feel there is depth for them too. Avoid
+  wording that brands it as "basics only" or "advanced only" unless the source clearly scopes it.
 - Don't put quotes inside the strings.
 ```

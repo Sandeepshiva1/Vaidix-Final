@@ -2,6 +2,8 @@
 
 > **Deployment:** System-level prompt for converting ophthalmology source material (PPTs, notes, PDFs, textbook excerpts, guidelines) into educational flashcards for fellows + residents. Pair with infographic prompt as the second pillar of your educational app.
 
+> **⚠ Wiring status (2026-06):** This rich prompt is NOT currently loaded by any service. The live flashcard path is the inline `SYSTEM_PROMPT` in `study-artifacts-service.ts`, which emits a much simpler `{q, a}` shape on Gemini. Wire this via `loadPrompt('flashcards')` + a normalizer for the §7 schema before relying on these directives in production.
+
 **Target model:** Sonnet (atomic decomposition + clinical translation) · Token budget: ~6–10k per deck
 
 ---
@@ -178,6 +180,8 @@ Pick archetype to match source content, not the other way around.
 **Fellow-level cards** prioritize: subspecialty depth · uncommon but high-impact conditions · comparative judgment (drug A vs B given comorbidity) · complex case decision-making + risk-benefit reasoning · expert-level OCT/FA interpretation · evidence-grading. Bloom: Apply + Analyze + Evaluate dominant. Minimal context cues; foundational knowledge assumed.
 
 If source depth insufficient for requested audience → flag `depth_mismatch` and continue at highest level source supports.
+
+**Mixed audience (default when `audience` unspecified or the deck serves one room of juniors + fellows).** Do not average the difficulty. Produce a deck spanning the `difficulty_level` distribution: enough L1–L2 cards that a fresher gets traction, enough L4–L5 cards that a fellow is challenged, and tag each card honestly via `audience_tier` + `difficulty_level`. The SRS surfaces cards by the learner's own level, so a wide, well-tagged spread serves everyone; a deck flattened to the middle serves no one. Never simplify a critical/`clinical_urgency: critical` card to hit a level target.
 
 ### 6.1 Numerical Difficulty (1–5)
 

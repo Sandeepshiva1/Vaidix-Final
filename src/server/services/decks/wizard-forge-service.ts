@@ -339,10 +339,16 @@ export { PPTX_MIME_TYPES };
 
 interface ExtractionResult {
   topics: Array<{ topic: string; summary: string; sourceRefs?: string[] }>;
-  keyFacts?: Array<{ fact: string; sourceRef?: string }>;
+  keyFacts?: Array<{ fact: string; sourceRef?: string; tier?: 'core' | 'advanced' }>;
   definitions?: Array<{ term: string; definition: string }>;
   imagesAvailable?: Array<{ description: string; sourceRef?: string }>;
   openQuestions?: string[];
+  // Must-not-miss / sight-threatening points the source stresses; the draft
+  // step turns these into the pitfalls slide + safety callouts.
+  redFlags?: Array<{ redFlag: string; sourceRef?: string }>;
+  // Honest gaps: source ambiguity, contradiction, unreadable figures, possibly
+  // dated guidance. Surfaced to faculty as CLINICAL suggestions, never guessed.
+  uncertainties?: string[];
   primaryDeckOutline?: Array<{ slideIndex: number; title: string; summary: string }>;
 }
 

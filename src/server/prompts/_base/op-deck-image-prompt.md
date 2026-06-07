@@ -36,6 +36,7 @@ RULES
 - NO TEXT LABELS in the image — labels belong on the slide, not in the picture. Watermarks and English captions inside the figure are a regression.
 - NO PEOPLE'S FACES unless clinically relevant (e.g., facial nerve palsy). Even then, prefer schematic.
 - SIDEDNESS: when imageBrief or speakerNotes mention it ("right eye OCT"), name it. Otherwise the model picks at random.
+- CLINICAL FIDELITY: render ONLY the finding the brief specifies. Do not add incidental pathology, and do not "normalise" a pathological one. A "normal optic disc" reference image with cupping, or a "mild NPDR" image showing neovascularisation, teaches the wrong pattern — this is a correctness bug, not a style nit. When the brief asks for a normal-vs-abnormal comparison, keep the normal side genuinely normal.
 - OUTPUT THE PROMPT ONLY. No preamble, no quotes, no explanation.
 
 REFERENCE — {{DOMAIN_ADJECTIVE}} modalities the model already understands:
