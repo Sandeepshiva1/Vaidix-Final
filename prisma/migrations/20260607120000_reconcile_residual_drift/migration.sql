@@ -8,7 +8,9 @@ ALTER TABLE "specialties"     ALTER COLUMN "updatedAt" DROP DEFAULT;
 ALTER TABLE "sub_specialties" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 -- 2. `user_preferences.medlearnEnabled` was added by an orphan migration that
---    exists only in the DB history (not in any migration file). The current
---    schema no longer declares it. Drop it to converge. Destructive but the
---    column is unused by the current codebase.
-ALTER TABLE "user_preferences" DROP COLUMN "medlearnEnabled";
+--    exists only in SOME databases' history (a dev DB from a prior `db push`),
+--    not in any migration file. The current schema no longer declares it. Drop
+--    it to converge. `IF EXISTS` makes this safe on environments (e.g. prod)
+--    that never had the orphan column — without it this errored with 42703 and
+--    blocked every subsequent migration. Destructive but the column is unused.
+ALTER TABLE "user_preferences" DROP COLUMN IF EXISTS "medlearnEnabled";
