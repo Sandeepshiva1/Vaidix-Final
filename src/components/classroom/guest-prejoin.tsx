@@ -54,6 +54,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AudioPlaybackGate, AudioOutputButton } from './audio-playback-gate'
 
 type JoinedPhase = 'live' | 'reconnecting' | 'lost'
 
@@ -519,6 +520,7 @@ function GuestLiveRoom({
             <GuestStage />
           </main>
           <RoomAudioRenderer />
+          <AudioPlaybackGate />
           <GuestControls canPublish={canPublish} onLeave={onManualLeave} />
           {phase === 'reconnecting' && <ReconnectingOverlay />}
         </div>
@@ -701,6 +703,9 @@ function GuestControls({ canPublish, onLeave }: { canPublish: boolean; onLeave: 
           </Button>
         </>
       )}
+      {/* Speaker picker is available to everyone — even view-only guests need
+          to route audio to the right output device. */}
+      <AudioOutputButton />
       <Button size="icon" variant="destructive" onClick={onLeave} title="Leave call">
         <PhoneOff className="size-4" />
       </Button>

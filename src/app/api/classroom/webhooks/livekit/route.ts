@@ -112,10 +112,24 @@ function pickEgressFile(info: NonNullable<EgressEventPayload['egressInfo']>): { 
   return { key, sizeBytes, durationSec };
 }
 
+// Circuit breaker: after this many failed egress attempts for one session we
+// stop auto-retrying on every subsequent track_published. Prevents the
+// "abort/retry storm" if egress is persistently unreachable — a host can still
+// force a fresh attempt from the UI (which resets the Recording row).
+const MAX_AUTO_EGRESS_ATTEMPTS = 8;
+
 /**
  * Start recording for `sessionId` iff:
  *   1. The session has `recordingEnabled = true`
  *   2. We have not already triggered an egress for it (idempotency)
+ *   3. We haven't already burned through MAX_AUTO_EGRESS_ATTEMPTS retries
+ *
+ * Always starts a VIDEO Room-Composite (Zoom/Teams style): it mixes every
+ * participant's audio and renders the room layout, so voice is always captured
+ * and a camera/screen-share that turns on at any point appears in the same
+ * recording. Per LiveKit, a video composite records even when no camera is yet
+ * publishing (placeholder canvas + audio), so voice-only stretches are covered
+ * without a separate audio-only egress.
  *
  * Does NOT throw. All failure modes are audited and the function returns
  * normally — webhook delivery must succeed even if recording cannot start.
@@ -144,9 +158,15 @@ async function maybeStartRecording(sessionId: string): Promise<void> {
   ]);
   const existing = await db.recording.findUnique({
     where: { sessionId },
-    select: { id: true, egressJobId: true, status: true },
+    select: { id: true, egressJobId: true, status: true, retryCount: true },
   });
   if (existing && existing.egressJobId && ACTIVE_STATES.has(existing.status)) return;
+  // Circuit breaker — stop auto-retrying a persistently failing egress so a
+  // bad egress config can't produce one failure per published track forever.
+  if (existing && existing.retryCount >= MAX_AUTO_EGRESS_ATTEMPTS) {
+    console.warn('[livekit-webhook] egress auto-retry cap reached, not restarting:', { sessionId, retryCount: existing.retryCount });
+    return;
+  }
 
   try {
     const { egressId, filepath } = await startSessionEgress(sessionId);
@@ -479,11 +499,22 @@ export async function handleRoomLifecycleEvent(
         // next mic event fired → RECORDING_FAILED not in ACTIVE_STATES →
         // new egress dispatched → repeat every 15-30 s.
         //
-        // Screen-share (SCREEN_SHARE) also carries video and is included so
-        // screen-only sessions record correctly. Audio-only recording would
-        // require a separate audio-only egress type — deferred.
+        // Trigger on the first real media track of any kind — camera,
+        // screen-share, OR microphone. We always start a VIDEO composite, which
+        // (per LiveKit) records even before a camera publishes, so triggering on
+        // MICROPHONE means voice is captured from the very start of a camera-off
+        // session and the camera simply appears in the same recording when it
+        // turns on. track_published guarantees ≥1 track is live, so the egress
+        // bot never joins an empty room. The historic abort/retry storm was an
+        // egress↔LiveKit connectivity problem (wrong ws_url/node_ip), now guarded
+        // by the MAX_AUTO_EGRESS_ATTEMPTS circuit breaker in maybeStartRecording.
         const src = event.track?.source;
-        if (src !== TrackSource.CAMERA && src !== TrackSource.SCREEN_SHARE) break;
+        if (
+          src !== TrackSource.CAMERA &&
+          src !== TrackSource.SCREEN_SHARE &&
+          src !== TrackSource.MICROPHONE
+        )
+          break;
         await maybeStartRecording(sessionId);
         break;
       }
