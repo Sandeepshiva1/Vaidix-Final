@@ -7,6 +7,7 @@ import { Prisma, Role, SessionApprovalStatus, SessionStatus, SessionType } from 
 import { forgeDeck, DeckForgeError } from '@/server/services/decks/deck-forge-service';
 import { audit, AUDIT_EVENTS } from '@/server/services/audit';
 import { emitToMany } from '@/server/services/notifications-service';
+import { notifySessionApproved } from '@/server/services/session-notifications';
 
 export interface CreateSessionFormInput {
   title: string;
@@ -277,21 +278,30 @@ export async function createTeachingSessionAction(input: CreateSessionFormInput)
       skipDuplicates: true,
     });
 
-    // In-app "you're invited" alert. Deep-links to /classroom/{id} (the shared
-    // call room) via the notifications-service default resolver — exactly where
-    // a board-room participant joins. Fire-and-forget; never blocks creation.
-    const kind = input.isBoardRoom ? 'session.invited.boardroom' : 'session.invited';
-    const startLabel = start.toLocaleString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-    });
-    await emitToMany(
-      allInviteeIds.map((uid) => ({
-        userId: uid,
-        kind,
-        title: input.isBoardRoom ? `Board room invite: ${title}` : `You're invited: ${title}`,
-        body: `${start < new Date() ? 'Started' : 'Starts'} ${startLabel}`,
-        payload: { sessionId: created.id },
-      })),
+    if (input.isBoardRoom) {
+      // In-app alert for board-room participants. Deep-links to /classroom/{id}.
+      // Fire-and-forget; never blocks creation.
+      const startLabel = start.toLocaleString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      });
+      await emitToMany(
+        allInviteeIds.map((uid) => ({
+          userId: uid,
+          kind: 'session.invited.boardroom',
+          title: `Board room invite: ${title}`,
+          body: `${start < new Date() ? 'Started' : 'Starts'} ${startLabel}`,
+          payload: { sessionId: created.id },
+        })),
+      );
+    }
+  }
+
+  if (!input.isBoardRoom) {
+    // Classroom sessions: notify via the proper session-notifications path so
+    // cohort members are included (resolveAttendees unions cohort + invitees).
+    // This also sends the .ics email to all attendees. Fire-and-forget.
+    notifySessionApproved(created.id).catch((err) =>
+      console.error('[actions] notifySessionApproved failed', err),
     );
   }
 
