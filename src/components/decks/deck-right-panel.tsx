@@ -297,7 +297,12 @@ export function DeckRightPanel({
           <DeckAiSlidesPanel jobId={jobId} onSlidesAppended={onSlidesAppended} />
         )}
         {tab === 'hooks' && (
-          <DeckHooksPanel sessionId={sessionId} activeSlideOrder={activeSlideOrder} />
+          <DeckHooksPanel
+            jobId={jobId}
+            sessionId={sessionId}
+            activeSlideId={activeSlideId}
+            activeSlideOrder={activeSlideOrder}
+          />
         )}
       </div>
 

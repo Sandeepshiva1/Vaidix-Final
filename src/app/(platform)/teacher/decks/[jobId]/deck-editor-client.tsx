@@ -136,6 +136,7 @@ export function DeckEditorClient({
   initialAnalysis,
   initialTheme,
   initialBackgroundHex,
+  importMode,
   backToSessionId,
   documentId,
 }: Props) {
@@ -147,6 +148,9 @@ export function DeckEditorClient({
   const [exporting, setExporting] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // VERBATIM imports are flattened (read-only background + text overlays). This
+  // tracks the one-time "Convert to editable" regeneration into an AI deck.
+  const [regenerating, setRegenerating] = useState(false);
   // Per-slide AI image state: which slide is generating, and which (if any)
   // hit the offline (503) path so the panel can show an inline note.
   const [imageBusyId, setImageBusyId] = useState<string | null>(null);
@@ -571,7 +575,50 @@ export function DeckEditorClient({
     }
   }
 
+  // Convert a VERBATIM (flattened) import into a fully-editable AI deck. The
+  // original slides are images with text overlays — you can't add/remove tables,
+  // images, text boxes, or the background on them. This re-authors the deck from
+  // its source so every element becomes an editable object. Destructive: it
+  // replaces the current slides, so we confirm first and hard-reload on success
+  // to re-seed the editor with the new editable slides.
+  async function regenerateEditable() {
+    if (regenerating) return;
+    if (
+      !window.confirm(
+        'Convert this presentation into a fully editable deck?\n\n' +
+          'It was imported as-is, so its slides are fixed images you can only ' +
+          'edit text on. Converting re-creates every slide as editable text, ' +
+          'bullets, tables and images — but replaces the current fixed slides ' +
+          '(any manual tweaks to them are lost). This can take a moment.',
+      )
+    )
+      return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/decks/${jobId}/regenerate`, {
+        method: 'POST',
+        headers: { ...csrfHeaders() },
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        const msg =
+          res.status === 503
+            ? 'The AI deck builder is temporarily unavailable. Please try again shortly.'
+            : (j?.error?.message ?? `Convert failed (${res.status})`);
+        throw new Error(msg);
+      }
+      // Reload so the page loader re-presigns the new editable slides and the
+      // editor renders the editable canvas instead of the faithful original.
+      window.location.reload();
+    } catch (err) {
+      setError((err as Error).message);
+      setRegenerating(false);
+    }
+  }
+
   const activeIndex = active ? slides.findIndex((s) => s.id === active.id) : -1;
+  const isVerbatim = importMode === 'VERBATIM';
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -1062,6 +1109,39 @@ export function DeckEditorClient({
 
           {/* Canvas */}
           <div className="min-h-0 flex-1 overflow-auto p-8">
+            {/* VERBATIM imports are flattened images + text overlays — tables,
+                images, text boxes and the background can't be added or deleted.
+                Offer a one-time conversion into a fully-editable AI deck. */}
+            {isVerbatim && (
+              <div className="mx-auto mb-4 flex max-w-3xl flex-col gap-2 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200">
+                <div className="min-w-0 text-[12px] leading-snug">
+                  <p className="font-medium">This deck was imported as-is (fixed slides).</p>
+                  <p className="text-amber-800/90 dark:text-amber-200/80">
+                    You can only edit text on these slides — tables, images, text boxes and the
+                    background are part of the original picture and can’t be added or removed.
+                    Convert it to edit everything.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={regenerateEditable}
+                  disabled={regenerating}
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {regenerating ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Converting…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-3.5" />
+                      Convert to editable
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
             {active ? (
               <div className="mx-auto max-w-3xl">
                 <div className="mb-3 flex items-center justify-between text-[12px] text-muted-foreground">
