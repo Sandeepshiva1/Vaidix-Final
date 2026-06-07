@@ -914,7 +914,7 @@ export default function StudioPage() {
             ) : activeTab === 'ai-slides' ? (
               <AISlidesTab />
             ) : (
-              <HooksTab activeSlideIdx={activeSlideIdx} />
+              <HooksTab activeSlideIdx={activeSlideIdx} slide={activeSlide} />
             )}
           </div>
         </aside>
@@ -1276,12 +1276,23 @@ const DOC_RESULTS: Record<string, string> = {
   dme:        '"Diabetic macular oedema is defined as retinal thickening within 500 µm of the foveal centre on stereoscopic fundus photography or OCT." — Page 11, AAO PPP 2024',
 }
 
-function HooksTab({ activeSlideIdx }: { activeSlideIdx: number }) {
+interface DraftHook {
+  kind: string
+  label: string
+  options?: string[]
+}
+
+function HooksTab({ activeSlideIdx, slide }: { activeSlideIdx: number; slide?: Slide }) {
   const [hooks, setHooks] = useState(MOCK_HOOKS)
   const [adding, setAdding] = useState(false)
   const [newKind, setNewKind] = useState('poll')
   const [newLabel, setNewLabel] = useState('')
   const slideNum = activeSlideIdx + 1
+
+  // ── AI draft state ─────────────────────────────────────────────────────
+  const [suggesting, setSuggesting] = useState(false)
+  const [drafts, setDrafts] = useState<DraftHook[]>([])
+  const [suggestErr, setSuggestErr] = useState<string | null>(null)
 
   const addHook = () => {
     if (!newLabel.trim()) return
@@ -1290,6 +1301,38 @@ function HooksTab({ activeSlideIdx }: { activeSlideIdx: number }) {
     setAdding(false)
   }
 
+  const suggestWithAi = async () => {
+    if (!slide) return
+    setSuggesting(true)
+    setSuggestErr(null)
+    try {
+      const res = await fetch('/demo/api/suggest-hooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slideTitle: slide.title, bullets: slide.bullets }),
+      })
+      const json = (await res.json()) as { ok: boolean; hooks?: DraftHook[]; error?: string }
+      if (!json.ok || !json.hooks) throw new Error(json.error ?? 'Could not draft hooks')
+      setDrafts(json.hooks)
+    } catch (e) {
+      setSuggestErr((e as Error).message)
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  const editDraft = (i: number, label: string) =>
+    setDrafts((d) => d.map((h, idx) => (idx === i ? { ...h, label } : h)))
+
+  const addDraft = (i: number) => {
+    const d = drafts[i]
+    if (!d || !d.label.trim()) return
+    setHooks((h) => [...h, { slide: slideNum, kind: d.kind, label: d.label.trim() }])
+    setDrafts((arr) => arr.filter((_, idx) => idx !== i))
+  }
+
+  const dismissDraft = (i: number) => setDrafts((arr) => arr.filter((_, idx) => idx !== i))
+
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
@@ -1297,13 +1340,63 @@ function HooksTab({ activeSlideIdx }: { activeSlideIdx: number }) {
         Hooks trigger real-time learner responses during your live session.
       </div>
 
+      {/* AI suggest — drafts grounded in the active slide's content */}
+      <button
+        type="button"
+        onClick={() => void suggestWithAi()}
+        disabled={suggesting || !slide}
+        className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-linear-to-r from-indigo-500 to-violet-500 px-3 py-2.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+      >
+        {suggesting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+        {suggesting ? 'Drafting…' : drafts.length > 0 ? `Regenerate for slide ${slideNum}` : `Suggest hooks for slide ${slideNum}`}
+      </button>
+
+      {suggestErr && <p className="text-[11px] text-rose-500">{suggestErr}</p>}
+
+      {drafts.length > 0 && (
+        <div className="space-y-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/[0.03] p-3">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+            <Sparkles className="size-3" /> AI drafts — edit, then add the ones you like
+          </div>
+          {drafts.map((d, i) => {
+            const ht = HOOK_TYPES.find((t) => t.kind === d.kind)
+            return (
+              <div key={i} className="space-y-1.5 rounded-xl border border-border/60 bg-background/70 p-2.5">
+                <div className="flex items-center gap-2">
+                  <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase', ht?.color ?? '')}>{ht?.label ?? d.kind}</span>
+                  <button type="button" onClick={() => dismissDraft(i)} className="ml-auto text-muted-foreground hover:text-foreground" title="Dismiss">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                <textarea
+                  value={d.label}
+                  onChange={(e) => editDraft(i, e.target.value)}
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-[12px] outline-none focus:border-indigo-500/50"
+                />
+                {d.options && d.options.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {d.options.map((o, oi) => (
+                      <span key={oi} className="rounded-md bg-foreground/5 px-1.5 py-0.5 text-[10.5px] text-muted-foreground">{o}</span>
+                    ))}
+                  </div>
+                )}
+                <button type="button" onClick={() => addDraft(i)} className="flex w-full items-center justify-center gap-1 rounded-lg bg-teal-600 py-1.5 text-[11.5px] font-medium text-white hover:bg-teal-500">
+                  <Plus className="size-3" /> Add to slide {slideNum}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => setAdding(true)}
         className="flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-amber-500/30 bg-amber-500/[0.02] px-3 py-2.5 text-[12.5px] font-medium text-amber-700 hover:bg-amber-500/5 dark:text-amber-300"
       >
         <Plus className="size-3.5" />
-        Add hook to slide {slideNum}
+        Add hook manually to slide {slideNum}
       </button>
 
       {adding && (

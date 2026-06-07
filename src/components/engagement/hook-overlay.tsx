@@ -3,9 +3,14 @@
 // ════════════════════════════════════════════════════════════════════════════
 // HookOverlay —  (live hook prompt for learners)
 // ════════════════════════════════════════════════════════════════════════════
-// Polls /api/classroom/sessions/[id]/hooks?onlyFired=true every 4s. When a new
-// fired hook arrives, surfaces a centered modal with options. Submitting POSTs
-// to /[hookId]/respond. Records latency client-side and sends with the response.
+// Polls /api/classroom/sessions/[id]/hooks?mine=true every 4s. The server
+// returns only the hooks THIS participant should answer now — fired at/after
+// they joined and not already answered (present-at-fire-time gating). That
+// server-side filter is what stops a late joiner / rejoiner from being flooded
+// with the whole session's backlog; the client no longer relies on an in-memory
+// set that was wiped on every mount. When a hook arrives, surfaces a centered
+// modal (one at a time). Submitting POSTs to /[hookId]/respond. Records latency
+// client-side and sends with the response.
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useVisibleInterval } from '@/lib/use-visible-interval';
@@ -38,15 +43,18 @@ export function HookOverlay({ sessionId }: { sessionId: string }) {
 
   const poll = useCallback(async () => {
     try {
-      const res = await fetch(`/api/classroom/sessions/${sessionId}/hooks?onlyFired=true`, {
+      const res = await fetch(`/api/classroom/sessions/${sessionId}/hooks?mine=true`, {
         cache: 'no-store',
       });
       if (!res.ok) return;
       const json = (await res.json()) as { ok: boolean; data?: { hooks: LiveHookDTO[] } };
       if (!json.ok || !json.data) return;
-      const open = json.data.hooks
-        .filter((h) => h.firedAt && !h.closedAt && !respondedIds.has(h.id))
-        .sort((a, b) => (b.firedAt ?? '').localeCompare(a.firedAt ?? ''))[0];
+      // Server already gated to open + present-at-fire-time + not-answered, oldest
+      // first. respondedIds is a local belt-and-braces guard for the brief window
+      // between submitting and the next poll reflecting the recorded response.
+      const open = json.data.hooks.filter((h) => !respondedIds.has(h.id))[0];
+      // One prompt on screen at a time: if a hook is already showing, leave it —
+      // a newer hook waits its turn until the current one is answered/dismissed.
       if (open && open.id !== activeHook?.id) {
         setActiveHook(open);
         firedAtMsRef.current = open.firedAt ? new Date(open.firedAt).getTime() : Date.now();

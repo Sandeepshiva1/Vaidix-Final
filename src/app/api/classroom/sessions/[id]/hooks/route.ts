@@ -15,6 +15,7 @@ import {
 import {
   createHook,
   listLiveHooks,
+  listLiveHooksForParticipant,
   userCanCreateHook,
 } from '@/server/services/hooks/hooks-service';
 import { audit, AUDIT_EVENTS, extractRequestMetadata } from '@/server/services/audit';
@@ -42,6 +43,20 @@ const listSchema = z.object({
   prePublished: z
     .union([z.literal('true'), z.literal('false')])
     .optional(),
+  // `mine=true` — the learner-facing HookOverlay query. Returns only OPEN hooks
+  // the calling participant should be prompted with NOW: fired at/after their
+  // join, and not already answered by them. Prevents late joiners / rejoiners
+  // from being flooded with the session's backlog. Ignores onlyFired/sinceMs.
+  mine: z
+    .union([z.literal('true'), z.literal('false')])
+    .optional()
+    .transform((v) => v === 'true'),
+  // Presenter composer passes excludeAuto=true to keep AI auto-generated
+  // hooks out of its history list (they still fire to learners via `mine`).
+  excludeAuto: z
+    .union([z.literal('true'), z.literal('false')])
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -96,6 +111,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!q.ok) return q.response;
   const { id: sessionId } = await ctx.params;
   try {
+    // Learner overlay path: only the hooks THIS participant should answer now
+    // (present-at-fire-time + not-already-answered). Server-side gating so a
+    // refresh/rejoin can't replay the backlog.
+    if (q.data.mine) {
+      const hooks = await listLiveHooksForParticipant(sessionId, auth.user.id);
+      return jsonOk({ hooks });
+    }
     const prePublished =
       q.data.prePublished === 'true' ? true
       : q.data.prePublished === 'false' ? false
@@ -104,6 +126,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       onlyFired: q.data.onlyFired,
       sinceMs: q.data.sinceMs,
       prePublished,
+      excludeAuto: q.data.excludeAuto,
     });
     return jsonOk({ hooks });
   } catch (err) {
