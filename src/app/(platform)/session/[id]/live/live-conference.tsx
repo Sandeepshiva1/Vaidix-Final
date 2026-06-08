@@ -20,6 +20,7 @@ import {
   Lightbulb,
   Loader2,
   Medal,
+  MessageSquare,
   Mic,
   MicOff,
   Minus,
@@ -52,6 +53,7 @@ import '@livekit/components-styles'
 import { isAgentParticipant } from '@/lib/livekit-helpers'
 import { cn } from '@/lib/utils'
 import { WhiteboardPanel } from '@/components/classroom/whiteboard-panel'
+import { ChatPanel } from '@/components/classroom/chat-panel'
 import { BreakoutRoomView } from '@/components/classroom/breakout-room-view'
 import { HookOverlay } from '@/components/engagement/hook-overlay'
 import type { SessionView } from '@/lib/medlearn/session-view'
@@ -65,7 +67,7 @@ const reactionEnc = new TextEncoder()
 const reactionDec = new TextDecoder()
 
 type ViewMode = 'gallery' | 'presentation'
-type RightTab = 'people' | 'hooks' | 'transcript' | 'ai' | 'breakout'
+type RightTab = 'people' | 'hooks' | 'transcript' | 'ai' | 'breakout' | 'chat'
 type LbCategory = 'score' | 'consistent' | 'accurate' | 'engaged' | 'time'
 type TxLang = 'all' | 'en' | 'te' | 'hi' | 'ta' | 'kn' | 'ml' | 'mixed'
 
@@ -253,6 +255,11 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
   const { hooks: apiHooks, create: createHook, fire: fireHook } = useLiveHooks(session.id)
   const liveHook = apiHooks?.find((h) => h.firedAt && !h.closedAt) ?? null
   const [skippedHooks, setSkippedHooks] = useState<Set<string>>(new Set())
+  // Hook response distribution — keyed by hookId
+  const [hookResultsFor, setHookResultsFor] = useState<string | null>(null)
+  const [hookResultsData, setHookResultsData] = useState<{ total: number; counts: Record<string, number> } | null>(null)
+  const [hookResultsLoading, setHookResultsLoading] = useState(false)
+  const [chatUnread, setChatUnread] = useState(0)
   const [aiBusy, setAiBusy]             = useState(false)
   const [aiOffline, setAiOffline]       = useState(false)
   const [aiSuggested, setAiSuggested]   = useState<SuggestedPoll[]>([])
@@ -342,6 +349,24 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
       if (ok) setHookNotif('Launched — learners can answer now.')
     } else {
       setSkippedHooks((s) => new Set(s).add(hid))
+    }
+  }
+
+  const toggleHookResults = async (hookId: string) => {
+    if (hookResultsFor === hookId) {
+      setHookResultsFor(null)
+      setHookResultsData(null)
+      return
+    }
+    setHookResultsFor(hookId)
+    setHookResultsData(null)
+    setHookResultsLoading(true)
+    try {
+      const res = await fetch(`/api/classroom/sessions/${session.id}/hooks/${hookId}/results`, { credentials: 'include' })
+      const json = await res.json()
+      if (json.ok) setHookResultsData({ total: json.data.total, counts: json.data.counts })
+    } catch { /* ignore */ } finally {
+      setHookResultsLoading(false)
     }
   }
 
@@ -605,20 +630,24 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
             {!rightCollapsed && <span className="ml-1 text-[9.5px] font-semibold tracking-widest text-gray-400 uppercase">Panel</span>}
           </div>
           {!rightCollapsed && <>
-          <div className={cn('grid shrink-0 border-b border-gray-200', isHost ? 'grid-cols-5' : 'grid-cols-3')}>
+          <div className={cn('grid shrink-0 border-b border-gray-200', isHost ? 'grid-cols-6' : 'grid-cols-4')}>
             {([
-              // People (roster) + Captions + Rooms are for everyone. Hooks
-              // authoring + AI co-facilitator are host-only moderator surfaces;
-              // learners answer hooks via the HookOverlay modal, not this panel.
+              // People (roster) + Captions + Rooms + Chat are for everyone.
+              // Hooks authoring + AI co-facilitator are host-only moderator
+              // surfaces; learners answer hooks via the HookOverlay modal.
               { key: 'people' as RightTab, icon: <Users2 className="size-[13px]" />, label: 'People' },
               ...(isHost ? [{ key: 'hooks' as RightTab, icon: <Zap className="size-[13px]" />, label: 'Hooks' }] : []),
               { key: 'transcript' as RightTab, icon: <Globe className="size-[13px]" />,      label: 'Captions' },
               ...(isHost ? [{ key: 'ai' as RightTab, icon: <Sparkles className="size-[13px]" />, label: 'AI' }] : []),
               { key: 'breakout'   as RightTab, icon: <Layers className="size-[13px]" />,     label: 'Rooms' },
+              { key: 'chat'       as RightTab, icon: <MessageSquare className="size-[13px]" />, label: 'Chat', badge: chatUnread > 0 ? chatUnread : undefined },
             ]).map((tab) => (
-              <button key={tab.key} type="button" onClick={() => setRightTab(tab.key)}
-                className={cn('flex flex-col items-center gap-0.5 border-b-2 py-2 text-[9px] font-medium transition-colors', rightTab === tab.key ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-400 hover:text-gray-700')}>
+              <button key={tab.key} type="button" onClick={() => { setRightTab(tab.key); if (tab.key === 'chat') setChatUnread(0) }}
+                className={cn('relative flex flex-col items-center gap-0.5 border-b-2 py-2 text-[9px] font-medium transition-colors', rightTab === tab.key ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-400 hover:text-gray-700')}>
                 {tab.icon}{tab.label}
+                {'badge' in tab && tab.badge !== undefined && (
+                  <span className="absolute top-1 right-1 flex size-3.5 items-center justify-center rounded-full bg-rose-500 text-[7px] font-bold text-white">{tab.badge > 9 ? '9+' : tab.badge}</span>
+                )}
               </button>
             ))}
           </div>
@@ -696,10 +725,52 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
                             <button type="button" onClick={() => approveHook(h.id, true)} className="flex-1 rounded-lg bg-teal-500 py-1 text-[10px] font-semibold text-white hover:bg-teal-400">Launch</button>
                           </div>
                         ) : (
+                          <>
                           <div className={cn('flex items-center justify-between border-t border-gray-100 px-3 py-1.5 text-[10px] font-semibold', fired ? 'text-teal-600' : 'text-gray-400')}>
                             <span>{fired ? <><Check className="mr-1 inline-block size-3" />Live now</> : 'Skipped'}</span>
-                            {fired && <span className="font-normal text-gray-400">{h.responseCount} responses</span>}
+                            <div className="flex items-center gap-1.5">
+                              {fired && <span className="font-normal text-gray-400">{h.responseCount} {h.responseCount === 1 ? 'response' : 'responses'}</span>}
+                              {fired && (
+                                <button
+                                  type="button"
+                                  onClick={() => void toggleHookResults(h.id)}
+                                  className={cn('rounded px-1.5 py-0.5 text-[9px] font-semibold transition-colors', hookResultsFor === h.id ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}
+                                >
+                                  {hookResultsFor === h.id ? 'Hide' : 'View'}
+                                </button>
+                              )}
+                            </div>
                           </div>
+                          {hookResultsFor === h.id && (
+                            <div className="border-t border-gray-100 px-3 py-2">
+                              {hookResultsLoading ? (
+                                <div className="flex items-center gap-1.5 py-1 text-[10px] text-gray-400"><Loader2 className="size-3 animate-spin" />Loading…</div>
+                              ) : hookResultsData ? (
+                                <div className="space-y-1.5">
+                                  <div className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">{hookResultsData.total} total responses</div>
+                                  {Object.entries(hookResultsData.counts)
+                                    .sort(([, a], [, b]) => b - a)
+                                    .map(([option, count]) => {
+                                      const pct = hookResultsData.total > 0 ? Math.round((count / hookResultsData.total) * 100) : 0
+                                      return (
+                                        <div key={option}>
+                                          <div className="mb-0.5 flex items-center justify-between text-[10px]">
+                                            <span className="truncate text-gray-700 max-w-[150px]">{option}</span>
+                                            <span className="ml-1 shrink-0 font-semibold text-teal-600">{pct}%</span>
+                                          </div>
+                                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                                            <div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: `${pct}%` }} />
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                </div>
+                              ) : (
+                                <div className="py-1 text-[10px] text-gray-400">No results yet.</div>
+                              )}
+                            </div>
+                          )}
+                          </>
                         )}
                       </div>
                     )
@@ -901,6 +972,23 @@ function LiveConferenceBody({ session, isHost, connected, role, tokenStatus, onJ
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {rightTab === 'chat' && (
+              <div className="h-full overflow-hidden">
+                {connected ? (
+                  <ChatPanelWrapper
+                    sessionId={session.id}
+                    onNewMessages={(n) => {
+                      if (rightTab !== 'chat') setChatUnread((u) => u + n)
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center p-4 text-center text-[10.5px] text-gray-400">
+                    Chat is available once the room connects.
                   </div>
                 )}
               </div>
@@ -1719,5 +1807,26 @@ function CenterStageOffline({ status }: { status: TokenState['status'] }) {
         </p>
       )}
     </div>
+  )
+}
+
+// Must be rendered inside <LiveKitRoom> — calls useLocalParticipant() which
+// requires the LiveKit context. We only mount this when connected=true.
+function ChatPanelWrapper({
+  sessionId,
+  onNewMessages,
+}: {
+  sessionId: string
+  onNewMessages?: (count: number) => void
+}) {
+  const { localParticipant } = useLocalParticipant()
+  const identity = localParticipant.identity ?? ''
+  const name = localParticipant.name ?? identity
+  return (
+    <ChatPanel
+      sessionId={sessionId}
+      currentUser={{ id: identity, name }}
+      onNewMessages={onNewMessages}
+    />
   )
 }

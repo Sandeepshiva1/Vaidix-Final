@@ -10,6 +10,33 @@ import { userCanSeeSession } from '@/server/services/sessions/visibility'
 
 export const dynamic = 'force-dynamic'
 
+function extFromMime(mime: string): string {
+  const base = mime.split(';')[0].trim()
+  const map: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/svg+xml': '.svg',
+    'text/plain': '.txt',
+    'text/csv': '.csv',
+    'text/markdown': '.md',
+    'application/zip': '.zip',
+    'application/json': '.json',
+    'video/mp4': '.mp4',
+    'audio/mpeg': '.mp3',
+    'audio/webm': '.webm',
+  }
+  return map[base] ?? ''
+}
+
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string; linkId: string }> }) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
@@ -37,15 +64,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string; li
     }
 
     const contentType = link.document.mimeType ?? upstream.headers.get('content-type') ?? 'application/octet-stream'
-    const filename = (link.document.title ?? 'document').replace(/[^a-zA-Z0-9._\- ]/g, '_')
+    const sanitized = (link.document.title ?? 'document').replace(/[^a-zA-Z0-9._\- ]/g, '_')
+    const filename = /\.[a-zA-Z0-9]{1,6}$/.test(sanitized)
+      ? sanitized
+      : `${sanitized}${extFromMime(contentType)}`
 
     return new Response(upstream.body, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `inline; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
         'Cache-Control': 'private, max-age=3600',
-        'X-Frame-Options': 'SAMEORIGIN',
       },
     })
   } catch (err) {

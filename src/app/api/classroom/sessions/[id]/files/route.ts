@@ -27,12 +27,14 @@ const writeSchema = z.object({
   sizeBytes: z.number().int().min(1).max(50 * 1024 * 1024), // 50MB cap per file
 });
 
-// Mime-type allowlist — slides, docs, images, PDFs, archives. Block scripts
-// and executables outright. The list deliberately excludes video/audio:
-// recordings of the session live in the Recording pipeline; participants
-// don't drop raw video into chat.
+// Mime-type allowlist — slides, docs, images, PDFs, archives, and short audio
+// clips for voice notes. Block scripts and executables outright.
 const ALLOWED_MIME_PREFIXES = [
   'image/',
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/mpeg',
   'application/pdf',
   'application/zip',
   'application/vnd.openxmlformats-officedocument.',

@@ -83,6 +83,8 @@ export function WhiteboardPanel({
   )
   const surfaceRef = useRef<SurfaceHandle | null>(null)
   const saveTimerRef = useRef<number | null>(null)
+  const idleSaveRef = useRef<number | null>(null)
+  const savingRef = useRef(false)
   const versionRef = useRef(0)
   const hydratingRef = useRef(false)
   // Latest snapshot we *wanted* peers to have, plus the version we last
@@ -172,46 +174,69 @@ export function WhiteboardPanel({
   }, [lastDc, localParticipant.identity])
 
   // Persist + broadcast on local edit.
+  // Architecture: similar to collaborative text editors — save is fully
+  // background so the canvas never blocks. We use requestIdleCallback (with
+  // a setTimeout fallback) so the heavy getSnapshot() + JSON.stringify run
+  // during browser idle time, not during an active drawing stroke.
   const onLocalChange = useCallback(() => {
     if (hydratingRef.current) return // avoid re-emitting an inbound snapshot
     if (!canEdit) return
     setSaveStatus('pending')
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = window.setTimeout(async () => {
-      const snapshot = surfaceRef.current?.getSnapshot()
-      if (!snapshot) return
-      versionRef.current += 1
-      const version = versionRef.current
-      setSaveStatus('saving')
-      // Remember the latest snapshot so the reconnect effect can re-send it if
-      // this broadcast is skipped (engine closed/reconnecting). LiveKit logs a
-      // NegotiationError synchronously before publishData rejects when closed,
-      // so a bare .catch() can't recover it — the reconnect retry does.
-      lastBroadcastRef.current = { version, snapshot }
-      broadcastSnapshot(version, snapshot)
-      try {
-        const res = await fetch(`/api/classroom/sessions/${sessionId}/whiteboard`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ snapshot }),
-        })
-        const json = await res.json()
-        if (json.ok) {
-          setSaveStatus('saved')
-        } else {
-          setSaveStatus('error')
+    saveTimerRef.current = window.setTimeout(() => {
+      // Cancel any previously queued idle save — only the latest snapshot matters.
+      if (idleSaveRef.current !== null) {
+        if (typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(idleSaveRef.current)
         }
-      } catch {
-        setSaveStatus('error')
+        idleSaveRef.current = null
+      }
+
+      const doSave = async () => {
+        // Skip if a save is already in-flight; the debounce will catch the next edit.
+        if (savingRef.current) return
+        const snapshot = surfaceRef.current?.getSnapshot()
+        if (!snapshot) return
+        savingRef.current = true
+        versionRef.current += 1
+        const version = versionRef.current
+        setSaveStatus('saving')
+        // Remember the latest snapshot so the reconnect effect can re-send it if
+        // this broadcast is skipped (engine closed/reconnecting). LiveKit logs a
+        // NegotiationError synchronously before publishData rejects when closed,
+        // so a bare .catch() can't recover it — the reconnect retry does.
+        lastBroadcastRef.current = { version, snapshot }
+        broadcastSnapshot(version, snapshot)
+        try {
+          const res = await fetch(`/api/classroom/sessions/${sessionId}/whiteboard`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ snapshot }),
+          })
+          const json = await res.json()
+          setSaveStatus(json.ok ? 'saved' : 'error')
+        } catch {
+          setSaveStatus('error')
+        } finally {
+          savingRef.current = false
+        }
+      }
+
+      if (typeof window.requestIdleCallback === 'function') {
+        idleSaveRef.current = window.requestIdleCallback(() => { void doSave() }, { timeout: 4000 })
+      } else {
+        void doSave()
       }
     }, SAVE_DEBOUNCE_MS)
   }, [canEdit, sessionId, broadcastSnapshot])
 
-  // Toggle editableByResidents (host-only). Sends a no-op snapshot save
-  // alongside the toggle so the round-trip looks atomic to the user.
+  // Toggle editableByResidents (host-only). Optimistically updates local state
+  // immediately so the canvas is never blocked waiting for the server round-trip.
   async function toggleEditable() {
     if (!isHostish || !surfaceRef.current) return
+    const nextEditable = !editableByResidents
+    setEditableByResidents(nextEditable) // optimistic
     const snapshot = surfaceRef.current.getSnapshot()
     setSaveStatus('saving')
     try {
@@ -221,7 +246,7 @@ export function WhiteboardPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           snapshot,
-          editableByResidents: !editableByResidents,
+          editableByResidents: nextEditable,
         }),
       })
       const json = await res.json()
@@ -229,9 +254,11 @@ export function WhiteboardPanel({
         setEditableByResidents(json.data.whiteboard.editableByResidents)
         setSaveStatus('saved')
       } else {
+        setEditableByResidents(!nextEditable) // revert on error
         setSaveStatus('error')
       }
     } catch {
+      setEditableByResidents(!nextEditable) // revert on error
       setSaveStatus('error')
     }
   }
