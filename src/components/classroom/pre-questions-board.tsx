@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowUp, AlertCircle, Send, Sparkles, Loader2, MessageCircleQuestion, Flame, Minus, CornerDownRight, ShieldCheck, X } from 'lucide-react'
+import {
+  ArrowUp, AlertCircle, Send, Sparkles, Loader2, MessageCircleQuestion,
+  Flame, Minus, CornerDownRight, ShieldCheck, X, Mic, Square, Paperclip,
+  FileAudio, File as FileIcon, Download,
+} from 'lucide-react'
 
 function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -15,6 +19,34 @@ function formatRelativeTime(iso: string): string {
   const d = Math.floor(hr / 24)
   if (d < 7) return `${d}d ago`
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
+
+async function sha256Hex(buf: ArrayBuffer): Promise<string> {
+  const hash = await crypto.subtle.digest('SHA-256', buf)
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+// Attachment metadata is embedded as a JSON prefix in the content field so
+// no schema migration is needed. Format: first line = JSON {"_a":{...}}, rest = text.
+interface AttachMeta { id: string; n: string; t: string }
+
+function encodeAttach(id: string, name: string, type: string, text: string): string {
+  const prefix = JSON.stringify({ _a: { id, n: name, t: type } })
+  return text ? `${prefix}\n${text}` : prefix
+}
+
+function decodeContent(content: string): { attach: AttachMeta | null; text: string } {
+  const nl = content.indexOf('\n')
+  const firstLine = nl === -1 ? content : content.slice(0, nl)
+  try {
+    const parsed = JSON.parse(firstLine) as { _a?: AttachMeta }
+    if (parsed._a?.id) {
+      return { attach: parsed._a, text: nl === -1 ? '' : content.slice(nl + 1) }
+    }
+  } catch { /* not an attachment prefix */ }
+  return { attach: null, text: content }
 }
 
 type Urgency = 'LOW' | 'NORMAL' | 'HIGH'
@@ -56,6 +88,13 @@ interface Props {
   currentUserId: string
 }
 
+interface PendingAttach {
+  id: string
+  name: string
+  type: string
+  sizeBytes: number
+}
+
 const URGENCY_CONFIG: Record<Urgency, { label: string; icon: React.ComponentType<{ className?: string }>; cls: string; activeCls: string }> = {
   LOW:    { label: 'Low',    icon: Minus,  cls: 'border-border/60 text-muted-foreground hover:border-border', activeCls: 'border-slate-400 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
   NORMAL: { label: 'Normal', icon: Send,   cls: 'border-border/60 text-muted-foreground hover:border-border', activeCls: 'border-primary bg-primary/10 text-primary' },
@@ -70,9 +109,6 @@ interface DoubtPromptView {
 export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
   const [items, setItems] = useState<PreQuestionView[]>([])
   const [themes, setThemes] = useState<ThemeView[]>([])
-  // presenter-published framing prompts. Surface as starter chips
-  // above the compose box so the resident has an entry point beyond "What
-  // would you like the presenter to address?".
   const [doubtPrompts, setDoubtPrompts] = useState<DoubtPromptView[]>([])
   const [loading, setLoading] = useState(true)
   const [draft, setDraft] = useState('')
@@ -80,19 +116,36 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
   const [posting, setPosting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [votingId, setVotingId] = useState<string | null>(null)
-  // Reply state — keyed by parentId so two open reply forms don't collide.
   const [replyOpenFor, setReplyOpenFor] = useState<string | null>(null)
   const [replyDraft, setReplyDraft] = useState('')
   const [replyPosting, setReplyPosting] = useState(false)
   const [replyErrorMsg, setReplyErrorMsg] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Attachment state — main compose form
+  const [pendingAttachMain, setPendingAttachMain] = useState<PendingAttach | null>(null)
+  const [uploadingMain, setUploadingMain] = useState(false)
+  const [uploadErrMain, setUploadErrMain] = useState<string | null>(null)
+  const fileInputMainRef = useRef<HTMLInputElement>(null)
+
+  // Attachment state — reply form
+  const [pendingAttachReply, setPendingAttachReply] = useState<PendingAttach | null>(null)
+  const [uploadingReply, setUploadingReply] = useState(false)
+  const [uploadErrReply, setUploadErrReply] = useState<string | null>(null)
+  const fileInputReplyRef = useRef<HTMLInputElement>(null)
+
+  // Voice recorder (shared — only one recording at a time)
+  const [recording, setRecording] = useState(false)
+  const [recordTarget, setRecordTarget] = useState<'main' | 'reply'>('main')
+  const [recordSec, setRecordSec] = useState(0)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const timerRef = useRef<number | null>(null)
+
   const refresh = useCallback(async () => {
     const [qRes, tRes, sRes] = await Promise.all([
       fetch(`/api/classroom/sessions/${sessionId}/pre-questions`, { credentials: 'include' }),
       fetch(`/api/classroom/sessions/${sessionId}/pre-questions/themes`, { credentials: 'include' }),
-      // Reuse the existing session GET (it already returns metadata for the
-      // prep panel) — no new endpoint needed.
       fetch(`/api/classroom/sessions/${sessionId}`, { credentials: 'include' }),
     ])
     const qJson = await qRes.json()
@@ -118,9 +171,97 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
 
   const getCsrf = () => decodeURIComponent(document.cookie.match(/vaidix-csrf=([^;]+)/)?.[1] ?? '')
 
+  async function uploadFile(file: File, target: 'main' | 'reply') {
+    if (file.size > 50 * 1024 * 1024) {
+      if (target === 'main') setUploadErrMain('File too large (50 MB max)')
+      else setUploadErrReply('File too large (50 MB max)')
+      return
+    }
+    if (target === 'main') { setUploadingMain(true); setUploadErrMain(null) }
+    else { setUploadingReply(true); setUploadErrReply(null) }
+    try {
+      const presignRes = await fetch(`/api/classroom/sessions/${sessionId}/files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrf() },
+        credentials: 'include',
+        body: JSON.stringify({ name: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }),
+      })
+      const presignJson = await presignRes.json()
+      if (!presignJson.ok) throw new Error(presignJson.error?.message ?? 'Reserve failed')
+
+      const { file: { id: fileId }, uploadUrl } = presignJson
+      const buf = await file.arrayBuffer()
+      const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: buf })
+      if (!putRes.ok) throw new Error('Upload failed')
+
+      const sha = await sha256Hex(buf)
+      const finalRes = await fetch(`/api/classroom/sessions/${sessionId}/files/${fileId}/finalize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrf() },
+        credentials: 'include',
+        body: JSON.stringify({ sha256: sha }),
+      })
+      const finalJson = await finalRes.json()
+      if (!finalJson.ok) throw new Error(finalJson.error?.message ?? 'Finalise failed')
+
+      const attach: PendingAttach = { id: fileId, name: file.name, type: file.type || 'application/octet-stream', sizeBytes: file.size }
+      if (target === 'main') setPendingAttachMain(attach)
+      else setPendingAttachReply(attach)
+    } catch (err) {
+      const msg = (err as Error).message ?? 'Upload failed'
+      if (target === 'main') setUploadErrMain(msg)
+      else setUploadErrReply(msg)
+    } finally {
+      if (target === 'main') setUploadingMain(false)
+      else setUploadingReply(false)
+      if (target === 'main' && fileInputMainRef.current) fileInputMainRef.current.value = ''
+      if (target === 'reply' && fileInputReplyRef.current) fileInputReplyRef.current.value = ''
+    }
+  }
+
+  async function startRecording(target: 'main' | 'reply') {
+    if (recording) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      chunksRef.current = []
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : 'audio/webm'
+      const rec = new MediaRecorder(stream, { mimeType })
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop())
+        if (timerRef.current) window.clearInterval(timerRef.current)
+        const blob = new Blob(chunksRef.current, { type: mimeType.split(';')[0] })
+        const ext = mimeType.includes('ogg') ? '.ogg' : '.webm'
+        const file = new File([blob], `voice-note${ext}`, { type: blob.type })
+        void uploadFile(file, target)
+        setRecording(false)
+        setRecordSec(0)
+      }
+      recorderRef.current = rec
+      setRecordTarget(target)
+      setRecording(true)
+      setRecordSec(0)
+      rec.start()
+      timerRef.current = window.setInterval(() => setRecordSec((s) => s + 1), 1000)
+    } catch {
+      if (target === 'main') setUploadErrMain('Microphone access denied')
+      else setUploadErrReply('Microphone access denied')
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop()
+    recorderRef.current = null
+  }
+
   const submit = async () => {
-    const content = draft.trim()
-    if (content.length < 5) { setErrorMsg('At least 5 characters needed'); return }
+    const textPart = draft.trim()
+    if (!textPart && !pendingAttachMain) { setErrorMsg('Write a question or attach a file'); return }
+    if (textPart && textPart.length < 5) { setErrorMsg('At least 5 characters needed'); return }
+    const content = pendingAttachMain
+      ? encodeAttach(pendingAttachMain.id, pendingAttachMain.name, pendingAttachMain.type, textPart)
+      : textPart
     setPosting(true)
     setErrorMsg(null)
     try {
@@ -134,6 +275,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
       if (!json.ok) { setErrorMsg(json.error?.message ?? 'Failed to submit'); return }
       setDraft('')
       setUrgency('NORMAL')
+      setPendingAttachMain(null)
       await refresh()
     } finally {
       setPosting(false)
@@ -162,17 +304,24 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
     setReplyOpenFor(parentId)
     setReplyDraft('')
     setReplyErrorMsg(null)
+    setPendingAttachReply(null)
+    setUploadErrReply(null)
   }
 
   const cancelReply = () => {
     setReplyOpenFor(null)
     setReplyDraft('')
     setReplyErrorMsg(null)
+    setPendingAttachReply(null)
   }
 
   const submitReply = async (parentId: string) => {
-    const content = replyDraft.trim()
-    if (content.length < 2) { setReplyErrorMsg('Reply too short'); return }
+    const textPart = replyDraft.trim()
+    if (!textPart && !pendingAttachReply) { setReplyErrorMsg('Write a reply or attach a file'); return }
+    if (textPart && textPart.length < 2) { setReplyErrorMsg('Reply too short'); return }
+    const content = pendingAttachReply
+      ? encodeAttach(pendingAttachReply.id, pendingAttachReply.name, pendingAttachReply.type, textPart)
+      : textPart
     setReplyPosting(true)
     setReplyErrorMsg(null)
     try {
@@ -191,14 +340,22 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
     }
   }
 
-  const canSubmit = draft.trim().length >= 5 && !posting
-  const canSubmitReply = replyDraft.trim().length >= 2 && !replyPosting
+  const canSubmit = (!draft.trim() && !pendingAttachMain) ? false : (!posting && !uploadingMain && !recording)
+  const canSubmitReply = (!replyDraft.trim() && !pendingAttachReply) ? false : (!replyPosting && !uploadingReply && !recording)
 
   const hasThemes = themes.length > 0
 
   return (
     <div className={hasThemes ? 'grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]' : 'space-y-5'}>
       <div className="space-y-5">
+
+        {/* Hidden file inputs */}
+        <input ref={fileInputMainRef} type="file" className="hidden"
+          accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.*,application/msword,text/plain,text/csv,audio/webm,audio/ogg"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadFile(f, 'main') }} />
+        <input ref={fileInputReplyRef} type="file" className="hidden"
+          accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.*,application/msword,text/plain,text/csv,audio/webm,audio/ogg"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadFile(f, 'reply') }} />
 
         {/* Compose */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -214,9 +371,6 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
           </div>
 
           <div className="p-4 space-y-3">
-            {/* presenter-published doubt prompts. Tapping a chip drops
-                the prompt into the textarea as a starter so the resident has
-                somewhere to go beyond a blank box. */}
             {doubtPrompts.length > 0 && (
               <div data-testid="doubt-prompts" className="rounded-xl border border-violet-200/60 bg-violet-50/40 px-3 py-2.5 dark:border-violet-800/30 dark:bg-violet-900/10">
                 <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-300">
@@ -224,21 +378,16 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {doubtPrompts.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        setDraft(p.text)
-                        textareaRef.current?.focus()
-                      }}
+                    <button key={p.id} onClick={() => { setDraft(p.text); textareaRef.current?.focus() }}
                       title="Use this as a starter"
-                      className="rounded-full border border-violet-200/70 bg-white px-2.5 py-1 text-[11px] font-medium text-violet-800 transition hover:bg-violet-100 dark:border-violet-700/40 dark:bg-card dark:text-violet-200"
-                    >
+                      className="rounded-full border border-violet-200/70 bg-white px-2.5 py-1 text-[11px] font-medium text-violet-800 transition hover:bg-violet-100 dark:border-violet-700/40 dark:bg-card dark:text-violet-200">
                       {p.text}
                     </button>
                   ))}
                 </div>
               </div>
             )}
+
             <textarea
               ref={textareaRef}
               value={draft}
@@ -249,6 +398,16 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
               maxLength={500}
               className="w-full resize-none rounded-xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition dark:bg-card/60"
             />
+
+            {/* Pending attachment preview */}
+            {pendingAttachMain && (
+              <AttachPreview attach={pendingAttachMain} onRemove={() => setPendingAttachMain(null)} />
+            )}
+            {uploadErrMain && (
+              <p className="flex items-center gap-1.5 text-[11px] text-destructive">
+                <AlertCircle className="size-3.5 shrink-0" />{uploadErrMain}
+              </p>
+            )}
 
             <div className="flex items-center justify-between gap-3">
               {/* Urgency chips */}
@@ -268,7 +427,28 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
                 })}
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Voice note button */}
+                {recording && recordTarget === 'main' ? (
+                  <button type="button" onClick={stopRecording}
+                    className="flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1.5 text-[11px] font-semibold text-white animate-pulse">
+                    <Square className="size-3 fill-current" />{recordSec}s
+                  </button>
+                ) : (
+                  <button type="button" disabled={uploadingMain || !!pendingAttachMain || recording}
+                    onClick={() => void startRecording('main')}
+                    title="Record voice note"
+                    className="flex items-center justify-center size-8 rounded-full border border-border/60 text-muted-foreground transition hover:border-primary/50 hover:text-primary disabled:opacity-40">
+                    {uploadingMain && recordTarget !== 'main' ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
+                  </button>
+                )}
+                {/* File attach button */}
+                <button type="button" disabled={uploadingMain || !!pendingAttachMain || recording}
+                  onClick={() => fileInputMainRef.current?.click()}
+                  title="Attach file"
+                  className="flex items-center justify-center size-8 rounded-full border border-border/60 text-muted-foreground transition hover:border-primary/50 hover:text-primary disabled:opacity-40">
+                  {uploadingMain ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+                </button>
                 <span className="text-[10px] text-muted-foreground">{draft.length}/500</span>
                 <button onClick={() => void submit()} disabled={!canSubmit}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-[12px] font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40">
@@ -318,13 +498,14 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
               {[...items].sort((a, b) => b.voteCount - a.voteCount).map((q, idx) => {
                 const isOwnQuestion = q.userId === currentUserId
                 const replyOpen = replyOpenFor === q.id
+                const { attach: qAttach, text: qText } = decodeContent(q.content)
                 return (
                   <motion.li key={q.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
                     className="rounded-2xl border border-border/60 bg-card transition-all hover:border-border hover:shadow-sm">
 
                     {/* Question row */}
                     <div className="flex items-start gap-4 px-4 py-4">
-                      {/* Vote button — Reddit/Quora style, clear affordance even when unvoted */}
+                      {/* Vote button */}
                       <button onClick={() => void toggleVote(q)} disabled={votingId === q.id || isOwnQuestion}
                         aria-label={q.votedByMe ? 'Remove upvote' : 'Upvote'}
                         aria-pressed={q.votedByMe}
@@ -343,7 +524,6 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
 
                       {/* Content */}
                       <div className="min-w-0 flex-1">
-                        {/* Author row */}
                         <div className="mb-1.5 flex items-center gap-2">
                           <AuthorAvatar name={q.authorName} isPresenter={q.isPresenter} />
                           <span className="text-[13px] font-semibold text-foreground">{q.authorName}</span>
@@ -356,7 +536,10 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
                             </span>
                           )}
                         </div>
-                        <p className="text-[15px] leading-relaxed text-foreground">{q.content}</p>
+                        {qText && <p className="text-[15px] leading-relaxed text-foreground">{qText}</p>}
+                        {qAttach && (
+                          <AttachChip sessionId={sessionId} attach={qAttach} />
+                        )}
                         {(q.urgency === 'HIGH' || q.themeLabel) && (
                           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                             {q.urgency === 'HIGH' && (
@@ -372,7 +555,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
                           </div>
                         )}
 
-                        {/* Reply action + replies count */}
+                        {/* Reply action */}
                         <div className="mt-3 flex items-center gap-3 text-[12px]">
                           <button onClick={() => replyOpen ? cancelReply() : openReplyFor(q.id)}
                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold transition ${
@@ -404,7 +587,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
                         >
                           <div className="px-4 py-3 pl-16 space-y-2.5">
                             {q.replies.map((r) => (
-                              <ReplyItem key={r.id} reply={r} />
+                              <ReplyItem key={r.id} reply={r} sessionId={sessionId} />
                             ))}
 
                             {replyOpen && (
@@ -416,6 +599,15 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
                                 posting={replyPosting}
                                 errorMsg={replyErrorMsg}
                                 canSubmit={canSubmitReply}
+                                pendingAttach={pendingAttachReply}
+                                uploading={uploadingReply}
+                                uploadError={uploadErrReply}
+                                onRemoveAttach={() => setPendingAttachReply(null)}
+                                recording={recording && recordTarget === 'reply'}
+                                recordSec={recordSec}
+                                onStartRecord={() => void startRecording('reply')}
+                                onStopRecord={stopRecording}
+                                onFileClick={() => fileInputReplyRef.current?.click()}
                               />
                             )}
                           </div>
@@ -430,7 +622,7 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
         </div>
       </div>
 
-      {/* Themes sidebar — only renders when AI has clustered something real */}
+      {/* Themes sidebar */}
       {hasThemes && (
         <aside className="space-y-3">
           <div className="flex items-center gap-2">
@@ -457,6 +649,58 @@ export function PreQuestionsBoard({ sessionId, currentUserId }: Props) {
   )
 }
 
+// ─── Attachment helpers ──────────────────────────────────────────────────────
+
+function AttachPreview({ attach, onRemove }: { attach: PendingAttach; onRemove: () => void }) {
+  const isAudio = attach.type.startsWith('audio/')
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-[12px]">
+      <span className="flex items-center gap-1.5 truncate text-foreground">
+        {isAudio ? <FileAudio className="size-3.5 shrink-0 text-teal-500" /> : <FileIcon className="size-3.5 shrink-0 text-muted-foreground" />}
+        <span className="truncate">{attach.name}</span>
+        <span className="shrink-0 text-muted-foreground">{formatBytes(attach.sizeBytes)}</span>
+      </span>
+      <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-foreground">
+        <X className="size-3.5" />
+      </button>
+    </div>
+  )
+}
+
+function AttachChip({ sessionId, attach }: { sessionId: string; attach: AttachMeta }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const isAudio = attach.t.startsWith('audio/')
+
+  const fetchUrl = async () => {
+    if (url) { window.open(url, '_blank'); return }
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/classroom/sessions/${sessionId}/files/${attach.id}`, { credentials: 'include' })
+      const json = await res.json()
+      if (json.ok) {
+        setUrl(json.data.file.downloadUrl)
+        window.open(json.data.file.downloadUrl, '_blank')
+      }
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <button type="button" onClick={() => void fetchUrl()}
+      className="mt-2 flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted/30 px-2.5 py-1.5 text-[12px] text-foreground transition hover:border-primary/40 hover:bg-primary/5">
+      {loading ? <Loader2 className="size-3.5 animate-spin" /> : isAudio ? <FileAudio className="size-3.5 text-teal-500" /> : <FileIcon className="size-3.5 text-muted-foreground" />}
+      <span className="truncate max-w-[200px]">{attach.n}</span>
+      <Download className="size-3 shrink-0 text-muted-foreground ml-1" />
+    </button>
+  )
+}
+
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / 1024 / 1024).toFixed(1)} MB`
+}
+
 // ─── Reply subcomponents ─────────────────────────────────────────────────────
 
 function AuthorAvatar({ name, isPresenter }: { name: string; isPresenter: boolean }) {
@@ -481,7 +725,8 @@ function PresenterBadge() {
   )
 }
 
-function ReplyItem({ reply }: { reply: PreQuestionReplyView }) {
+function ReplyItem({ reply, sessionId }: { reply: PreQuestionReplyView; sessionId: string }) {
+  const { attach, text } = decodeContent(reply.content)
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
@@ -500,13 +745,18 @@ function ReplyItem({ reply }: { reply: PreQuestionReplyView }) {
           <span className="text-[10px] text-muted-foreground/70">·</span>
           <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(reply.createdAt)}</span>
         </div>
-        <p className="text-[13px] leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word">{reply.content}</p>
+        {text && <p className="text-[13px] leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word">{text}</p>}
+        {attach && <AttachChip sessionId={sessionId} attach={attach} />}
       </div>
     </motion.div>
   )
 }
 
-function ReplyForm({ draft, setDraft, onSubmit, onCancel, posting, errorMsg, canSubmit }: {
+function ReplyForm({
+  draft, setDraft, onSubmit, onCancel, posting, errorMsg, canSubmit,
+  pendingAttach, uploading, uploadError, onRemoveAttach,
+  recording, recordSec, onStartRecord, onStopRecord, onFileClick,
+}: {
   draft: string
   setDraft: (s: string) => void
   onSubmit: () => void
@@ -514,6 +764,15 @@ function ReplyForm({ draft, setDraft, onSubmit, onCancel, posting, errorMsg, can
   posting: boolean
   errorMsg: string | null
   canSubmit: boolean
+  pendingAttach: PendingAttach | null
+  uploading: boolean
+  uploadError: string | null
+  onRemoveAttach: () => void
+  recording: boolean
+  recordSec: number
+  onStartRecord: () => void
+  onStopRecord: () => void
+  onFileClick: () => void
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
@@ -526,18 +785,47 @@ function ReplyForm({ draft, setDraft, onSubmit, onCancel, posting, errorMsg, can
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onSubmit()
           if (e.key === 'Escape') onCancel()
         }}
-        placeholder="Write a reply…"
+        placeholder="Write a reply… (text, voice note, or file)"
         rows={2}
         maxLength={2000}
         className="w-full resize-none rounded-lg border border-border/50 bg-background/80 px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground/60 focus:border-teal-400 focus:ring-2 focus:ring-teal-400/15 transition dark:bg-card/60"
       />
+
+      {pendingAttach && (
+        <div className="mt-2">
+          <AttachPreview attach={pendingAttach} onRemove={onRemoveAttach} />
+        </div>
+      )}
+      {uploadError && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-destructive">
+          <AlertCircle className="size-3.5 shrink-0" />{uploadError}
+        </p>
+      )}
+
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <kbd className="rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘↩</kbd>
-          to post
-          <span className="text-muted-foreground/50">·</span>
-          <kbd className="rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd>
-          cancel
+        <div className="flex items-center gap-1.5">
+          {/* Voice record */}
+          {recording ? (
+            <button type="button" onClick={onStopRecord}
+              className="flex items-center gap-1 rounded-full bg-rose-500 px-2 py-1 text-[10px] font-semibold text-white animate-pulse">
+              <Square className="size-2.5 fill-current" />{recordSec}s
+            </button>
+          ) : (
+            <button type="button" disabled={uploading || !!pendingAttach}
+              onClick={onStartRecord} title="Record voice note"
+              className="flex items-center justify-center size-6 rounded-full border border-border/50 text-muted-foreground transition hover:border-teal-400 hover:text-teal-600 disabled:opacity-40">
+              {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Mic className="size-3.5" />}
+            </button>
+          )}
+          {/* File attach */}
+          <button type="button" disabled={uploading || !!pendingAttach || recording}
+            onClick={onFileClick} title="Attach file"
+            className="flex items-center justify-center size-6 rounded-full border border-border/50 text-muted-foreground transition hover:border-teal-400 hover:text-teal-600 disabled:opacity-40">
+            {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Paperclip className="size-3.5" />}
+          </button>
+          <span className="text-[9px] text-muted-foreground/60">
+            <kbd className="rounded border border-border/60 bg-muted px-1 py-0.5 font-mono text-[9px]">⌘↩</kbd> post
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-muted-foreground tabular-nums">{draft.length}/2000</span>

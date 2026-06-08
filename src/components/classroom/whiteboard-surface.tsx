@@ -81,6 +81,8 @@ const TldrawSurface = forwardRef<SurfaceHandle, SurfaceProps>(function TldrawSur
   const handleMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor
+      // Apply initial readOnly state immediately after mount.
+      editor.updateInstanceState({ isReadonly: !!readOnly })
       // Subscribe to store changes for the parent's debounced save.
       // tldraw v5 exposes store.listen() which fires for every commit.
       editor.store.listen(
@@ -91,8 +93,18 @@ const TldrawSurface = forwardRef<SurfaceHandle, SurfaceProps>(function TldrawSur
       )
       onMount(handleRef.current)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onMount]
   )
+
+  // Toggle readOnly imperatively so we never remount tldraw (which causes a
+  // visible blank-canvas flicker). Changing the `key` prop would unmount+remount
+  // the whole editor — expensive and jarring for the user.
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.updateInstanceState({ isReadonly: !!readOnly })
+  }, [readOnly])
 
   return (
     // Absolute positioning inside the panel's `relative` container ensures
@@ -101,11 +113,7 @@ const TldrawSurface = forwardRef<SurfaceHandle, SurfaceProps>(function TldrawSur
     // h-full!/w-full! Tailwind v4 syntax had no effect in v3, leaving tldraw
     // with height:0 during the sidebar slide-in animation.
     <div style={{ position: 'absolute', inset: 0 }}>
-      <Tldraw
-        onMount={handleMount}
-        hideUi={false}
-        key={readOnly ? 'ro' : 'rw'}
-      />
+      <Tldraw onMount={handleMount} hideUi={false} />
     </div>
   )
 })
